@@ -20,12 +20,14 @@ import {
 } from 'lucide-react';
 import { 
   OrbitalObject, 
+  ObjectType,
   Conjunction, 
   OrbitalPosition, 
   TrajectoryResponse, 
   GroundTrackResponse 
 } from '../types';
 import { api } from '../services/api';
+import * as satellite from 'satellite.js';
 
 interface SpaceViewProps {
   objects: OrbitalObject[];
@@ -138,46 +140,33 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const orbitRingsGroupRef = useRef<THREE.Group | null>(null);
   const animationFrameId = useRef<number | null>(null);
 
-  // Fallback initial positions from objects prop if API batch is pending
+  const simTimeRef = useRef<Date>(simTime);
+  const satrecMapRef = useRef<Map<number, { satrec: any; name: string; type: ObjectType; norad_id: number }>>(new Map());
+
   useEffect(() => {
-    if (objects.length > 0 && livePositionsRef.current.length === 0) {
-      const initial: OrbitalPosition[] = objects.map((obj, i) => {
-        const alt = obj.perigee_km || 550 + (i % 800);
-        const r = 6371 + alt;
-        const inc = ((obj.inclination || 45 + (i % 60)) * Math.PI) / 180;
-        const raan = ((i * 137.5) * Math.PI) / 180;
-        const trueAnomaly = ((i * 45) * Math.PI) / 180;
+    simTimeRef.current = simTime;
+  }, [simTime]);
 
-        const x = r * (Math.cos(raan) * Math.cos(trueAnomaly) - Math.sin(raan) * Math.sin(trueAnomaly) * Math.cos(inc));
-        const y = r * (Math.sin(raan) * Math.cos(trueAnomaly) + Math.cos(raan) * Math.sin(trueAnomaly) * Math.cos(inc));
-        const z = r * (Math.sin(trueAnomaly) * Math.sin(inc));
-
-        const vOrb = Math.sqrt(398600.4418 / r);
-        const vx = -vOrb * Math.sin(trueAnomaly);
-        const vy = vOrb * Math.cos(trueAnomaly);
-        const vz = vOrb * Math.sin(inc) * 0.5;
-
-        return {
-          timestamp: new Date().toISOString(),
-          norad_id: obj.norad_id,
-          name: obj.name,
-          type: obj.object_type,
-          x_km: x,
-          y_km: y,
-          z_km: z,
-          vx_km_s: vx,
-          vy_km_s: vy,
-          vz_km_s: vz,
-          alt_km: alt,
-          velocity_km_s: vOrb,
-          lat: 0,
-          lon: 0,
-          lat_deg: 0,
-          lon_deg: 0
-        };
+  // Parse Real Two-Line Elements (TLEs) into SGP4 Satrec records
+  useEffect(() => {
+    if (objects && objects.length > 0) {
+      objects.forEach((obj) => {
+        if (obj.tle_line1 && obj.tle_line2) {
+          try {
+            const satrec = satellite.twoline2satrec(obj.tle_line1, obj.tle_line2);
+            if (satrec && (satrec as any).error === 0) {
+              satrecMapRef.current.set(obj.norad_id, {
+                satrec,
+                name: obj.name,
+                type: obj.object_type,
+                norad_id: obj.norad_id
+              });
+            }
+          } catch (e) {
+            // Ignore malformed TLE
+          }
+        }
       });
-      setPositions(initial);
-      livePositionsRef.current = initial;
     }
   }, [objects]);
 
@@ -189,10 +178,9 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         const batch = await api.getBatchPositions(simTime.toISOString(), 1500);
         if (isMounted && batch.positions && batch.positions.length > 0) {
           setPositions(batch.positions);
-          // Clone for real-time GPU/CPU propagation
-          livePositionsRef.current = batch.positions.map((p) => ({ ...p }));
+          livePositionsRef.current = batch.positions.map((p: OrbitalPosition) => ({ ...p }));
           if (selectedObject) {
-            const current = batch.positions.find((p) => p.norad_id === selectedObject.norad_id);
+            const current = batch.positions.find((p: OrbitalPosition) => p.norad_id === selectedObject.norad_id);
             if (current) setSelectedPos(current);
           }
         }
@@ -590,98 +578,134 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       controls.update();
 
       const delta = clock.getDelta();
-      const speed = isPlayingRef.current ? simSpeedRef.current : 0;
       tumbleAngle += delta * 2.5;
 
-      // CONTINUOUS ORBITAL PROPAGATION AT 60 FPS
-      if (livePositionsRef.current.length > 0) {
-        const dt = delta * speed;
-        const dummy = new THREE.Object3D();
-        const currentVisible: OrbitalPosition[] = [];
+      // SGP4 LIVE EPHEMERIS PROPAGATION AT 60 FPS
+      const currentSimDate = simTimeRef.current || new Date();
+      const gmst = satellite.gstime(currentSimDate);
+      const dummy = new THREE.Object3D();
+      const currentVisible: OrbitalPosition[] = [];
 
-        let satIdx = 0;
-        let starlinkIdx = 0;
-        let debrisIdx = 0;
-        let rocketIdx = 0;
+      let satIdx = 0;
+      let starlinkIdx = 0;
+      let debrisIdx = 0;
+      let rocketIdx = 0;
 
-        const mu = 398600.4418; // Earth gravitational parameter km^3/s^2
+      if (satrecMapRef.current.size > 0) {
+        satrecMapRef.current.forEach((item) => {
+          try {
+            const pv = satellite.propagate(item.satrec, currentSimDate);
+            if (!pv || !pv.position || typeof pv.position === 'boolean') return;
 
+            const pEci = pv.position;
+            const vEci = pv.velocity;
+            const ecf = satellite.eciToEcf(pEci, gmst);
+            const geodetic = satellite.eciToGeodetic(pEci, gmst);
+
+            const lat = satellite.degreesLat(geodetic.latitude);
+            const lon = satellite.degreesLong(geodetic.longitude);
+            const alt = Math.max(120, geodetic.height);
+
+            let vx = 0, vy = 0, vz = 0, vSpeed = 7.65;
+            if (vEci && typeof vEci !== 'boolean') {
+              vx = vEci.x;
+              vy = vEci.y;
+              vz = vEci.z;
+              vSpeed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+            }
+
+            // Three.js coordinates mapped to stationary WGS84 Blue Marble Earth
+            const x3d = ecf.x / 1000;
+            const y3d = ecf.z / 1000;
+            const z3d = -ecf.y / 1000;
+
+            const pos: OrbitalPosition = {
+              timestamp: currentSimDate.toISOString(),
+              norad_id: item.norad_id,
+              name: item.name,
+              type: item.type,
+              x_km: ecf.x,
+              y_km: ecf.y,
+              z_km: ecf.z,
+              vx_km_s: vx,
+              vy_km_s: vy,
+              vz_km_s: vz,
+              alt_km: alt,
+              velocity_km_s: vSpeed,
+              lat: lat,
+              lon: lon
+            };
+
+            // Apply Fleet & Altitude Filters
+            const nameUpper = (pos.name || '').toUpperCase();
+            const isStarlink = nameUpper.includes('STARLINK');
+            const isOneWeb = nameUpper.includes('ONEWEB');
+            const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO');
+
+            if (isDebrisMode && pos.type !== 'DEBRIS') return;
+            if (activeFleetFilter === 'STARLINK' && !isStarlink) return;
+            if (activeFleetFilter === 'ONEWEB' && !isOneWeb) return;
+            if (activeFleetFilter === 'GPS' && !isGps) return;
+            if (activeFleetFilter === 'DEBRIS' && pos.type !== 'DEBRIS') return;
+            if (activeFleetFilter === 'PAYLOAD' && pos.type !== 'ACTIVE_SATELLITE') return;
+            if (activeFleetFilter === 'ROCKET' && pos.type !== 'ROCKET_BODY') return;
+
+            if (altitudeFilter === 'LEO' && pos.alt_km > 2000) return;
+            if (altitudeFilter === 'MEO' && (pos.alt_km <= 2000 || pos.alt_km > 20000)) return;
+            if (altitudeFilter === 'GEO' && pos.alt_km <= 20000) return;
+
+            currentVisible.push(pos);
+
+            dummy.position.set(x3d, y3d, z3d);
+            const isSelected = selectedObject?.norad_id === pos.norad_id;
+            const scale = isSelected ? 3.4 : 1.15;
+            dummy.scale.set(scale, scale, scale);
+
+            if (pos.type === 'DEBRIS') {
+              if (debrisMeshRef.current && debrisIdx < maxInst) {
+                dummy.rotation.set(tumbleAngle * 0.8 + pos.norad_id, tumbleAngle * 1.2, tumbleAngle * 0.5);
+                dummy.updateMatrix();
+                debrisMeshRef.current.setMatrixAt(debrisIdx, dummy.matrix);
+                debrisIdx++;
+              }
+            } else if (pos.type === 'ROCKET_BODY') {
+              if (rocketMeshRef.current && rocketIdx < maxInst) {
+                dummy.rotation.set(0.3, tumbleAngle * 0.3 + pos.norad_id, 0);
+                dummy.updateMatrix();
+                rocketMeshRef.current.setMatrixAt(rocketIdx, dummy.matrix);
+                rocketIdx++;
+              }
+            } else if (isStarlink || isOneWeb) {
+              if (starlinkMeshRef.current && starlinkIdx < maxInst) {
+                dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
+                dummy.updateMatrix();
+                starlinkMeshRef.current.setMatrixAt(starlinkIdx, dummy.matrix);
+                starlinkIdx++;
+              }
+            } else {
+              if (satMeshRef.current && satIdx < maxInst) {
+                dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
+                dummy.updateMatrix();
+                satMeshRef.current.setMatrixAt(satIdx, dummy.matrix);
+                satIdx++;
+              }
+            }
+
+            if (isSelected) {
+              selectedPosRef.current = pos;
+            }
+          } catch (e) {
+            // Ignore propagation calculation error for expired orbital epochs
+          }
+        });
+      } else if (livePositionsRef.current.length > 0) {
+        // Fallback propagation using backend SGP4 batch positions
         livePositionsRef.current.forEach((pos) => {
-          let rx = pos.x_km;
-          let ry = pos.y_km;
-          let rz = pos.z_km;
-          let r = Math.sqrt(rx * rx + ry * ry + rz * rz);
-          if (r < 6400) r = 6700;
-
-          let vx = pos.vx_km_s || 0;
-          let vy = pos.vy_km_s || 0;
-          let vz = pos.vz_km_s || 0;
-
-          // If velocity vector is missing, initialize true tangential velocity perpendicular to r
-          const vMag = Math.sqrt(vx * vx + vy * vy + vz * vz);
-          if (vMag < 1.0) {
-            const vOrb = Math.sqrt(mu / r);
-            const incRad = (((pos.norad_id * 17) % 95) + 15) * (Math.PI / 180);
-            vx = -vOrb * Math.sin(incRad) * (ry / r);
-            vy = vOrb * Math.cos(incRad) * (rx / r);
-            vz = vOrb * Math.sin(incRad);
-            pos.vx_km_s = vx;
-            pos.vy_km_s = vy;
-            pos.vz_km_s = vz;
-          }
-
-          if (dt > 0) {
-            // True Newtonian Orbital Propagation (Symplectic Verlet Integrator)
-            const ax = -(mu / (r * r * r)) * rx;
-            const ay = -(mu / (r * r * r)) * ry;
-            const az = -(mu / (r * r * r)) * rz;
-
-            rx += vx * dt + 0.5 * ax * dt * dt;
-            ry += vy * dt + 0.5 * ay * dt * dt;
-            rz += vz * dt + 0.5 * az * dt * dt;
-
-            const rNew = Math.sqrt(rx * rx + ry * ry + rz * rz);
-            const axNew = -(mu / (rNew * rNew * rNew)) * rx;
-            const ayNew = -(mu / (rNew * rNew * rNew)) * ry;
-            const azNew = -(mu / (rNew * rNew * rNew)) * rz;
-
-            vx += 0.5 * (ax + axNew) * dt;
-            vy += 0.5 * (ay + ayNew) * dt;
-            vz += 0.5 * (az + azNew) * dt;
-
-            pos.x_km = rx;
-            pos.y_km = ry;
-            pos.z_km = rz;
-            pos.vx_km_s = vx;
-            pos.vy_km_s = vy;
-            pos.vz_km_s = vz;
-            pos.alt_km = rNew - 6371;
-          }
-
-          // Apply Fleet & Altitude Filters
-          const nameUpper = (pos.name || '').toUpperCase();
-          const isStarlink = nameUpper.includes('STARLINK');
-          const isOneWeb = nameUpper.includes('ONEWEB');
-          const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO');
-
-          if (isDebrisMode && pos.type !== 'DEBRIS') return;
-          if (activeFleetFilter === 'STARLINK' && !isStarlink) return;
-          if (activeFleetFilter === 'ONEWEB' && !isOneWeb) return;
-          if (activeFleetFilter === 'GPS' && !isGps) return;
-          if (activeFleetFilter === 'DEBRIS' && pos.type !== 'DEBRIS') return;
-          if (activeFleetFilter === 'PAYLOAD' && pos.type !== 'ACTIVE_SATELLITE') return;
-          if (activeFleetFilter === 'ROCKET' && pos.type !== 'ROCKET_BODY') return;
-
-          if (altitudeFilter === 'LEO' && pos.alt_km > 2000) return;
-          if (altitudeFilter === 'MEO' && (pos.alt_km <= 2000 || pos.alt_km > 20000)) return;
-          if (altitudeFilter === 'GEO' && pos.alt_km <= 20000) return;
-
-          currentVisible.push(pos);
-
           const x3d = pos.x_km / 1000;
           const y3d = pos.z_km / 1000;
           const z3d = -pos.y_km / 1000;
 
+          currentVisible.push(pos);
           dummy.position.set(x3d, y3d, z3d);
           const isSelected = selectedObject?.norad_id === pos.norad_id;
           const scale = isSelected ? 3.4 : 1.15;
@@ -701,13 +725,6 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               rocketMeshRef.current.setMatrixAt(rocketIdx, dummy.matrix);
               rocketIdx++;
             }
-          } else if (isStarlink || isOneWeb) {
-            if (starlinkMeshRef.current && starlinkIdx < maxInst) {
-              dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
-              dummy.updateMatrix();
-              starlinkMeshRef.current.setMatrixAt(starlinkIdx, dummy.matrix);
-              starlinkIdx++;
-            }
           } else {
             if (satMeshRef.current && satIdx < maxInst) {
               dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
@@ -717,25 +734,25 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             }
           }
         });
+      }
 
-        visiblePositionsRef.current = currentVisible;
+      visiblePositionsRef.current = currentVisible;
 
-        if (satMeshRef.current) {
-          satMeshRef.current.count = satIdx;
-          satMeshRef.current.instanceMatrix.needsUpdate = true;
-        }
-        if (starlinkMeshRef.current) {
-          starlinkMeshRef.current.count = starlinkIdx;
-          starlinkMeshRef.current.instanceMatrix.needsUpdate = true;
-        }
-        if (debrisMeshRef.current) {
-          debrisMeshRef.current.count = debrisIdx;
-          debrisMeshRef.current.instanceMatrix.needsUpdate = true;
-        }
-        if (rocketMeshRef.current) {
-          rocketMeshRef.current.count = rocketIdx;
-          rocketMeshRef.current.instanceMatrix.needsUpdate = true;
-        }
+      if (satMeshRef.current) {
+        satMeshRef.current.count = satIdx;
+        satMeshRef.current.instanceMatrix.needsUpdate = true;
+      }
+      if (starlinkMeshRef.current) {
+        starlinkMeshRef.current.count = starlinkIdx;
+        starlinkMeshRef.current.instanceMatrix.needsUpdate = true;
+      }
+      if (debrisMeshRef.current) {
+        debrisMeshRef.current.count = debrisIdx;
+        debrisMeshRef.current.instanceMatrix.needsUpdate = true;
+      }
+      if (rocketMeshRef.current) {
+        rocketMeshRef.current.count = rocketIdx;
+        rocketMeshRef.current.instanceMatrix.needsUpdate = true;
       }
 
       // Follow Camera Mode
