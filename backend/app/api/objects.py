@@ -30,6 +30,13 @@ Base.metadata.create_all(bind=engine)
 
 router = APIRouter(prefix="/api", tags=["Orbital Objects & Telemetry"])
 
+def _find_object(db: Session, obj_id: int) -> Optional[OrbitalObject]:
+    """Finds object by NORAD ID first, then by internal DB ID."""
+    obj = db.query(OrbitalObject).filter(OrbitalObject.norad_id == obj_id).first()
+    if not obj:
+        obj = db.query(OrbitalObject).filter(OrbitalObject.id == obj_id).first()
+    return obj
+
 @router.post("/data/sync")
 @router.post("/data/refresh")
 async def sync_orbital_data(
@@ -37,7 +44,7 @@ async def sync_orbital_data(
     db: Session = Depends(get_db)
 ):
     """
-    Synchronizes the orbital catalog from CelesTrak public feeds (or local demo cache).
+    Synchronizes the orbital catalog from live Space-Track / SatNOGS / CelesTrak feeds.
     Never silently fakes live data.
     """
     records, source_name, status_mode, error_msg = await TLEService.fetch_tle_data(mode=mode)
@@ -48,7 +55,7 @@ async def sync_orbital_data(
             source=source_name,
             status="FAILED",
             total_synced=0,
-            error_message=error_msg or "Failed to connect to CelesTrak",
+            error_message=error_msg or "Failed to connect to live providers",
             created_at=datetime.utcnow()
         )
         db.add(log)
@@ -57,7 +64,7 @@ async def sync_orbital_data(
             "status": "error",
             "data_source": source_name,
             "mode": "LIVE ERROR",
-            "error_detail": error_msg or "CelesTrak endpoints unreachable. You may retry or explicitly choose DEMO MODE.",
+            "error_detail": error_msg or "Live endpoints unreachable. You may retry or choose DEMO MODE.",
             "total_objects": db.query(OrbitalObject).count()
         }
 
@@ -103,7 +110,7 @@ def get_data_status(db: Session = Depends(get_db)):
 @router.get("/objects/positions", response_model=PositionsBatchResponse)
 def get_batch_positions(
     timestamp: Optional[datetime] = None,
-    limit: int = Query(500, ge=1, le=2000),
+    limit: int = Query(600, ge=1, le=3000),
     db: Session = Depends(get_db)
 ):
     """
@@ -178,10 +185,7 @@ def list_orbital_objects(
 @router.get("/objects/{id}/details", response_model=OrbitalObjectResponse)
 def get_orbital_object_details(id: int, db: Session = Depends(get_db)):
     """Retrieves full telemetry, orbital parameters, and Keplerian elements by ID or NORAD."""
-    obj = db.query(OrbitalObject).filter(
-        (OrbitalObject.id == id) | (OrbitalObject.norad_id == id)
-    ).first()
-    
+    obj = _find_object(db, id)
     if not obj:
         raise HTTPException(status_code=404, detail=f"Orbital object with ID/NORAD {id} not found")
     return obj
@@ -193,10 +197,7 @@ def get_object_current_position(
     db: Session = Depends(get_db)
 ):
     """Computes real-time 3D and geodetic orbital position using SGP4 analytical propagation."""
-    obj = db.query(OrbitalObject).filter(
-        (OrbitalObject.id == id) | (OrbitalObject.norad_id == id)
-    ).first()
-    
+    obj = _find_object(db, id)
     if not obj:
         raise HTTPException(status_code=404, detail=f"Orbital object with ID/NORAD {id} not found")
 
@@ -223,10 +224,7 @@ def get_object_trajectory(
     db: Session = Depends(get_db)
 ):
     """Computes real SGP4 future orbital trajectory points over a selectable time window."""
-    obj = db.query(OrbitalObject).filter(
-        (OrbitalObject.id == id) | (OrbitalObject.norad_id == id)
-    ).first()
-    
+    obj = _find_object(db, id)
     if not obj:
         raise HTTPException(status_code=404, detail=f"Orbital object with ID/NORAD {id} not found")
 
@@ -261,10 +259,7 @@ def get_object_ground_track(
     db: Session = Depends(get_db)
 ):
     """Computes projected sub-satellite ground track path over Earth's surface."""
-    obj = db.query(OrbitalObject).filter(
-        (OrbitalObject.id == id) | (OrbitalObject.norad_id == id)
-    ).first()
-    
+    obj = _find_object(db, id)
     if not obj:
         raise HTTPException(status_code=404, detail=f"Orbital object with ID/NORAD {id} not found")
 

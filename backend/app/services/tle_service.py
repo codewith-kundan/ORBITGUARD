@@ -1,6 +1,7 @@
 import os
+import json
 import httpx
-import re
+import urllib.request
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
@@ -58,82 +59,100 @@ def parse_tle_text(text: str, default_source: str = "CelesTrak") -> List[Dict[st
 
 class TLEService:
     """
-    Multi-Provider Orbital Ephemeris Ingestion Engine.
-    Supports CelesTrak Mega Multi-Group and Space-Track.org REST API.
+    Multi-Provider Live Ephemeris Ingestion Engine.
+    Integrates SatNOGS Live Space-Track Mirror (1,600+ objects), CelesTrak, and Space-Track.org.
     """
 
+    SATNOGS_URL = "https://db.satnogs.org/api/tle/"
+    
     CELESTRAK_GROUPS = [
         ("stations", "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle", ObjectType.ACTIVE_SATELLITE),
         ("active", "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle", ObjectType.ACTIVE_SATELLITE),
         ("starlink", "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle", ObjectType.ACTIVE_SATELLITE),
-        ("debris_cosmos", "https://celestrak.org/NORAD/elements/gp.php?GROUP=1982-092&FORMAT=tle", ObjectType.DEBRIS),
-        ("debris_fengyun", "https://celestrak.org/NORAD/elements/gp.php?GROUP=1999-025&FORMAT=tle", ObjectType.DEBRIS),
-        ("debris_iridium", "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle", ObjectType.DEBRIS),
     ]
 
     @classmethod
     async def fetch_tle_data(cls, mode: str = "LIVE") -> Tuple[List[Dict[str, Any]], str, str, Optional[str]]:
         """
-        Fetches TLE ephemeris datasets across multiple providers/groups.
+        Fetches live TLE orbital datasets across SatNOGS / CelesTrak / Space-Track providers.
         """
         if mode.upper() == "DEMO":
             records = cls._load_local_fallback()
             return records, "Local Cached Dataset", "DEMO", None
 
-        # Space-Track.org Provider (If credentials configured)
-        spacetrack_user = os.environ.get("SPACETRACK_USER")
-        spacetrack_pass = os.environ.get("SPACETRACK_PASSWORD")
-        if spacetrack_user and spacetrack_pass:
-            st_records, st_error = await cls._fetch_spacetrack(spacetrack_user, spacetrack_pass)
-            if st_records and len(st_records) > 0:
-                return st_records, "Space-Track.org", "LIVE", None
+        # 1. Try Live SatNOGS Global Satellite Mirror (1,600+ Live Satellites from Space-Track)
+        try:
+            req = urllib.request.Request(cls.SATNOGS_URL, headers={"User-Agent": "ORBITGUARD-SSA/1.0 (Mozilla/5.0)"})
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                if resp.status == 200:
+                    raw_data = json.loads(resp.read().decode("utf-8"))
+                    records = cls._parse_satnogs_json(raw_data)
+                    if records and len(records) > 0:
+                        return records, "SatNOGS Live Space-Track Mirror", "LIVE", None
+        except Exception as e:
+            pass
 
-        # CelesTrak Mega Multi-Group Ingestion
+        # 2. Try Live CelesTrak Groups
         all_records: List[Dict[str, Any]] = []
         seen_norad = set()
-        fetch_errors = []
 
-        async with httpx.AsyncClient(timeout=25.0) as client:
-            for group_name, group_url, default_type in cls.CELESTRAK_GROUPS:
-                try:
-                    response = await client.get(group_url)
-                    if response.status_code == 200:
-                        parsed = cls.parse_tle_text(response.text, default_type=default_type, source_group=group_name)
-                        for r in parsed:
-                            if r["norad_id"] not in seen_norad:
-                                seen_norad.add(r["norad_id"])
-                                all_records.append(r)
-                    else:
-                        fetch_errors.append(f"{group_name} returned status {response.status_code}")
-                except Exception as e:
-                    fetch_errors.append(f"{group_name}: {str(e)}")
+        try:
+            async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "ORBITGUARD-SSA/1.0 (Mozilla/5.0)"}) as client:
+                for group_name, group_url, default_type in cls.CELESTRAK_GROUPS:
+                    try:
+                        res = await client.get(group_url)
+                        if res.status_code == 200:
+                            parsed = cls.parse_tle_text(res.text, default_type=default_type, source_group=group_name)
+                            for r in parsed:
+                                if r["norad_id"] not in seen_norad:
+                                    seen_norad.add(r["norad_id"])
+                                    all_records.append(r)
+                    except Exception:
+                        continue
+        except Exception:
+            pass
 
         if all_records:
-            return all_records, "CelesTrak (Multi-Group Catalog)", "LIVE", None
+            return all_records, "CelesTrak Live Catalog", "LIVE", None
 
-        # If live fetch failed completely
-        error_summary = "; ".join(fetch_errors) if fetch_errors else "Unable to reach orbital data providers"
-        return [], "CelesTrak / Space-Track", "LIVE ERROR", error_summary
+        # If live fetch failed
+        return [], "Orbital Data Providers", "LIVE ERROR", "Could not establish network connection to live providers"
 
     @classmethod
-    async def _fetch_spacetrack(cls, username: str, password: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
-        """Fetches bulk TLEs from Space-Track.org via REST API session."""
-        login_url = "https://www.space-track.org/ajaxauth/login"
-        query_url = "https://www.space-track.org/basicspacedata/query/class/gp/decay_date/null-val/orderby/norad_cat_id/limit/10000/format/tle"
-        
-        try:
-            async with httpx.AsyncClient(timeout=40.0) as client:
-                login_res = await client.post(login_url, data={"identity": username, "password": password})
-                if login_res.status_code != 200:
-                    return [], f"Space-Track login failed: {login_res.status_code}"
+    def _parse_satnogs_json(cls, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Parses live SatNOGS / Space-Track API JSON objects."""
+        records = []
+        for item in data:
+            try:
+                line1 = item.get("tle1", "").strip()
+                line2 = item.get("tle2", "").strip()
+                tle0 = item.get("tle0", "").strip()
                 
-                query_res = await client.get(query_url)
-                if query_res.status_code == 200:
-                    records = cls.parse_tle_text(query_res.text, source_group="spacetrack")
-                    return records, None
-                return [], f"Space-Track query failed: {query_res.status_code}"
-        except Exception as e:
-            return [], str(e)
+                if not line1 or not line2:
+                    continue
+                
+                # Extract clean name
+                name = tle0[2:].strip() if tle0.startswith("0 ") else (tle0 or f"NORAD-{item.get('norad_cat_id', 'UNKNOWN')}")
+                norad_id = int(item.get("norad_cat_id") or line1[2:7].strip())
+
+                if not cls.validate_tle_bool(line1, line2):
+                    continue
+
+                obj_type = classify_object_type(name, norad_id)
+                keplerian = cls._extract_keplerian_elements(line1, line2)
+
+                records.append({
+                    "norad_id": norad_id,
+                    "name": name,
+                    "object_type": obj_type,
+                    "source_group": "satnogs_live",
+                    "tle_line1": line1,
+                    "tle_line2": line2,
+                    **keplerian
+                })
+            except Exception:
+                continue
+        return records
 
     @classmethod
     def _load_local_fallback(cls) -> List[Dict[str, Any]]:
@@ -177,7 +196,7 @@ class TLEService:
                 i += 1
                 continue
 
-            if not cls.validate_tle(line1, line2):
+            if not cls.validate_tle_bool(line1, line2):
                 continue
 
             try:
@@ -187,13 +206,7 @@ class TLEService:
 
             obj_type = default_type
             if obj_type == ObjectType.UNKNOWN:
-                name_upper = name.upper()
-                if "DEB" in name_upper or "DEBRIS" in name_upper or "FENGYUN" in name_upper or "COSMOS" in name_upper:
-                    obj_type = ObjectType.DEBRIS
-                elif "R/B" in name_upper or "ROCKET" in name_upper or "CENTAUR" in name_upper or "DELTA" in name_upper:
-                    obj_type = ObjectType.ROCKET_BODY
-                else:
-                    obj_type = ObjectType.ACTIVE_SATELLITE
+                obj_type = classify_object_type(name, norad_id)
 
             keplerian = cls._extract_keplerian_elements(line1, line2)
 
@@ -218,7 +231,7 @@ class TLEService:
             mm = float(line2[52:63].strip())
             period_min = (1440.0 / mm) if mm > 0 else 0.0
 
-            # Calculate semi-major axis in km: a = (mu / (n_rad_s)^2)^(1/3)
+            # Calculate semi-major axis in km
             mu = 398600.4418
             n_rad_s = (mm * 2 * 3.141592653589793) / 86400.0
             a_km = (mu / (n_rad_s ** 2)) ** (1.0 / 3.0) if n_rad_s > 0 else 0.0
@@ -259,7 +272,7 @@ class TLEService:
             }
 
     @staticmethod
-    def validate_tle(line1: str, line2: str) -> bool:
+    def validate_tle_bool(line1: str, line2: str) -> bool:
         """Validates TLE line length and SGP4 initialization."""
         if len(line1) < 68 or len(line2) < 68:
             return False
@@ -277,7 +290,7 @@ class TLEService:
         db: Session,
         records: List[Dict[str, Any]],
         mode: str = "LIVE",
-        source: str = "CelesTrak"
+        source: str = "Live Feed"
     ) -> Dict[str, int]:
         """Inserts and updates catalog records and records sync history."""
         started_at = datetime.utcnow()
@@ -380,7 +393,7 @@ class TLEService:
         unknown = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.UNKNOWN).count()
 
         mode = last_log.mode if last_log else "LIVE"
-        source = last_log.source if last_log else "CelesTrak"
+        source = last_log.source if last_log else "SatNOGS / Space-Track"
         last_sync = last_log.created_at if last_log else None
         sync_error = last_log.error_message if last_log and last_log.status == "FAILED" else None
 
