@@ -16,7 +16,9 @@ import {
   Minimize2,
   Crosshair,
   Grid,
-  Search
+  Search,
+  FastForward,
+  Clock
 } from 'lucide-react';
 
 interface OrbitViewer3DProps {
@@ -30,70 +32,166 @@ interface OrbitViewer3DProps {
 
 const EARTH_RADIUS = 6.371; // Scale: 1 unit = 1000 km
 
-// Generate realistic colorful procedural Earth texture on canvas
-function createEarthCanvasTexture(): THREE.CanvasTexture {
+// Astronomical Solar Direction calculation from UTC Date
+function calculateSunDirection(utcDate: Date): THREE.Vector3 {
+  const jd = utcDate.getTime() / 86400000.0 + 2440587.5;
+  const d = jd - 2451545.0; // Days since J2000.0
+
+  // Mean anomaly of the Sun
+  const g = (357.529 + 0.98560028 * d) * (Math.PI / 180.0);
+  // Mean longitude of the Sun
+  const q = 280.459 + 0.98564736 * d;
+  // Ecliptic longitude
+  const l = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2.0 * g)) * (Math.PI / 180.0);
+  // Obliquity of the ecliptic
+  const e = (23.439 - 0.00000036 * d) * (Math.PI / 180.0);
+
+  const x = Math.cos(l);
+  const y = Math.sin(l) * Math.cos(e);
+  const z = Math.sin(l) * Math.sin(e);
+
+  return new THREE.Vector3(x, z, -y).normalize();
+}
+
+// Generate Realistic High-Resolution Earth Day Surface Canvas Texture
+function createEarthDayTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 2048;
   canvas.height = 1024;
   const ctx = canvas.getContext('2d')!;
 
-  // Deep ocean gradient
+  // Deep Blue Ocean base
   const oceanGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
   oceanGrad.addColorStop(0, '#04132b');
-  oceanGrad.addColorStop(0.3, '#0b3168');
-  oceanGrad.addColorStop(0.5, '#0e4184');
-  oceanGrad.addColorStop(0.7, '#0b3168');
+  oceanGrad.addColorStop(0.2, '#0a2e5c');
+  oceanGrad.addColorStop(0.5, '#0f488a');
+  oceanGrad.addColorStop(0.8, '#0a2e5c');
   oceanGrad.addColorStop(1, '#04132b');
   ctx.fillStyle = oceanGrad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Stylized detailed continent landmasses (Equirectangular)
-  ctx.fillStyle = '#1c3d28';
-  ctx.strokeStyle = '#2d5a3c';
+  // Realistic Continents Landmass Fill
+  ctx.fillStyle = '#1e3f20';
+  ctx.strokeStyle = '#2d5c31';
   ctx.lineWidth = 3;
 
   // North America
   ctx.beginPath();
-  ctx.ellipse(400, 300, 220, 140, -0.2, 0, Math.PI * 2);
+  ctx.ellipse(420, 280, 240, 150, -0.15, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+
+  // Central America / Caribbean
+  ctx.beginPath();
+  ctx.ellipse(450, 470, 60, 40, 0.4, 0, Math.PI * 2);
+  ctx.fill();
 
   // South America
   ctx.beginPath();
-  ctx.ellipse(600, 680, 140, 220, 0.2, 0, Math.PI * 2);
+  ctx.ellipse(620, 680, 150, 230, 0.15, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // Eurasia
+  // Eurasia (Europe + Asia)
   ctx.beginPath();
-  ctx.ellipse(1350, 300, 420, 160, 0.05, 0, Math.PI * 2);
+  ctx.ellipse(1380, 290, 460, 180, 0.05, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
   // Africa
   ctx.beginPath();
-  ctx.ellipse(1100, 560, 160, 220, -0.05, 0, Math.PI * 2);
+  ctx.ellipse(1120, 560, 180, 230, -0.05, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+
+  // Sahara Desert / Middle East Golden Sand Terrain
+  ctx.fillStyle = '#6e5d2b';
+  ctx.beginPath();
+  ctx.ellipse(1130, 430, 130, 70, 0, 0, Math.PI * 2);
+  ctx.ellipse(1320, 420, 90, 50, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // India Subcontinent
+  ctx.fillStyle = '#234a26';
+  ctx.beginPath();
+  ctx.moveTo(1420, 400);
+  ctx.lineTo(1470, 560);
+  ctx.lineTo(1370, 450);
+  ctx.closePath();
+  ctx.fill();
 
   // Australia
+  ctx.fillStyle = '#5c4322';
   ctx.beginPath();
-  ctx.ellipse(1650, 720, 120, 90, 0.1, 0, Math.PI * 2);
+  ctx.ellipse(1680, 720, 130, 95, 0.1, 0, Math.PI * 2);
   ctx.fill();
-  ctx.stroke();
 
   // Polar Ice Caps
-  ctx.fillStyle = '#e2f1f8';
-  ctx.fillRect(0, 0, canvas.width, 70);
-  ctx.fillRect(0, canvas.height - 70, canvas.width, 70);
+  ctx.fillStyle = '#e8f4f8';
+  ctx.fillRect(0, 0, canvas.width, 75);
+  ctx.fillRect(0, canvas.height - 75, canvas.width, 75);
 
-  // Subtle cloud swirls
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
-  for (let i = 0; i < 40; i++) {
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  return texture;
+}
+
+// Generate Realistic Earth Night-Lights Canvas Texture (City Lights)
+function createEarthNightTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 2048;
+  canvas.height = 1024;
+  const ctx = canvas.getContext('2d')!;
+
+  // Pitch black night base
+  ctx.fillStyle = '#020308';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Golden Amber City Lights Clusters
+  ctx.fillStyle = '#ffcc66';
+  const drawCityHub = (x: number, y: number, radius: number, density: number) => {
+    for (let i = 0; i < density; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = Math.pow(Math.random(), 1.8) * radius;
+      const px = x + Math.cos(angle) * r;
+      const py = y + Math.sin(angle) * r;
+      ctx.globalAlpha = 0.3 + Math.random() * 0.7;
+      ctx.fillRect(px, py, 1.5, 1.5);
+    }
+  };
+
+  // Major Global Population Centers
+  drawCityHub(380, 270, 70, 180);  // US East Coast / NYC
+  drawCityHub(270, 290, 50, 120);  // US West Coast / LA
+  drawCityHub(630, 680, 60, 140);  // South America / Sao Paulo
+  drawCityHub(1080, 260, 80, 250); // Western Europe / London / Paris
+  drawCityHub(1430, 470, 90, 320); // India / Delhi / Mumbai
+  drawCityHub(1620, 380, 90, 300); // East Asia / Tokyo / Shanghai
+  drawCityHub(1680, 730, 50, 90);  // Australia / Sydney
+
+  ctx.globalAlpha = 1.0;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  return texture;
+}
+
+// Generate Realistic Cloud Layer Canvas Texture
+function createEarthCloudsTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+
+  for (let i = 0; i < 45; i++) {
     ctx.beginPath();
-    const cx = (i * 123) % canvas.width;
-    const cy = 150 + ((i * 73) % 700);
-    ctx.ellipse(cx, cy, 140, 35, (i * 0.4), 0, Math.PI * 2);
+    const cx = (i * 89) % canvas.width;
+    const cy = 80 + ((i * 53) % 360);
+    ctx.ellipse(cx, cy, 110, 28, (i * 0.3), 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -103,23 +201,22 @@ function createEarthCanvasTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-// Generate realistic Moon texture
-function createMoonCanvasTexture(): THREE.CanvasTexture {
+// Generate Moon Texture
+function createMoonTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 256;
   const ctx = canvas.getContext('2d')!;
 
-  ctx.fillStyle = '#8c8d8f';
+  ctx.fillStyle = '#8e9094';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Maria craters
-  ctx.fillStyle = '#5c5e62';
-  for (let i = 0; i < 30; i++) {
+  ctx.fillStyle = '#55585e';
+  for (let i = 0; i < 35; i++) {
     ctx.beginPath();
     const cx = (i * 47) % canvas.width;
     const cy = (i * 31) % canvas.height;
-    ctx.arc(cx, cy, 10 + (i % 25), 0, Math.PI * 2);
+    ctx.arc(cx, cy, 8 + (i % 20), 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -151,7 +248,11 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const earthMeshRef = useRef<THREE.Mesh | null>(null);
+  const cloudMeshRef = useRef<THREE.Mesh | null>(null);
   const gridMeshRef = useRef<THREE.Group | null>(null);
+  const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
+  const sunMeshRef = useRef<THREE.Mesh | null>(null);
+  const moonMeshRef = useRef<THREE.Mesh | null>(null);
   const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
   const trajectoryLineRef = useRef<THREE.Line | null>(null);
   const conjLineRef = useRef<THREE.Line | null>(null);
@@ -169,7 +270,7 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
           setPositions(batch.positions);
         }
       } catch (err) {
-        console.error('Failed to fetch batch orbital positions:', err);
+        console.error('Failed to fetch batch positions:', err);
       }
     };
 
@@ -230,7 +331,7 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.15;
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -243,22 +344,25 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
     controls.maxDistance = 150;
     controlsRef.current = controls;
 
-    // 4. Lighting & Sun
-    const ambientLight = new THREE.AmbientLight(0x223344, 0.35);
+    // 4. Ambient & Directional Solar Illumination
+    const ambientLight = new THREE.AmbientLight(0x112233, 0.25);
     scene.add(ambientLight);
 
-    const sunLight = new THREE.DirectionalLight(0xffffff, 2.2);
-    sunLight.position.set(60, 15, 45);
+    const sunDir = calculateSunDirection(new Date());
+    const sunLight = new THREE.DirectionalLight(0xffffff, 2.5);
+    sunLight.position.copy(sunDir.clone().multiplyScalar(70));
     scene.add(sunLight);
+    sunLightRef.current = sunLight;
 
-    // Sun Visual Mesh with Corona
-    const sunGeom = new THREE.SphereGeometry(2.5, 32, 32);
-    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfff6cf });
+    // Glowing Sun Corona Mesh
+    const sunGeom = new THREE.SphereGeometry(2.8, 32, 32);
+    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfffae0 });
     const sunMesh = new THREE.Mesh(sunGeom, sunMat);
     sunMesh.position.copy(sunLight.position);
     scene.add(sunMesh);
+    sunMeshRef.current = sunMesh;
 
-    // 5. Starfield
+    // 5. Realistic Starfield
     const starCount = 4000;
     const starGeom = new THREE.BufferGeometry();
     const starPositions = new Float32Array(starCount * 3);
@@ -287,30 +391,78 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
     const starfield = new THREE.Points(starGeom, starMat);
     scene.add(starfield);
 
-    // 6. Realistic Colorful Earth
-    const earthTexture = createEarthCanvasTexture();
-    const earthGeom = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
-    const earthMat = new THREE.MeshStandardMaterial({
-      map: earthTexture,
-      roughness: 0.7,
-      metalness: 0.1,
+    // 6. Realistic Colorful Earth with Day/Night Terminator Shader
+    const dayTexture = createEarthDayTexture();
+    const nightTexture = createEarthNightTexture();
+
+    // Custom Shader Material that blends Day texture with Night City Lights based on the Sun's Light Vector
+    const earthShaderMat = new THREE.ShaderMaterial({
+      uniforms: {
+        dayTexture: { value: dayTexture },
+        nightTexture: { value: nightTexture },
+        sunDirection: { value: sunDir }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        void main() {
+          vUv = uv;
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D dayTexture;
+        uniform sampler2D nightTexture;
+        uniform vec3 sunDirection;
+        varying vec2 vUv;
+        varying vec3 vNormal;
+
+        void main() {
+          vec3 dayColor = texture2D(dayTexture, vUv).rgb;
+          vec3 nightColor = texture2D(nightTexture, vUv).rgb;
+          
+          float intensity = dot(vNormal, normalize(sunDirection));
+          
+          // Twilight blend factor (-0.1 to +0.15 transition)
+          float blend = smoothstep(-0.15, 0.15, intensity);
+          vec3 finalColor = mix(nightColor * 1.4, dayColor * max(intensity, 0.12), blend);
+          
+          gl_FragColor = vec4(finalColor, 1.0);
+        }
+      `
     });
-    const earthMesh = new THREE.Mesh(earthGeom, earthMat);
+
+    const earthGeom = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
+    const earthMesh = new THREE.Mesh(earthGeom, earthShaderMat);
     scene.add(earthMesh);
     earthMeshRef.current = earthMesh;
 
-    // 7. Atmospheric Glow Layer
-    const atmosGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.03, 64, 64);
-    const atmosMat = new THREE.MeshBasicMaterial({
-      color: 0x00f0ff,
+    // 7. Rotating Cloud Layer
+    const cloudsTexture = createEarthCloudsTexture();
+    const cloudsGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.015, 64, 64);
+    const cloudsMat = new THREE.MeshStandardMaterial({
+      map: cloudsTexture,
       transparent: true,
-      opacity: 0.12,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending
+    });
+    const cloudMesh = new THREE.Mesh(cloudsGeom, cloudsMat);
+    scene.add(cloudMesh);
+    cloudMeshRef.current = cloudMesh;
+
+    // 8. Atmospheric Rim Glow Layer
+    const atmosGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.035, 64, 64);
+    const atmosMat = new THREE.MeshBasicMaterial({
+      color: 0x00d4ff,
+      transparent: true,
+      opacity: 0.14,
       side: THREE.BackSide,
     });
     const atmosphereMesh = new THREE.Mesh(atmosGeom, atmosMat);
     scene.add(atmosphereMesh);
 
-    // 8. Latitude & Longitude Graticule Grid
+    // 9. Latitude & Longitude Graticule Grid
     const gridGroup = new THREE.Group();
     const gridMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.15 });
 
@@ -329,15 +481,16 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
     scene.add(gridGroup);
     gridMeshRef.current = gridGroup;
 
-    // 9. Realistic Moon
-    const moonTexture = createMoonCanvasTexture();
+    // 10. Realistic Moon
+    const moonTexture = createMoonTexture();
     const moonGeom = new THREE.SphereGeometry(1.737, 32, 32);
     const moonMat = new THREE.MeshStandardMaterial({ map: moonTexture, roughness: 0.9 });
     const moonMesh = new THREE.Mesh(moonGeom, moonMat);
     moonMesh.position.set(45, 10, -25);
     scene.add(moonMesh);
+    moonMeshRef.current = moonMesh;
 
-    // 10. Instanced Mesh for High-Performance Orbital Assets
+    // 11. Instanced Mesh for High-Performance Orbital Assets
     const maxObjects = 1000;
     const instGeom = new THREE.SphereGeometry(0.12, 12, 12);
     const instMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -346,7 +499,7 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
     scene.add(instMesh);
     instancedMeshRef.current = instMesh;
 
-    // Click Raycaster Handler
+    // Raycasting Click Handler
     const handleCanvasClick = (e: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -380,8 +533,12 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
       animationFrameId.current = requestAnimationFrame(animate);
       controls.update();
 
+      // Slow diurnal Earth & Cloud rotation
       if (earthMeshRef.current) {
         earthMeshRef.current.rotation.y += 0.0004;
+      }
+      if (cloudMeshRef.current) {
+        cloudMeshRef.current.rotation.y += 0.0006;
       }
       if (gridMeshRef.current) {
         gridMeshRef.current.rotation.y += 0.0004;
@@ -412,6 +569,20 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
       renderer.dispose();
     };
   }, []);
+
+  // Update Solar Illumination Vector dynamically as Simulation Time changes
+  useEffect(() => {
+    const sunDir = calculateSunDirection(simTime);
+    if (sunLightRef.current) {
+      sunLightRef.current.position.copy(sunDir.clone().multiplyScalar(70));
+    }
+    if (sunMeshRef.current) {
+      sunMeshRef.current.position.copy(sunDir.clone().multiplyScalar(70));
+    }
+    if (earthMeshRef.current && (earthMeshRef.current.material as THREE.ShaderMaterial).uniforms) {
+      (earthMeshRef.current.material as THREE.ShaderMaterial).uniforms.sunDirection.value = sunDir;
+    }
+  }, [simTime]);
 
   // Update Instanced Orbital Objects Positions & Colors
   useEffect(() => {
@@ -545,6 +716,14 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
     }
   };
 
+  const handleJumpToTca = () => {
+    if (selectedConjunction) {
+      const tcaDate = new Date(selectedConjunction.tca);
+      setSimTime(tcaDate);
+      setIsPlaying(false);
+    }
+  };
+
   return (
     <div
       className={`relative bg-space-950 border border-space-800 rounded-xl overflow-hidden shadow-2xl flex flex-col ${
@@ -578,8 +757,8 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
       <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
         {/* UTC Clock */}
         <div className="bg-space-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-space-700 font-mono text-xs text-cyan-400 shadow-xl flex items-center gap-2">
-          <span className="text-slate-400">UTC:</span>
-          <span>{simTime.toISOString().replace('T', ' ').substring(0, 19)}</span>
+          <Clock className="w-3.5 h-3.5 text-slate-400" />
+          <span>UTC: {simTime.toISOString().replace('T', ' ').substring(0, 19)}</span>
         </div>
 
         {/* Play/Pause & Speed Multipliers */}
@@ -714,12 +893,21 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
               ✕
             </button>
           </div>
-          <div className="space-y-1 text-[11px]">
-            <div>{selectedConjunction.object_a?.name || 'Object A'} ↔ {selectedConjunction.object_b?.name || 'Object B'}</div>
+          <div className="space-y-1.5 text-[11px]">
+            <div className="text-white font-semibold">{selectedConjunction.object_a?.name || 'Object A'} ↔ {selectedConjunction.object_b?.name || 'Object B'}</div>
             <div className="text-slate-400">TCA: <span className="text-white">{selectedConjunction.tca} UTC</span></div>
             <div className="text-slate-400">Miss Distance: <span className="text-danger-400 font-bold">{selectedConjunction.miss_distance_km} km</span></div>
             <div className="text-slate-400">Relative Velocity: <span className="text-warning-400">{selectedConjunction.relative_velocity_km_s} km/s</span></div>
             <div className="text-slate-400">Risk Score: <span className="text-danger-neon font-bold">{selectedConjunction.risk_score} / 100 ({selectedConjunction.risk_level})</span></div>
+            
+            {/* Jump to TCA Button */}
+            <button
+              onClick={handleJumpToTca}
+              className="mt-2 w-full py-1.5 bg-danger-600 hover:bg-danger-500 text-white rounded font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition"
+            >
+              <FastForward className="w-3.5 h-3.5" />
+              JUMP TO TCA
+            </button>
           </div>
         </div>
       )}
@@ -745,7 +933,7 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
           </div>
         </div>
         <div className="text-[11px] text-slate-500">
-          GPU Instanced Ephemeris • Realistic Solar Illumination
+          GPU Instanced Ephemeris • Astronomical Day/Night Terminator
         </div>
       </div>
     </div>

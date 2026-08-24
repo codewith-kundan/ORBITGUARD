@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, DateTime, Enum as SQLEnum, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Float, DateTime, Enum as SQLEnum, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.app.models.base import Base
@@ -18,6 +18,8 @@ class Conjunction(Base):
     longitude_deg = Column(Float, nullable=True)
     risk_score = Column(Float, nullable=False, index=True)
     risk_level = Column(SQLEnum(RiskLevel), nullable=False, index=True)
+    status = Column(String(50), default="ACTIVE", index=True, nullable=False)
+    calculated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     object_a = relationship("OrbitalObject", foreign_keys=[object_a_id])
@@ -25,4 +27,5 @@ class Conjunction(Base):
 
     __table_args__ = (
         Index("ix_conjunctions_tca_risk", "tca", "risk_score"),
+        Index("ix_conjunctions_status_tca", "status", "tca"),
     )
