@@ -8,7 +8,8 @@ import {
   Conjunction,
   SystemStatistics,
   DataStatus,
-  SystemHealth
+  SystemHealth,
+  Alert
 } from '../types';
 
 const rawApiUrl = ((import.meta as any).env?.VITE_API_URL as string) || '';
@@ -133,5 +134,14 @@ export const api = {
   // System Statistics
   getStatistics: async (): Promise<SystemStatistics> => {
     return request<SystemStatistics>('/statistics');
+  },
+
+  // Alerts
+  getAlerts: async (limit: number = 50): Promise<Alert[]> => {
+    return request<Alert[]>(`/alerts?limit=${limit}`);
+  },
+
+  acknowledgeAlert: async (id: number): Promise<Alert> => {
+    return request<Alert>(`/alerts/${id}/acknowledge`, { method: 'POST' });
   }
 };

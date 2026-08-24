@@ -28,6 +28,15 @@ class OrbitalObjectBase(BaseModel):
     semi_major_axis_km: Optional[float] = None
     perigee_km: Optional[float] = None
     apogee_km: Optional[float] = None
+    international_designator: Optional[str] = None
+    country_code: Optional[str] = None
+    launch_site: Optional[str] = None
+    decay_date: Optional[str] = None
+    rcs_size: Optional[str] = None
+    bstar: Optional[float] = None
+    raan_deg: Optional[float] = None
+    arg_pericenter_deg: Optional[float] = None
+    mean_anomaly_deg: Optional[float] = None
 
 class OrbitalObjectCreate(OrbitalObjectBase):
     pass

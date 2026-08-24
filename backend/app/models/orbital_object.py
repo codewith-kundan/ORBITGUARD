@@ -31,6 +31,18 @@ class OrbitalObject(Base):
     perigee_km = Column(Float, nullable=True)
     apogee_km = Column(Float, nullable=True)
     
+    # Space-Track GP metadata
+    international_designator = Column(String(20), nullable=True)  # COSPAR ID e.g. 1998-067A
+    country_code = Column(String(10), nullable=True, index=True)  # e.g. US, PRC, CIS
+    launch_site = Column(String(20), nullable=True)  # e.g. AFETR, TYMSC
+    decay_date = Column(String(20), nullable=True)  # YYYY-MM-DD if decayed
+    rcs_size = Column(String(10), nullable=True)  # SMALL, MEDIUM, LARGE
+    bstar = Column(Float, nullable=True)  # SGP4 drag coefficient
+    raan_deg = Column(Float, nullable=True)  # Right Ascension of Ascending Node
+    arg_pericenter_deg = Column(Float, nullable=True)  # Argument of Pericenter
+    mean_anomaly_deg = Column(Float, nullable=True)  # Mean Anomaly
+    gp_id = Column(Integer, nullable=True)  # Space-Track GP record ID
+    
     last_position_update = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False, index=True)

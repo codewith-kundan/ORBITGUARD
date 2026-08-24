@@ -9,6 +9,7 @@ from backend.app.config import settings
 from backend.app.api.objects import router as objects_router
 from backend.app.api.conjunctions import router as conjunctions_router
 from backend.app.api.statistics import router as statistics_router
+from backend.app.api.alerts import router as alerts_router
 from backend.app.models.base import Base, engine, get_db, SessionLocal
 from backend.app.models.orbital_object import OrbitalObject, SyncLog
 from backend.app.models.conjunction import Conjunction
@@ -40,6 +41,7 @@ app.add_middleware(
 app.include_router(objects_router)
 app.include_router(conjunctions_router)
 app.include_router(statistics_router)
+app.include_router(alerts_router)
 
 async def periodic_sync_worker():
     """Background task running periodic orbital ephemeris synchronization."""
@@ -47,35 +49,50 @@ async def periodic_sync_worker():
         interval_seconds = max(60, settings.SYNC_INTERVAL_MINUTES * 60)
         await asyncio.sleep(interval_seconds)
         try:
-            logger.info("Starting scheduled periodic TLE synchronization...")
-            db = SessionLocal()
-            try:
-                TLEService.sync_to_database(db, mode="LIVE")
-                ConjunctionService.run_full_conjunction_screening(
-                    db,
-                    window_hours=settings.DEFAULT_PREDICTION_WINDOW_HOURS,
-                    threshold_km=settings.CONJUNCTION_THRESHOLD_KM,
-                    coarse_step_minutes=3
-                )
-            finally:
-                db.close()
+            logger.info("Starting scheduled periodic synchronization...")
+            records, source, mode, error = await TLEService.fetch_tle_data(mode="LIVE")
+            if records:
+                db = SessionLocal()
+                try:
+                    if records and isinstance(records[0], dict) and records[0].get('_gp_json'):
+                        TLEService.sync_gp_records_to_database(db, records, source=source)
+                    else:
+                        TLEService.sync_to_database(db, records, mode=mode, source=source)
+                    ConjunctionService.run_full_conjunction_screening(
+                        db,
+                        window_hours=settings.DEFAULT_PREDICTION_WINDOW_HOURS,
+                        threshold_km=settings.CONJUNCTION_THRESHOLD_KM,
+                        coarse_step_minutes=3
+                    )
+                finally:
+                    db.close()
+            else:
+                logger.warning(f"Periodic sync: no data received. Error: {error}")
         except Exception as e:
             logger.error(f"Periodic sync worker error: {e}")
 
+
 @app.on_event("startup")
 async def startup_event():
-    """Ensure database has live space catalog data and active conjunction screening on startup."""
-    def initial_sync():
+    """Ensure database has live space catalog data on startup."""
+    async def initial_sync():
         db = SessionLocal()
         try:
             count = db.query(OrbitalObject).count()
             if count == 0:
-                logger.info("Initial database is empty. Ingesting space catalog from CelesTrak...")
-                TLEService.sync_to_database(db, mode="LIVE")
-            
+                logger.info("Database empty. Fetching space catalog...")
+                records, source, mode, error = await TLEService.fetch_tle_data(mode="LIVE")
+                if records:
+                    if isinstance(records[0], dict) and records[0].get('_gp_json'):
+                        TLEService.sync_gp_records_to_database(db, records, source=source)
+                    else:
+                        TLEService.sync_to_database(db, records, mode=mode, source=source)
+                else:
+                    logger.warning(f"Initial sync failed: {error}")
+
             conj_count = db.query(Conjunction).count()
             if conj_count == 0:
-                logger.info("Running initial conjunction screening across catalog...")
+                logger.info("Running initial conjunction screening...")
                 ConjunctionService.run_full_conjunction_screening(
                     db,
                     window_hours=settings.DEFAULT_PREDICTION_WINDOW_HOURS,
@@ -83,11 +100,11 @@ async def startup_event():
                     coarse_step_minutes=3
                 )
         except Exception as e:
-            logger.error(f"Startup initial sync error: {e}")
+            logger.error(f"Startup sync error: {e}")
         finally:
             db.close()
 
-    asyncio.get_event_loop().run_in_executor(None, initial_sync)
+    asyncio.create_task(initial_sync())
     asyncio.create_task(periodic_sync_worker())
 
 @app.get("/")

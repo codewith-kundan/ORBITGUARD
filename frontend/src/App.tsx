@@ -11,7 +11,8 @@ import {
   OrbitalObject, 
   Conjunction, 
   SystemStatistics, 
-  DataStatus 
+  DataStatus,
+  Alert
 } from './types';
 import { Loader2 } from 'lucide-react';
 
@@ -21,6 +22,7 @@ export default function App() {
   const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
   const [objects, setObjects] = useState<OrbitalObject[]>([]);
   const [conjunctions, setConjunctions] = useState<Conjunction[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   
   const [selectedObject, setSelectedObject] = useState<OrbitalObject | null>(null);
   const [selectedConjunction, setSelectedConjunction] = useState<Conjunction | null>(null);
@@ -38,17 +40,19 @@ export default function App() {
       setLoading(true);
       setError(null);
 
-      const [statusData, statsData, objsData, conjsData] = await Promise.all([
+      const [statusData, statsData, objsData, conjsData, alertsData] = await Promise.all([
         api.getDataStatus().catch(() => null),
         api.getStatistics().catch(() => null),
         api.getPaginatedObjects(1, 500).then(r => r.items).catch(() => []),
-        api.getConjunctions(100, 0).catch(() => [])
+        api.getConjunctions(100, 0).catch(() => []),
+        api.getAlerts(50).catch(() => [])
       ]);
 
       if (statusData) setDataStatus(statusData);
       if (statsData) setStats(statsData);
       setObjects(objsData);
       setConjunctions(conjsData);
+      setAlerts(alertsData);
 
       // If catalog is empty on initial boot, trigger initial sync
       if (objsData.length === 0) {
@@ -112,6 +116,8 @@ export default function App() {
     setIsConjunctionModalOpen(true);
   };
 
+  const alertCount = alerts.filter(a => a.status === 'ACTIVE').length;
+
   return (
     <div className="min-h-screen bg-space-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-space-950">
       {/* Top Navbar */}
@@ -120,6 +126,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         stats={stats}
         dataStatus={dataStatus}
+        alertCount={alertCount}
         onRefresh={loadAllData}
         isRefreshing={loading}
       />

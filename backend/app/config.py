@@ -18,11 +18,11 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: Optional[str] = None
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
 
-    SPACETRACK_USER: Optional[str] = None
-    SPACETRACK_PASSWORD: Optional[str] = None
+    SPACE_TRACK_USERNAME: Optional[str] = None
+    SPACE_TRACK_PASSWORD: Optional[str] = None
 
-    ORBITAL_DATA_PROVIDER: str = "CelesTrak"
-    SYNC_INTERVAL_MINUTES: int = 30
+    ORBITAL_DATA_PROVIDER: str = "Space-Track"
+    SYNC_INTERVAL_MINUTES: int = 60
     DEFAULT_PREDICTION_WINDOW_HOURS: int = 24
     PROPAGATION_STEP_MINUTES: int = 5
     CONJUNCTION_SCREENING_DISTANCE_KM: float = 50.0

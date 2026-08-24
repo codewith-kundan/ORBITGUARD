@@ -22,6 +22,16 @@ export interface OrbitalObject {
   semi_major_axis_km?: number;
   perigee_km?: number;
   apogee_km?: number;
+  international_designator?: string;
+  country_code?: string;
+  launch_site?: string;
+  decay_date?: string;
+  rcs_size?: string;
+  bstar?: number;
+  raan_deg?: number;
+  arg_pericenter_deg?: number;
+  mean_anomaly_deg?: number;
+  gp_id?: number;
   last_position_update?: string;
   last_propagated_at?: string;
   created_at: string;
@@ -142,17 +152,28 @@ export interface Conjunction {
 
 export interface SystemStatistics {
   tracked_objects: number;
-  total_active_satellites: number;
-  total_debris: number;
-  total_rocket_bodies: number;
+  active_satellites: number;
+  space_debris: number;
+  rocket_bodies: number;
+  unknown: number;
   total_conjunctions: number;
-  critical_conjunctions: number;
-  high_risk_conjunctions: number;
-  medium_risk_conjunctions: number;
-  low_risk_conjunctions: number;
-  last_screening_time?: string;
-  data_mode?: string;
+  high_risk_events: number;
+  active_alerts: number;
+  risk_breakdown: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  altitude_distribution: {
+    leo: number;
+    meo: number;
+    geo: number;
+  };
   data_source?: string;
+  status_mode?: string;
+  last_sync?: string;
+  data_age_minutes?: number;
 }
 
 export interface DataStatus {
@@ -176,4 +197,18 @@ export interface SystemHealth {
   database_connected?: boolean;
   object_count?: number;
   last_conjunction_scan?: string;
+}
+
+export type AlertStatus = 'ACTIVE' | 'MONITORING' | 'ACKNOWLEDGED' | 'RESOLVED';
+
+export interface Alert {
+  id: number;
+  conjunction_id: number;
+  severity: RiskLevel;
+  status: AlertStatus;
+  title: string;
+  description?: string;
+  acknowledged_at?: string;
+  created_at: string;
+  updated_at: string;
 }

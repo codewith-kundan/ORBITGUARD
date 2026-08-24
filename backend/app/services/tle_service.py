@@ -57,6 +57,15 @@ def parse_tle_orbital_elements(line1: str, line2: str) -> Dict[str, Any]:
 def parse_tle_text(text: str, default_source: str = "Space-Track.org") -> List[Dict[str, Any]]:
     return TLEService.parse_tle_text(text)
 
+def _safe_float(val) -> Optional[float]:
+    """Safely converts a value to float, returns None on failure."""
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
 class TLEService:
     """
     Multi-Provider Live Ephemeris Ingestion Engine.
@@ -73,11 +82,21 @@ class TLEService:
     @classmethod
     async def fetch_tle_data(cls, mode: str = "LIVE") -> Tuple[List[Dict[str, Any]], str, str, Optional[str]]:
         """
-        Fetches live TLE orbital datasets across CelesTrak / Space-Track / SatNOGS / Fallback providers
-        using the DataProviderManager abstraction.
+        Fetches orbital data. Returns (records, source, mode, error).
+        For Space-Track GP JSON, records will have a '_gp_json' key set to True.
+        For TLE-based providers, records are parsed TLE dicts.
         """
         from backend.app.services.data_providers.manager import provider_manager
 
+        # First try Space-Track GP JSON for rich metadata
+        gp_records, source, status, error = await provider_manager.fetch_gp_data(mode=mode)
+        if gp_records and status == "LIVE":
+            # Mark these as GP JSON records for the sync handler
+            for r in gp_records:
+                r['_gp_json'] = True
+            return gp_records, source, status, error
+
+        # Fall back to TLE-based providers
         raw_lines, source_name, status_mode, error_msg = await provider_manager.fetch_data(mode=mode)
         if raw_lines:
             raw_text = "\n".join(raw_lines)
@@ -85,12 +104,9 @@ class TLEService:
             if records:
                 return records, source_name, status_mode, error_msg
 
-        # Fallback to local cache if parsing empty
+        # Final fallback to local cache
         records = cls._load_local_fallback()
-        return records, "Local Verified Cache", "DEMO", error_msg or "Failed to parse provider response"
-
-        # If live fetch failed
-        return [], "Orbital Data Providers", "LIVE ERROR", "Could not establish network connection to live providers"
+        return records, "Local Verified Cache", "DEMO", error_msg or "All providers failed"
 
     @classmethod
     async def _fetch_spacetrack(cls, username: str, password: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
@@ -273,6 +289,181 @@ class TLEService:
             return sat.error == 0
         except Exception:
             return False
+
+    @classmethod
+    def sync_gp_records_to_database(
+        cls,
+        db: Session,
+        gp_records: List[Dict[str, Any]],
+        source: str = "Space-Track"
+    ) -> Dict[str, int]:
+        """Ingests Space-Track GP JSON records directly with all metadata fields."""
+        started_at = datetime.utcnow()
+        inserted = 0
+        updated = 0
+        failed = 0
+
+        # Map Space-Track OBJECT_TYPE to internal enum
+        type_map = {
+            "PAYLOAD": ObjectType.ACTIVE_SATELLITE,
+            "ROCKET BODY": ObjectType.ROCKET_BODY,
+            "DEBRIS": ObjectType.DEBRIS,
+            "UNKNOWN": ObjectType.UNKNOWN,
+            "TBA": ObjectType.UNKNOWN,
+        }
+
+        existing_objs = {obj.norad_id: obj for obj in db.query(OrbitalObject).all()}
+
+        for gp in gp_records:
+            try:
+                norad_id = int(gp.get("NORAD_CAT_ID", 0))
+                if norad_id == 0:
+                    failed += 1
+                    continue
+
+                name = (gp.get("OBJECT_NAME") or f"NORAD-{norad_id}").strip()
+                tle_line1 = (gp.get("TLE_LINE1") or "").strip()
+                tle_line2 = (gp.get("TLE_LINE2") or "").strip()
+
+                if not tle_line1 or not tle_line2:
+                    failed += 1
+                    continue
+
+                # Validate TLE with SGP4
+                if not cls.validate_tle_bool(tle_line1, tle_line2):
+                    failed += 1
+                    continue
+
+                obj_type_str = (gp.get("OBJECT_TYPE") or "UNKNOWN").strip().upper()
+                obj_type = type_map.get(obj_type_str, ObjectType.UNKNOWN)
+
+                # Parse epoch
+                epoch_str = gp.get("EPOCH")
+                tle_epoch = None
+                if epoch_str:
+                    try:
+                        tle_epoch = datetime.fromisoformat(epoch_str.replace("Z", "+00:00"))
+                    except Exception:
+                        pass
+
+                # Use Space-Track pre-computed Keplerian elements
+                inclination = _safe_float(gp.get("INCLINATION"))
+                eccentricity = _safe_float(gp.get("ECCENTRICITY"))
+                mean_motion = _safe_float(gp.get("MEAN_MOTION"))
+                period_minutes = _safe_float(gp.get("PERIOD"))
+                semi_major_axis_km = _safe_float(gp.get("SEMIMAJOR_AXIS"))
+                perigee_km = _safe_float(gp.get("PERIAPSIS"))
+                apogee_km = _safe_float(gp.get("APOAPSIS"))
+                bstar_val = _safe_float(gp.get("BSTAR"))
+                raan = _safe_float(gp.get("RA_OF_ASC_NODE"))
+                arg_peri = _safe_float(gp.get("ARG_OF_PERICENTER"))
+                mean_anom = _safe_float(gp.get("MEAN_ANOMALY"))
+
+                # Metadata
+                country_code = (gp.get("COUNTRY_CODE") or "").strip() or None
+                launch_date = (gp.get("LAUNCH_DATE") or "").strip() or None
+                launch_site = (gp.get("SITE") or "").strip() or None
+                intl_des = (gp.get("OBJECT_ID") or "").strip() or None
+                decay_date = (gp.get("DECAY_DATE") or "").strip() or None
+                rcs_size = (gp.get("RCS_SIZE") or "").strip() or None
+                gp_id = int(gp.get("GP_ID", 0)) or None
+
+                if norad_id in existing_objs:
+                    obj = existing_objs[norad_id]
+                    obj.name = name
+                    obj.object_type = obj_type
+                    obj.source = source
+                    obj.tle_line1 = tle_line1
+                    obj.tle_line2 = tle_line2
+                    obj.tle_epoch = tle_epoch
+                    obj.inclination = inclination
+                    obj.eccentricity = eccentricity
+                    obj.mean_motion = mean_motion
+                    obj.period_minutes = period_minutes
+                    obj.semi_major_axis_km = semi_major_axis_km
+                    obj.perigee_km = perigee_km
+                    obj.apogee_km = apogee_km
+                    obj.international_designator = intl_des
+                    obj.country_code = country_code
+                    obj.country = country_code
+                    obj.launch_date = launch_date
+                    obj.launch_site = launch_site
+                    obj.decay_date = decay_date
+                    obj.rcs_size = rcs_size
+                    obj.bstar = bstar_val
+                    obj.raan_deg = raan
+                    obj.arg_pericenter_deg = arg_peri
+                    obj.mean_anomaly_deg = mean_anom
+                    obj.gp_id = gp_id
+                    obj.updated_at = datetime.utcnow()
+                    updated += 1
+                else:
+                    obj = OrbitalObject(
+                        norad_id=norad_id,
+                        name=name,
+                        object_type=obj_type,
+                        source=source,
+                        tle_line1=tle_line1,
+                        tle_line2=tle_line2,
+                        tle_epoch=tle_epoch,
+                        inclination=inclination,
+                        eccentricity=eccentricity,
+                        mean_motion=mean_motion,
+                        period_minutes=period_minutes,
+                        semi_major_axis_km=semi_major_axis_km,
+                        perigee_km=perigee_km,
+                        apogee_km=apogee_km,
+                        international_designator=intl_des,
+                        country_code=country_code,
+                        country=country_code,
+                        launch_date=launch_date,
+                        launch_site=launch_site,
+                        decay_date=decay_date,
+                        rcs_size=rcs_size,
+                        bstar=bstar_val,
+                        raan_deg=raan,
+                        arg_pericenter_deg=arg_peri,
+                        mean_anomaly_deg=mean_anom,
+                        gp_id=gp_id,
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                    db.add(obj)
+                    existing_objs[norad_id] = obj
+                    inserted += 1
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Failed to process GP record: {e}")
+                failed += 1
+
+        db.flush()
+
+        # Record Sync Log
+        log = SyncLog(
+            mode="LIVE",
+            source=source,
+            status="SUCCESS",
+            total_synced=inserted + updated,
+            created_at=datetime.utcnow()
+        )
+        db.add(log)
+
+        hist = SyncHistory(
+            source=source,
+            started_at=started_at,
+            completed_at=datetime.utcnow(),
+            records_fetched=len(gp_records),
+            records_inserted=inserted,
+            records_updated=updated,
+            records_failed=failed,
+            status="SUCCESS"
+        )
+        db.add(hist)
+
+        db.commit()
+        import logging
+        logging.getLogger(__name__).info(f"GP sync complete: {inserted} inserted, {updated} updated, {failed} failed")
+        return {"inserted": inserted, "updated": updated, "failed": failed}
 
     @classmethod
     def sync_to_database(

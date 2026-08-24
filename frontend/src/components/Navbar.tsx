@@ -19,6 +19,7 @@ interface NavbarProps {
   dataStatus: DataStatus | null;
   onRefresh: () => void;
   isRefreshing: boolean;
+  alertCount?: number;
 }
 
 interface NavItemConfig {
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   stats,
   dataStatus,
+  alertCount,
   onRefresh,
   isRefreshing
 }) => {
@@ -44,7 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navItems: NavItemConfig[] = [
     { key: 'space', label: '3D ORBIT TRACKER', icon: Globe, count: null },
     { key: 'catalog', label: 'OBJECTS CATALOG', icon: Satellite, count: null },
-    { key: 'conjunctions', label: 'CONJUNCTIONS', icon: ShieldAlert, count: (stats?.total_conjunctions ?? 0) > 0 ? stats?.total_conjunctions ?? null : null, isAlert: (stats?.critical_conjunctions ?? 0) > 0 },
+    { key: 'conjunctions', label: 'CONJUNCTIONS', icon: ShieldAlert, count: (stats?.total_conjunctions ?? 0) > 0 ? stats?.total_conjunctions ?? null : null, isAlert: (stats?.risk_breakdown?.critical ?? 0) > 0 },
   ];
 
   const handleSelectTab = (tab: NavTabKey) => {
@@ -101,6 +103,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-2 sm:gap-3 font-mono text-xs">
+          {/* Alert Indicator */}
+          {(alertCount ?? 0) > 0 && (
+            <div className="flex items-center gap-1.5 bg-danger-500/10 px-2.5 py-1 rounded-lg border border-danger-500/30 text-[11px] sm:text-xs animate-pulse">
+              <ShieldAlert className="w-3.5 h-3.5 text-danger-neon" />
+              <span className="text-danger-neon font-bold">{alertCount}</span>
+              <span className="text-slate-400 hidden sm:inline">ALERTS</span>
+            </div>
+          )}
+
           {/* Total Assets Counter */}
           <div className="hidden sm:flex items-center gap-1.5 bg-space-900 px-2.5 py-1 rounded-lg border border-space-800 text-slate-400">
             <Satellite className="w-3.5 h-3.5 text-cyan-400" />
@@ -127,7 +138,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ? 'text-emerald-400'
                 : 'text-warning-neon'
             }`}>
-              {isLiveError ? 'FAILOVER' : isLive ? 'LIVE' : 'CACHED'}
+              {isLiveError ? 'FAILOVER' : isLive ? (dataStatus?.source?.includes('Space-Track') ? 'SPACE-TRACK' : 'LIVE') : 'CACHED'}
             </span>
           </div>
 

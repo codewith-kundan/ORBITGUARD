@@ -49,7 +49,7 @@ async def sync_orbital_data(
     """
     records, source_name, status_mode, error_msg = await TLEService.fetch_tle_data(mode=mode)
     
-    if status_mode == "LIVE ERROR":
+    if status_mode == "LIVE ERROR" and not records:
         log = SyncLog(
             mode="LIVE",
             source=source_name,
@@ -64,11 +64,16 @@ async def sync_orbital_data(
             "status": "error",
             "data_source": source_name,
             "mode": "LIVE ERROR",
-            "error_detail": error_msg or "Live endpoints unreachable. You may retry or choose DEMO MODE.",
+            "error_detail": error_msg or "Live endpoints unreachable.",
             "total_objects": db.query(OrbitalObject).count()
         }
 
-    sync_result = TLEService.sync_to_database(db, records, mode=status_mode, source=source_name)
+    # Determine if GP JSON or TLE records
+    if records and isinstance(records[0], dict) and records[0].get('_gp_json'):
+        sync_result = TLEService.sync_gp_records_to_database(db, records, source=source_name)
+    else:
+        sync_result = TLEService.sync_to_database(db, records, mode=status_mode, source=source_name)
+    
     return {
         "status": "success",
         "data_source": source_name,
