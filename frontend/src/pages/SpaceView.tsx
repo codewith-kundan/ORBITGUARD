@@ -527,23 +527,59 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         let satIdx = 0;
         let rocketIdx = 0;
 
+        const mu = 398600.4418; // Earth gravitational parameter km^3/s^2
+
         livePositionsRef.current.forEach((pos) => {
-          // Calculate angular orbital velocity omega = v / r
-          const r_km = Math.sqrt(pos.x_km * pos.x_km + pos.y_km * pos.y_km + pos.z_km * pos.z_km);
-          const v_km_s = pos.velocity_km_s > 0 ? pos.velocity_km_s : Math.sqrt(398600.4418 / r_km);
-          const omega = v_km_s / r_km; // rad/sec
-          const dTheta = omega * dt;
+          let rx = pos.x_km;
+          let ry = pos.y_km;
+          let rz = pos.z_km;
+          let r = Math.sqrt(rx * rx + ry * ry + rz * rz);
+          if (r < 6400) r = 6700;
 
-          // Propagate position vector around orbital normal axis
-          const curVec = new THREE.Vector3(pos.x_km, pos.y_km, pos.z_km);
-          const normAxis = new THREE.Vector3(-pos.y_km, pos.x_km, 0).normalize();
-          if (normAxis.lengthSq() < 0.01) normAxis.set(1, 0, 0);
+          let vx = pos.vx_km_s || 0;
+          let vy = pos.vy_km_s || 0;
+          let vz = pos.vz_km_s || 0;
 
-          curVec.applyAxisAngle(normAxis, dTheta);
-          pos.x_km = curVec.x;
-          pos.y_km = curVec.y;
-          pos.z_km = curVec.z;
-          pos.alt_km = curVec.length() - 6371;
+          // If velocity vector is missing, initialize true tangential velocity perpendicular to r
+          const vMag = Math.sqrt(vx * vx + vy * vy + vz * vz);
+          if (vMag < 1.0) {
+            const vOrb = Math.sqrt(mu / r);
+            // Derive unique orbital inclination based on NORAD ID hash
+            const incRad = (((pos.norad_id * 17) % 95) + 15) * (Math.PI / 180);
+            vx = -vOrb * Math.sin(incRad) * (ry / r);
+            vy = vOrb * Math.cos(incRad) * (rx / r);
+            vz = vOrb * Math.sin(incRad);
+            pos.vx_km_s = vx;
+            pos.vy_km_s = vy;
+            pos.vz_km_s = vz;
+          }
+
+          // True Newtonian Orbital Propagation (Symplectic Verlet Integrator)
+          const ax = -(mu / (r * r * r)) * rx;
+          const ay = -(mu / (r * r * r)) * ry;
+          const az = -(mu / (r * r * r)) * rz;
+
+          rx += vx * dt + 0.5 * ax * dt * dt;
+          ry += vy * dt + 0.5 * ay * dt * dt;
+          rz += vz * dt + 0.5 * az * dt * dt;
+
+          const rNew = Math.sqrt(rx * rx + ry * ry + rz * rz);
+          const axNew = -(mu / (rNew * rNew * rNew)) * rx;
+          const ayNew = -(mu / (rNew * rNew * rNew)) * ry;
+          const azNew = -(mu / (rNew * rNew * rNew)) * rz;
+
+          vx += 0.5 * (ax + axNew) * dt;
+          vy += 0.5 * (ay + ayNew) * dt;
+          vz += 0.5 * (az + azNew) * dt;
+
+          pos.x_km = rx;
+          pos.y_km = ry;
+          pos.z_km = rz;
+          pos.vx_km_s = vx;
+          pos.vy_km_s = vy;
+          pos.vz_km_s = vz;
+          pos.alt_km = rNew - 6371;
+          pos.velocity_km_s = Math.sqrt(vx * vx + vy * vy + vz * vz);
 
           // Apply UI Filters
           if (isDebrisMode && pos.type !== 'DEBRIS') return;
