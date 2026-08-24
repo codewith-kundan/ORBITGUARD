@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Conjunction } from '../types';
 import { RiskBadge } from './RiskBadge';
-import { ShieldAlert, ChevronRight } from 'lucide-react';
+import { ShieldAlert, Activity, Crosshair } from 'lucide-react';
 
 interface ConjunctionTableProps {
   conjunctions: Conjunction[];
@@ -18,6 +18,13 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
   onScreenNew,
   isScreening
 }) => {
+  const [riskFilter, setRiskFilter] = useState<string>('ALL');
+
+  const filtered = conjunctions.filter((c) => {
+    if (riskFilter === 'ALL') return true;
+    return c.risk_level === riskFilter;
+  });
+
   const formatTCA = (tcaStr: string) => {
     const tca = new Date(tcaStr);
     const now = new Date();
@@ -33,52 +40,80 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
   };
 
   return (
-    <div className="bg-space-900/80 border border-space-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
-      <div className="p-4 border-b border-space-800 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ShieldAlert className="w-5 h-5 text-warning-neon" />
-          <h2 className="text-sm font-bold font-mono tracking-wider text-white uppercase">
-            Detected Conjunction Events
-          </h2>
-          <span className="text-xs font-mono px-2 py-0.5 rounded bg-space-800 text-cyan-400 border border-space-700">
-            {conjunctions.length} Active
-          </span>
+    <div className="bg-space-900/90 border border-space-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col font-mono">
+      {/* Header & Screening Controls */}
+      <div className="p-5 border-b border-space-800 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-danger-500/10 border border-danger-500/30 text-danger-neon">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-base text-white tracking-wider flex items-center gap-2">
+                <span>CONJUNCTION RISK & CLOSE ENCOUNTER MATRIX</span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-danger-500/20 text-danger-neon border border-danger-500/30">
+                  {conjunctions.length} ACTIVE ENCOUNTERS
+                </span>
+              </h2>
+              <p className="text-xs text-slate-400">Broad-Phase Altitude Pruning & Narrow-Phase SGP4 Closest Approach Analysis</p>
+            </div>
+          </div>
         </div>
 
-        {onScreenNew && (
-          <button
-            onClick={onScreenNew}
-            disabled={isScreening}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-neon border border-cyan-500/30 rounded-lg text-xs font-mono transition disabled:opacity-50"
-          >
-            <ShieldAlert className={`w-3.5 h-3.5 ${isScreening ? 'animate-spin' : ''}`} />
-            {isScreening ? 'Screening Catalog...' : 'RUN CONJUNCTION SCREEN'}
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Risk Level Tabs */}
+          <div className="flex items-center gap-1 bg-space-950 p-1 rounded-xl border border-space-800 text-xs">
+            {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((lvl) => (
+              <button
+                key={lvl}
+                onClick={() => setRiskFilter(lvl)}
+                className={`px-3 py-1 rounded-lg transition font-medium ${
+                  riskFilter === lvl
+                    ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {lvl}
+              </button>
+            ))}
+          </div>
+
+          {onScreenNew && (
+            <button
+              onClick={onScreenNew}
+              disabled={isScreening}
+              className="flex items-center gap-1.5 px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-neon border border-cyan-500/30 rounded-xl text-xs font-bold transition disabled:opacity-50 shadow-sm"
+            >
+              <Activity className={`w-3.5 h-3.5 ${isScreening ? 'animate-spin' : ''}`} />
+              {isScreening ? 'Screening Catalog...' : 'RUN CONJUNCTION SCREEN'}
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="overflow-x-auto max-h-[460px] overflow-y-auto">
-        <table className="w-full text-left font-mono text-xs">
-          <thead className="bg-space-950/80 text-slate-400 uppercase tracking-wider sticky top-0 z-10 border-b border-space-800">
+      {/* Conjunction Table */}
+      <div className="overflow-x-auto min-h-[460px] overflow-y-auto">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-space-950/90 text-slate-400 uppercase tracking-wider sticky top-0 z-10 border-b border-space-800">
             <tr>
-              <th className="py-3 px-4">Primary Object (A)</th>
-              <th className="py-3 px-4">Secondary Object (B)</th>
-              <th className="py-3 px-4">Miss Distance</th>
-              <th className="py-3 px-4">Rel. Velocity</th>
-              <th className="py-3 px-4">TCA (UTC)</th>
-              <th className="py-3 px-4 text-center">Risk Score</th>
-              <th className="py-3 px-4 text-right">Action</th>
+              <th className="py-3 px-4">Primary Target (Object A)</th>
+              <th className="py-3 px-4">Secondary Target (Object B)</th>
+              <th className="py-3 px-4">Miss Distance ($d$)</th>
+              <th className="py-3 px-4">Rel. Velocity ($\Delta v$)</th>
+              <th className="py-3 px-4">Time of Closest Approach (TCA)</th>
+              <th className="py-3 px-4 text-center">Collision Risk Score</th>
+              <th className="py-3 px-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-space-800">
-            {conjunctions.length === 0 ? (
+            {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-500">
-                  No close conjunctions detected in the current screening window.
+                <td colSpan={7} className="py-16 text-center text-slate-500">
+                  No conjunction events matching the selected filter level.
                 </td>
               </tr>
             ) : (
-              conjunctions.map((c) => {
+              filtered.map((c) => {
                 const isSelected = selectedConjunction?.id === c.id;
                 const { timeFormatted, countdown } = formatTCA(c.tca);
                 const nameA = c.object_a?.name || `ID-${c.object_a_id}`;
@@ -96,13 +131,13 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
                   >
                     <td className="py-3.5 px-4 font-semibold text-cyan-400">
                       <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                        <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
                         <span>{nameA}</span>
                       </div>
                     </td>
                     <td className="py-3.5 px-4 font-semibold text-danger-400">
                       <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-danger-500"></span>
+                        <span className="w-2 h-2 rounded-full bg-danger-500"></span>
                         <span>{nameB}</span>
                       </div>
                     </td>
@@ -115,15 +150,22 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
                       {c.relative_velocity_km_s.toFixed(2)} km/s
                     </td>
                     <td className="py-3.5 px-4">
-                      <div className="text-slate-200">{timeFormatted}</div>
+                      <div className="text-slate-200 font-medium">{timeFormatted}</div>
                       <div className="text-[10px] text-slate-400">{countdown}</div>
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <RiskBadge level={c.risk_level} score={c.risk_score} size="sm" />
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <button className="p-1 rounded bg-space-800 hover:bg-space-700 text-cyan-400 hover:text-cyan-neon border border-space-700">
-                        <ChevronRight className="w-4 h-4" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectConjunction(c);
+                        }}
+                        className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-neon border border-cyan-500/30 rounded-lg text-xs font-bold transition flex items-center gap-1 ml-auto shadow-sm"
+                      >
+                        <Crosshair className="w-3.5 h-3.5" />
+                        <span>INSPECT</span>
                       </button>
                     </td>
                   </tr>
