@@ -14,7 +14,8 @@ import {
   SystemHealth
 } from '../types';
 
-const API_BASE = 'http://localhost:8000/api';
+const rawApiUrl = ((import.meta as any).env?.VITE_API_URL as string) || '';
+const API_BASE = rawApiUrl ? (rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/$/, '')}/api`) : 'http://localhost:8000/api';
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
