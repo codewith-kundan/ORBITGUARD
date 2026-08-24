@@ -16,7 +16,10 @@ import {
   Clock,
   Crosshair,
   FastForward,
-  Sliders
+  Sliders,
+  Flame,
+  Radio,
+  Trash2
 } from 'lucide-react';
 import { 
   OrbitalObject, 
@@ -76,19 +79,19 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const [isFollowMode, setIsFollowMode] = useState<boolean>(false);
   const [showGroundTrack, setShowGroundTrack] = useState<boolean>(false);
 
-  // Time Engine State
+  // Time Engine State (Default to 50X for noticeable real-time orbital motion)
   const [simTime, setSimTime] = useState<Date>(new Date());
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [simSpeed, setSimSpeed] = useState<number>(1);
+  const [simSpeed, setSimSpeed] = useState<number>(50);
   const [trajectoryHours, setTrajectoryHours] = useState<number>(12);
 
-  // Real-time Ephemeris State
+  // Ephemeris State
   const [positions, setPositions] = useState<OrbitalPosition[]>([]);
   const [selectedPos, setSelectedPos] = useState<OrbitalPosition | null>(null);
   const [trajectoryData, setTrajectoryData] = useState<TrajectoryResponse | null>(null);
   const [_groundTrackData, setGroundTrackData] = useState<GroundTrackResponse | null>(null);
 
-  // Hover Tooltip / Floating Card State
+  // Hover Tooltip State
   const [hoveredObject, setHoveredObject] = useState<{
     name: string;
     norad_id: number;
@@ -99,39 +102,42 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     screenY: number;
   } | null>(null);
 
-  // Synchronized Mutable Refs for High-Speed Raycasting
+  // Mutable Refs for 60 FPS Animation & Screen-Space Raycasting
   const positionsRef = useRef<OrbitalPosition[]>([]);
+  const livePositionsRef = useRef<OrbitalPosition[]>([]);
   const visiblePositionsRef = useRef<OrbitalPosition[]>([]);
   const objectsRef = useRef<OrbitalObject[]>([]);
   const isFollowModeRef = useRef<boolean>(false);
   const selectedPosRef = useRef<OrbitalPosition | null>(null);
-  
+  const isPlayingRef = useRef<boolean>(true);
+  const simSpeedRef = useRef<number>(50);
+
   positionsRef.current = positions;
   objectsRef.current = objects;
   isFollowModeRef.current = isFollowMode;
   selectedPosRef.current = selectedPos;
+  isPlayingRef.current = isPlaying;
+  simSpeedRef.current = simSpeed;
 
-  // Three.js References
+  // Three.js Scene References
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const earthMeshRef = useRef<THREE.Mesh | null>(null);
-  const cloudMeshRef = useRef<THREE.Mesh | null>(null);
   const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
   const sunMeshRef = useRef<THREE.Mesh | null>(null);
-  const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
+
+  // Distinct Specialized 3D Instanced Meshes
+  const debrisMeshRef = useRef<THREE.InstancedMesh | null>(null);
+  const satMeshRef = useRef<THREE.InstancedMesh | null>(null);
+  const rocketMeshRef = useRef<THREE.InstancedMesh | null>(null);
+  
   const trajectoryLineRef = useRef<THREE.Line | null>(null);
   const conjLineRef = useRef<THREE.Line | null>(null);
   const animationFrameId = useRef<number | null>(null);
-  const raycaster = useRef(new THREE.Raycaster());
 
-  // Set Raycaster Precision for Clicking Small Dots
-  useEffect(() => {
-    raycaster.current.params.Points = { threshold: 0.35 };
-  }, []);
-
-  // Fetch Batch Ephemeris Positions
+  // Fetch Batch Ephemeris Positions from Backend API
   useEffect(() => {
     let isMounted = true;
     const fetchPositions = async () => {
@@ -139,6 +145,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         const batch = await api.getBatchPositions(simTime.toISOString(), 1200);
         if (isMounted && batch.positions) {
           setPositions(batch.positions);
+          // Clone for real-time GPU/CPU propagation
+          livePositionsRef.current = batch.positions.map((p) => ({ ...p }));
           if (selectedObject) {
             const current = batch.positions.find((p) => p.norad_id === selectedObject.norad_id);
             if (current) setSelectedPos(current);
@@ -150,12 +158,12 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     };
 
     fetchPositions();
-    const interval = setInterval(fetchPositions, isPlaying && simSpeed > 1 ? 5000 : 10000);
+    const interval = setInterval(fetchPositions, 15000);
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [simSpeed, isPlaying, selectedObject]);
+  }, [selectedObject]);
 
   // Simulation Clock Progression
   useEffect(() => {
@@ -209,7 +217,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       0.1,
       2000
     );
-    camera.position.set(0, 8, 26);
+    camera.position.set(0, 10, 28);
     cameraRef.current = camera;
 
     // 3. WebGL Renderer
@@ -217,7 +225,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.2;
     container.replaceChildren(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -254,7 +262,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(new THREE.Points(starGeom, starMat));
 
     // 6. Real Sun Mesh & Solar Directional Light
-    const sunLight = new THREE.DirectionalLight(0xffffff, 2.4);
+    const sunLight = new THREE.DirectionalLight(0xffffff, 2.5);
     scene.add(sunLight);
     sunLightRef.current = sunLight;
 
@@ -264,10 +272,10 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(sunMesh);
     sunMeshRef.current = sunMesh;
 
-    const ambLight = new THREE.AmbientLight(0x1a233a, 0.35);
+    const ambLight = new THREE.AmbientLight(0x223355, 0.45);
     scene.add(ambLight);
 
-    // 7. Photorealistic NASA Blue Marble Earth Textures
+    // 7. Photorealistic NASA Blue Marble Earth Textures (STATIONARY / STILL)
     const texLoader = new THREE.TextureLoader();
     const dayTexture = texLoader.load('/textures/earth_day.jpg');
     const nightTexture = texLoader.load('/textures/earth_night.jpg');
@@ -316,14 +324,13 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       `
     });
 
-    // Earth Mesh - Kept STILL / Stationary
     const earthGeom = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
     const earthMesh = new THREE.Mesh(earthGeom, earthShaderMat);
-    earthMesh.rotation.y = -Math.PI / 2; // Precise WGS84 ECEF Prime Meridian alignment
+    earthMesh.rotation.y = -Math.PI / 2; // Precise WGS84 ECEF Prime Meridian alignment (Still)
     scene.add(earthMesh);
     earthMeshRef.current = earthMesh;
 
-    // 8. NASA Cloud Layer - Still
+    // 8. NASA Cloud Layer (Still)
     const cloudsTexture = texLoader.load('/textures/earth_clouds.jpg');
     const cloudsGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.015, 64, 64);
     const cloudsMat = new THREE.MeshStandardMaterial({
@@ -335,7 +342,6 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     const cloudMesh = new THREE.Mesh(cloudsGeom, cloudsMat);
     cloudMesh.rotation.y = -Math.PI / 2;
     scene.add(cloudMesh);
-    cloudMeshRef.current = cloudMesh;
 
     // 9. Atmospheric Rim Glow Layer
     const atmosGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.035, 64, 64);
@@ -355,16 +361,48 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     moonMesh.position.set(45, 10, -25);
     scene.add(moonMesh);
 
-    // 11. GPU-Instanced Mesh for Orbital Objects (Up to 3,000 instanced dots)
-    const maxObjects = 3000;
-    const instGeom = new THREE.SphereGeometry(0.14, 12, 12);
-    const instMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const instMesh = new THREE.InstancedMesh(instGeom, instMat, maxObjects);
-    instMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    scene.add(instMesh);
-    instancedMeshRef.current = instMesh;
+    // 11. DISTINCT 3D OBJECT INSTANCED MESHES:
+    // A) Debris / Shattered Destroyed Satellite Fragments (Jagged Faceted Dodecahedron)
+    const maxInst = 2500;
+    const debrisGeom = new THREE.DodecahedronGeometry(0.18, 0);
+    const debrisMat = new THREE.MeshStandardMaterial({
+      color: 0xff3355,
+      emissive: 0x550011,
+      roughness: 0.35,
+      metalness: 0.8
+    });
+    const debrisMesh = new THREE.InstancedMesh(debrisGeom, debrisMat, maxInst);
+    debrisMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(debrisMesh);
+    debrisMeshRef.current = debrisMesh;
 
-    // Screen-Space Distance Hit Tester (Works reliably on all devices & screen sizes)
+    // B) Active Operational Satellites (Sleek Diamond/Octahedron with Cyan Telemetry Beacon)
+    const satGeom = new THREE.OctahedronGeometry(0.20, 0);
+    const satMat = new THREE.MeshStandardMaterial({
+      color: 0x00f0ff,
+      emissive: 0x004466,
+      roughness: 0.2,
+      metalness: 0.9
+    });
+    const satMesh = new THREE.InstancedMesh(satGeom, satMat, maxInst);
+    satMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(satMesh);
+    satMeshRef.current = satMesh;
+
+    // C) Rocket Bodies / Booster Upper Stages (Cylindrical Fuselage)
+    const rocketGeom = new THREE.CylinderGeometry(0.08, 0.12, 0.38, 8);
+    const rocketMat = new THREE.MeshStandardMaterial({
+      color: 0xffaa00,
+      emissive: 0x442200,
+      roughness: 0.4,
+      metalness: 0.8
+    });
+    const rocketMesh = new THREE.InstancedMesh(rocketGeom, rocketMat, maxInst);
+    rocketMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(rocketMesh);
+    rocketMeshRef.current = rocketMesh;
+
+    // Screen-Space Distance Hit Tester (Works reliably on all dots)
     const findClosestDot = (clientX: number, clientY: number, maxScreenDistPx: number = 28) => {
       if (!camera || !renderer || visiblePositionsRef.current.length === 0) return null;
       const rect = renderer.domElement.getBoundingClientRect();
@@ -466,10 +504,105 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     renderer.domElement.addEventListener('mousemove', handlePointerMove);
     renderer.domElement.addEventListener('click', handleCanvasClick);
 
-    // Animation Loop
+    // 60 FPS Orbit Simulation Clock
+    const clock = new THREE.Clock();
+    let tumbleAngle = 0;
+
+    // Animation Loop: Real-Time SGP4 Trajectory Motion around Still Earth
     const animate = () => {
       animationFrameId.current = requestAnimationFrame(animate);
       controls.update();
+
+      const delta = clock.getDelta();
+      const speed = isPlayingRef.current ? simSpeedRef.current : 0;
+      tumbleAngle += delta * 2.5;
+
+      // CONTINUOUS ORBITAL PROPAGATION AT 60 FPS
+      if (speed > 0 && livePositionsRef.current.length > 0) {
+        const dt = delta * speed;
+        const dummy = new THREE.Object3D();
+        const currentVisible: OrbitalPosition[] = [];
+
+        let debrisIdx = 0;
+        let satIdx = 0;
+        let rocketIdx = 0;
+
+        livePositionsRef.current.forEach((pos) => {
+          // Calculate angular orbital velocity omega = v / r
+          const r_km = Math.sqrt(pos.x_km * pos.x_km + pos.y_km * pos.y_km + pos.z_km * pos.z_km);
+          const v_km_s = pos.velocity_km_s > 0 ? pos.velocity_km_s : Math.sqrt(398600.4418 / r_km);
+          const omega = v_km_s / r_km; // rad/sec
+          const dTheta = omega * dt;
+
+          // Propagate position vector around orbital normal axis
+          const curVec = new THREE.Vector3(pos.x_km, pos.y_km, pos.z_km);
+          const normAxis = new THREE.Vector3(-pos.y_km, pos.x_km, 0).normalize();
+          if (normAxis.lengthSq() < 0.01) normAxis.set(1, 0, 0);
+
+          curVec.applyAxisAngle(normAxis, dTheta);
+          pos.x_km = curVec.x;
+          pos.y_km = curVec.y;
+          pos.z_km = curVec.z;
+          pos.alt_km = curVec.length() - 6371;
+
+          // Apply UI Filters
+          if (isDebrisMode && pos.type !== 'DEBRIS') return;
+          if (typeFilter !== 'ALL' && pos.type !== typeFilter) return;
+          if (altitudeFilter === 'LEO' && pos.alt_km > 2000) return;
+          if (altitudeFilter === 'MEO' && (pos.alt_km <= 2000 || pos.alt_km > 20000)) return;
+          if (altitudeFilter === 'GEO' && pos.alt_km <= 20000) return;
+
+          currentVisible.push(pos);
+
+          const x3d = pos.x_km / 1000;
+          const y3d = pos.z_km / 1000;
+          const z3d = -pos.y_km / 1000;
+
+          dummy.position.set(x3d, y3d, z3d);
+          const isSelected = selectedObject?.norad_id === pos.norad_id;
+          const scale = isSelected ? 3.2 : 1.15;
+          dummy.scale.set(scale, scale, scale);
+
+          if (pos.type === 'DEBRIS') {
+            if (debrisMeshRef.current && debrisIdx < maxInst) {
+              // Tumbling rotation for broken space debris fragments
+              dummy.rotation.set(tumbleAngle * 0.8 + pos.norad_id, tumbleAngle * 1.2, tumbleAngle * 0.5);
+              dummy.updateMatrix();
+              debrisMeshRef.current.setMatrixAt(debrisIdx, dummy.matrix);
+              debrisIdx++;
+            }
+          } else if (pos.type === 'ROCKET_BODY') {
+            if (rocketMeshRef.current && rocketIdx < maxInst) {
+              dummy.rotation.set(0.3, tumbleAngle * 0.3 + pos.norad_id, 0);
+              dummy.updateMatrix();
+              rocketMeshRef.current.setMatrixAt(rocketIdx, dummy.matrix);
+              rocketIdx++;
+            }
+          } else {
+            if (satMeshRef.current && satIdx < maxInst) {
+              dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
+              dummy.updateMatrix();
+              satMeshRef.current.setMatrixAt(satIdx, dummy.matrix);
+              satIdx++;
+            }
+          }
+        });
+
+        visiblePositionsRef.current = currentVisible;
+
+        if (debrisMeshRef.current) {
+          debrisMeshRef.current.count = debrisIdx;
+          debrisMeshRef.current.instanceMatrix.needsUpdate = true;
+        }
+        if (satMeshRef.current) {
+          satMeshRef.current.count = satIdx;
+          satMeshRef.current.instanceMatrix.needsUpdate = true;
+        }
+        if (rocketMeshRef.current) {
+          rocketMeshRef.current.count = rocketIdx;
+          rocketMeshRef.current.instanceMatrix.needsUpdate = true;
+        }
+      }
 
       // Follow Camera Mode
       if (isFollowModeRef.current && selectedPosRef.current && controlsRef.current && cameraRef.current) {
@@ -508,7 +641,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
       renderer.dispose();
     };
-  }, []);
+  }, [typeFilter, altitudeFilter, isDebrisMode, selectedObject]);
 
   // Update Solar Illumination Vector with Simulation Time
   useEffect(() => {
@@ -523,56 +656,6 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       (earthMeshRef.current.material as THREE.ShaderMaterial).uniforms.sunDirection.value = sunDir;
     }
   }, [simTime]);
-
-  // Update Instanced Orbital Objects & Maintain visiblePositionsRef Mapping
-  useEffect(() => {
-    if (!instancedMeshRef.current || positions.length === 0) return;
-    const mesh = instancedMeshRef.current;
-    const dummy = new THREE.Object3D();
-    const color = new THREE.Color();
-
-    const currentVisible: OrbitalPosition[] = [];
-    let visibleCount = 0;
-
-    positions.forEach((pos) => {
-      // Apply Filters
-      if (isDebrisMode && pos.type !== 'DEBRIS') return;
-      if (typeFilter !== 'ALL' && pos.type !== typeFilter) return;
-      if (altitudeFilter === 'LEO' && pos.alt_km > 2000) return;
-      if (altitudeFilter === 'MEO' && (pos.alt_km <= 2000 || pos.alt_km > 20000)) return;
-      if (altitudeFilter === 'GEO' && pos.alt_km <= 20000) return;
-
-      const x = pos.x_km / 1000;
-      const y = pos.z_km / 1000;
-      const z = -pos.y_km / 1000;
-
-      dummy.position.set(x, y, z);
-      const isSelected = selectedObject?.norad_id === pos.norad_id;
-      const scale = isSelected ? 3.0 : 1.1;
-      dummy.scale.set(scale, scale, scale);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(visibleCount, dummy.matrix);
-
-      if (isSelected) {
-        color.setHex(0x00ffff); // Glowing Cyan for Selected Object
-      } else if (pos.type === 'DEBRIS') {
-        color.setHex(0xff3355); // Red/Crimson for Debris
-      } else if (pos.type === 'ROCKET_BODY') {
-        color.setHex(0xffaa00); // Amber for Rocket Bodies
-      } else {
-        color.setHex(0x00f0ff); // Electric Cyan for Active Satellites
-      }
-      mesh.setColorAt(visibleCount, color);
-
-      currentVisible.push(pos);
-      visibleCount++;
-    });
-
-    visiblePositionsRef.current = currentVisible;
-    mesh.count = visibleCount;
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [positions, selectedObject, typeFilter, altitudeFilter, isDebrisMode]);
 
   // Update Trajectory Line for Selected Object
   useEffect(() => {
@@ -645,7 +728,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const handleResetCamera = () => {
     if (!cameraRef.current || !controlsRef.current) return;
     setIsFollowMode(false);
-    cameraRef.current.position.set(0, 8, 26);
+    cameraRef.current.position.set(0, 10, 28);
     controlsRef.current.target.set(0, 0, 0);
     controlsRef.current.update();
   };
@@ -748,29 +831,29 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
             </form>
 
-            {/* Object Category Filters */}
+            {/* 3D Visual Mesh Legend & Category Filter */}
             <div>
               <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                 <Sliders className="w-3 h-3 text-cyan-400" />
-                <span>Object Classification</span>
+                <span>Object 3D Geometry</span>
               </div>
               <div className="grid grid-cols-2 gap-1 text-[11px]">
                 {[
-                  { key: 'ALL', label: 'All Catalog' },
-                  { key: 'ACTIVE_SATELLITE', label: 'Satellites' },
-                  { key: 'DEBRIS', label: 'Debris' },
-                  { key: 'ROCKET_BODY', label: 'Rocket Bodies' }
+                  { key: 'ALL', label: 'All Tracked', icon: Radio, color: 'text-white' },
+                  { key: 'ACTIVE_SATELLITE', label: '◆ Satellites', icon: Activity, color: 'text-cyan-400' },
+                  { key: 'DEBRIS', label: '⬟ Wreckage', icon: Trash2, color: 'text-danger-400' },
+                  { key: 'ROCKET_BODY', label: '❚ Boosters', icon: Flame, color: 'text-warning-400' }
                 ].map((t) => (
                   <button
                     key={t.key}
                     onClick={() => { setTypeFilter(t.key); setIsDebrisMode(false); }}
-                    className={`px-2 py-1 rounded transition text-left ${
+                    className={`px-2 py-1 rounded transition text-left flex items-center gap-1.5 ${
                       typeFilter === t.key && !isDebrisMode
                         ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
                         : 'bg-space-950 text-slate-400 hover:text-slate-200 border border-space-800'
                     }`}
                   >
-                    {t.label}
+                    <span className={t.color}>{t.label}</span>
                   </button>
                 ))}
               </div>
@@ -803,7 +886,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             <div className="pt-2 border-t border-space-800 flex items-center justify-between">
               <span className="text-[11px] text-danger-300 font-semibold flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 text-danger-400" />
-                DEBRIS MODE
+                DEBRIS ISOLATION
               </span>
               <button
                 onClick={() => setIsDebrisMode(!isDebrisMode)}
@@ -819,8 +902,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
             {/* Active Telemetry Statistics */}
             <div className="pt-2 border-t border-space-800 text-[10px] text-slate-400 flex items-center justify-between">
-              <span>ACTIVE EPHEMERIS:</span>
-              <span className="text-cyan-400 font-bold">{positions.length} Live Tracked</span>
+              <span>LIVE TRAJECTORY ASSETS:</span>
+              <span className="text-cyan-400 font-bold">{positions.length} In Orbit</span>
             </div>
           </div>
         )}
@@ -1027,7 +1110,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           </button>
 
           <div className="flex items-center gap-1 bg-space-950 p-1 rounded-lg border border-space-800">
-            {[1, 10, 100, 1000].map((spd) => (
+            {[1, 10, 50, 200, 1000].map((spd) => (
               <button
                 key={spd}
                 onClick={() => setSimSpeed(spd)}
@@ -1043,7 +1126,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           </div>
 
           <button
-            onClick={() => { setSimTime(new Date()); setSimSpeed(1); }}
+            onClick={() => { setSimTime(new Date()); setSimSpeed(50); }}
             className="px-2.5 py-1 bg-space-950 hover:bg-space-800 text-cyan-400 border border-space-700 rounded-lg text-[10px] font-bold transition"
           >
             RESET TO NOW
