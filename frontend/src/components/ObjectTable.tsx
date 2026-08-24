@@ -6,11 +6,13 @@ import { Search, Satellite, ChevronLeft, ChevronRight, ArrowUpDown, Trash2, Flam
 interface ObjectTableProps {
   onSelectObject: (obj: OrbitalObject) => void;
   selectedObject: OrbitalObject | null;
+  onOpenDetails?: (obj: OrbitalObject) => void;
 }
 
 export const ObjectTable: React.FC<ObjectTableProps> = ({
   onSelectObject,
   selectedObject,
+  onOpenDetails,
 }) => {
   const [objects, setObjects] = useState<OrbitalObject[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -248,6 +250,7 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelectObject(obj);
+                          onOpenDetails?.(obj);
                         }}
                         className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-neon border border-cyan-500/30 rounded-lg text-xs font-bold transition flex items-center gap-1 ml-auto shadow-sm"
                       >

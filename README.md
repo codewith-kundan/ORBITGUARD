@@ -1,157 +1,164 @@
-# ORBITGUARD — Space Situational Awareness & Collision Risk Prediction Platform
+# SPACE SENTINEL — Space Debris Tracking & Satellite Collision Risk Prediction Dashboard
 
-[![SIH 2026](https://img.shields.io/badge/SIH%202026-PS--04-blue.svg)](https://www.sih.gov.in/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-18.3+-61DAFB.svg?logo=react)](https://react.dev/)
 [![Three.js](https://img.shields.io/badge/Three.js-WebGL-000000.svg?logo=three.js)](https://threejs.org/)
 [![SGP4](https://img.shields.io/badge/Orbital_Mechanics-SGP4_WGS84-cyan.svg)](https://celestrak.org)
+[![Pytest](https://img.shields.io/badge/Tests-32%20Passing-brightgreen.svg)](backend/tests/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> **"Accessible Space Situational Awareness & Orbital Collision Risk Prediction"**  
-> *Developed for Smart India Hackathon (SIH) Internal 2026 — Problem Statement PS-04*
+> **"Accessible, Real-Time Space Situational Awareness & Satellite Collision Risk Prediction Platform"**
 
 ---
 
-## 1. System Architecture
+## 1. System Overview
+
+**SPACE SENTINEL** is an enterprise-grade Space Situational Awareness (SSA) and orbital safety command center. It ingests live orbital ephemeris data (Two-Line Element sets) from global surveillance networks, propagates satellite state vectors via analytical SGP4 perturbation theory, screens candidate pairs for close encounters over 72-hour operational horizons, predicts ground station visibility look angles, and provides multi-factor AI Collision Avoidance Maneuver (CAM) decision support.
+
+---
+
+## 2. Core Architecture & Subsystems
 
 ```
-                 REAL ORBITAL DATA SOURCE (CelesTrak / Space-Track)
-                                       │
-                                       ▼
-                       DATA INGESTION & TLE VALIDATION
-                    (NORAD Modulo-10 Checksum & SGP4 Init)
-                                       │
-                                       ▼
-                          RELATIONAL DATABASE (SQLite / PostgreSQL)
-                    (orbital_objects, tle_records, conjunctions, alerts)
-                                       │
-                      ┌────────────────┴────────────────┐
-                      ▼                                 ▼
-            SGP4 / SKYFIELD PROPAGATOR         CONJUNCTION SCREENING ENGINE
-         (TEME ➔ ECEF ➔ WGS84 Geodetic)      (Broad Radial Shell + 10s TCA Refine)
-                      │                                 │
-                      ▼                                 ▼
-          REAL-TIME TELEMETRY & POSITIONS     CONJUNCTION RISK SCORE (0-100)
-                      │                                 │
-                      └────────────────┬────────────────┘
-                                       │
-                                       ▼
-                    REST API & BATCH EPHEMERIS ENDPOINTS
-                                       │
-                                       ▼
-                    MISSION CONTROL DASHBOARD & 3D GLOBE
-          (Realistic Earth, Sun, Moon, Stars, GPU Instancing, SGP4 Trails)
+                                  EXTERNAL EPHEMERIS FEEDS
+                   (CelesTrak / Space-Track / SatNOGS / Local Fallback)
+                                             │
+                                             ▼
+                             DATA PROVIDER ABSTRACTION LAYER
+                               (Multi-source failover & health)
+                                             │
+                                             ▼
+                               RELATIONAL DATABASE STORAGE
+                           (19,578 Tracked Space Objects)
+                                             │
+                    ┌────────────────────────┴────────────────────────┐
+                    ▼                                                 ▼
+     ANALYTICAL SGP4 ENGINE                           3-PHASE CONJUNCTION SCREENER
+ (TEME ➔ ECEF ➔ Topocentric ENU)                   (Apogee/Perigee Sieve ➔ Fine TCA)
+                    │                                                 │
+                    ├────────────────────────┬────────────────────────┤
+                    ▼                        ▼                        ▼
+           PASS PREDICTOR            AI DECISION ENGINE       SPACE SIMULATORS
+        (Look Angles: Az/El/Range)   (CAM Recommendations)   (Kessler / Breakup / ADR)
+                    │                        │                        │
+                    └────────────────────────┼────────────────────────┘
+                                             │
+                                             ▼
+                               FASTAPI ASYNCHRONOUS BACKEND
+                                             │
+                                             ▼
+                              MISSION CONTROL FRONTEND
+              (3D Three.js Globe, 2D Ground Tracks, Conjunctions & Alerts)
 ```
 
 ---
 
-## 2. Key Features
+## 3. Key Capabilities
 
-- **Real Orbital Ingestion:** Ingests live Two-Line Elements (TLEs) from CelesTrak across active satellites, space stations, and orbital debris.
-- **Strict Data Integrity (Live vs Demo Isolation):** Never silently replaces failed live requests with demo data. Displays live errors with explicit operator controls (`[RETRY SYNC]` or `[USE DEMO DATA]`).
-- **Analytical SGP4 / WGS84 Propagation:** Computes true TEME Cartesian state vectors and Bowring's closed-form geodetic coordinates (Latitude, Longitude, Altitude).
-- **Multi-Tier Conjunction Engine:** Broad-phase radial apogee/perigee envelope filtering + localized 10-second sub-stepping narrow phase to locate the exact Time of Closest Approach (TCA) and 3D Euclidean separation.
-- **Explainable Conjunction Risk Scoring (0–100):** Multi-factor deterministic risk model factoring miss distance (55%), relative kinetic velocity (25%), and reaction lead time (20%).
-- **World-Class 3D Celestial Globe:** Built with Three.js featuring realistic colorful Earth (oceans, continents, atmosphere), solar day/night illumination, lunar orbit, 4000+ deep-space stars, and GPU-instanced asset rendering.
-- **Interactive Trajectories & Ground Tracks:** On-demand SGP4 trajectory computation (15m, 1h, 3h, 6h, 12h, 24h) and projected sub-satellite ground tracks.
+### 🌐 3D Space Traffic Control Command Center
+- High-fidelity Three.js WebGL globe with dynamic Sun ephemeris, real Jean Meeus lunar position, Earth GMST axial rotation, and 4000+ deep-space stars.
+- GPU instanced rendering displaying 19,500+ active satellites and debris fragments at 60 FPS.
+- Altitude reference rings (ISS ~420km, Starlink ~550km, Sun-sync ~800km, GPS/MEO ~20,200km).
+- Time machine playback controls (`1X`, `10X`, `50X`, `200X`, `1000X`, `PAUSE`, and `NOW`).
+- Camera lock / orbit tracking mode following selected spacecraft.
+
+### 🛡️ Conjunction Assessment & Collision Alerts
+- 3-Phase spatial screening engine evaluating close approaches over 72-hour operational windows.
+- Computes exact Time of Closest Approach (TCA) countdown, 3D Euclidean miss distance, and relative hypervelocity.
+- Collision alert management with severity tiering (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`) and operator acknowledgment.
+
+### 🤖 Explainable AI Risk & Decision Support
+- Multi-factor risk forecasting: Miss Distance (50%), Relative Velocity (25%), Lead Time Urgency (20%), and Local Altitude Congestion (5%).
+- Automated Collision Avoidance Maneuver (CAM) $\Delta V$ magnitude and burn vector directions (Prograde / Retrograde / Radial-Out).
+
+### 🔭 Satellite Pass & Visibility Predictor
+- Calculates topocentric look angles (Azimuth, Elevation, Slant Range) and optical/RF pass windows.
+- Computes Acquisition of Signal (AOS), Loss of Signal (LOS), and Culmination Max Elevation for any observer on Earth.
+
+### 🗺️ 2D Mercator Ground Track Analyzer
+- Dedicated 2D world projection showing sub-satellite ground trace and day/night terminator boundaries.
+- Trajectory window selector (1 orbit, 3 hours, 6 hours, 12 hours, 24 hours).
+
+### 🧪 Astrodynamic Simulation Center
+- **What-If Breakup Simulator**: NASA Standard Breakup Model fragment size distribution ($N(L_c) \propto M^{0.75} L_c^{-1.71}$), Gabbard apogee/perigee dispersion, and atmospheric drag decay timelines.
+- **Kessler Syndrome Cascade Simulator**: 10–50 year non-linear differential growth of active satellites, collision frequencies, and runaway cascade tipping point detection.
+- **Active Debris Removal (ADR)**: Robotic capture, electrodynamic drag sails, and laser ablation deorbit mitigation efficacy comparisons.
+
+### 💾 Data Integrity & Health Monitor
+- Real-time provider health dashboard tracking CelesTrak, SatNOGS, Space-Track, and offline fallback cache.
+- Network latency monitors, stale TLE epoch diagnostics, and one-click JSON/CSV data message exports.
 
 ---
 
-## 3. Tech Stack
-
-- **Backend:** Python 3.9+, FastAPI, SQLAlchemy, SGP4, Skyfield, Pydantic v2, Uvicorn, Pytest.
-- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, Three.js, Lucide Icons.
-- **Database:** SQLite (local development) / PostgreSQL & Supabase (production).
-- **Deployment:** Docker, Docker Compose, Nginx.
-
----
-
-## 4. API Reference
+## 4. API Endpoints Reference
 
 | Endpoint | Method | Description |
-|----------|:------:|-------------|
-| `/api/health` | `GET` | System health and service status |
-| `/api/data/status` | `GET` | Live data synchronization and catalog metrics |
-| `/api/data/sync` | `POST` | Trigger TLE catalog synchronization (`mode=LIVE` or `mode=DEMO`) |
-| `/api/objects` | `GET` | Paginated orbital object catalog (`page`, `page_size`, `search`, `type`) |
-| `/api/objects/{id}/details` | `GET` | Complete metadata and Keplerian orbital elements |
-| `/api/objects/{id}/position` | `GET` | Real-time SGP4 position and geodetic telemetry |
-| `/api/objects/{id}/trajectory` | `GET` | Future orbital trajectory points across prediction window |
-| `/api/objects/{id}/ground-track` | `GET` | Sub-satellite ground track path over Earth |
-| `/api/objects/positions` | `GET` | High-performance batch position ephemeris for 3D globe |
-| `/api/conjunctions` | `GET` | List all detected conjunction events |
-| `/api/conjunctions/high-risk` | `GET` | List critical and high-risk conjunction events |
-| `/api/conjunctions/screen` | `POST` | Execute conjunction screening across tracked objects |
-| `/api/alerts` | `GET` | List active collision risk alerts |
+|:---|:---:|:---|
+| `/api/health` | `GET` | System health and database connectivity |
+| `/api/data/status` | `GET` | Current provider status and catalog statistics |
+| `/api/data/health` | `GET` | Multi-provider latency and stale TLE diagnostics |
+| `/api/data/sync` | `POST` | Trigger ephemeris sync (`mode=LIVE` or `mode=DEMO`) |
+| `/api/objects` | `GET` | Paginated catalog (`page`, `page_size`, `search`, `type`, `regime`) |
+| `/api/objects/{id}/position` | `GET` | Real-time SGP4 coordinates (TEME, ECEF, Geodetic) |
+| `/api/objects/{id}/trajectory` | `GET` | Future orbital trajectory points |
+| `/api/objects/{id}/ground-track` | `GET` | Sub-satellite geodetic ground trace |
+| `/api/conjunctions` | `GET` | Screened close approach events with TCA and miss distance |
+| `/api/conjunctions/screen` | `POST` | Execute 72h conjunction screening |
+| `/api/alerts` | `GET` | Active collision risk warnings |
+| `/api/alerts/{id}/ack` | `POST` | Acknowledge collision alert |
+| `/api/visibility/passes` | `GET` | Topocentric pass look angles for ground observer |
+| `/api/ai/predict-risk` | `POST` | AI Collision Avoidance Maneuver recommendations |
+| `/api/simulations/what-if` | `POST` | NASA Breakup Model fragment cloud simulation |
+| `/api/simulations/kessler` | `POST` | Multi-year Kessler Syndrome cascade model |
+| `/api/simulations/adr` | `POST` | Active Debris Removal risk mitigation model |
+| `/api/export/objects` | `GET` | Export catalog as CSV or JSON |
+| `/api/export/conjunctions` | `GET` | Export conjunction events as CSV or JSON |
 
 ---
 
-## 5. Scientific Methodology & Coordinate Systems
-
-### 5.1 Coordinate Frames
-1. **TEME (True Equator Mean Equinox):** Standard inertial frame output by SGP4.
-2. **ECEF (Earth-Centered, Earth-Fixed):** Computed by rotating TEME through Greenwich Mean Sidereal Time ($\theta_{GMST}$):
-   $$\begin{pmatrix} x_{ecef} \\ y_{ecef} \\ z_{ecef} \end{pmatrix} = \begin{pmatrix} \cos\theta_{GMST} & \sin\theta_{GMST} & 0 \\ -\sin\theta_{GMST} & \cos\theta_{GMST} & 0 \\ 0 & 0 & 1 \end{pmatrix} \begin{pmatrix} x_{teme} \\ y_{teme} \\ z_{teme} \end{pmatrix}$$
-3. **WGS84 Geodetic Coordinates:** Converted via Bowring's closed-form algorithm yielding Geodetic Latitude ($\phi$), Longitude ($\lambda$), and Height ($h$) above the reference ellipsoid ($a = 6378.137\text{ km}$, $f = 1/298.257223563$).
-
-### 5.2 Conjunction Risk Scoring vs Probability of Collision ($P_c$)
-ORBITGUARD employs a deterministic **Conjunction Risk Score (0–100)**:
-- $S_{total} = S_{distance} (55\text{ pts max}) + S_{velocity} (25\text{ pts max}) + S_{lead\_time} (20\text{ pts max})$
-
-> **Scientific Transparency Note:** Full Probability of Collision ($P_c$) integration (e.g. Foster-1992 or Akella-Alfriend 2D collision plane integrals) requires full 6x6 state covariance matrices, which are not distributed in open TLE datasets. OrbitGuard transparently labels this metric as **Conjunction Risk Score**.
-
----
-
-## 6. Local Setup & Execution
+## 5. Quickstart Guide
 
 ### Prerequisites
 - Python 3.9+
-- Node.js 18+ & npm
+- Node.js 18+
+- npm or yarn
 
-### Backend Setup
+### 1. Backend Setup
 ```bash
-# 1. Navigate to repository root
-cd /Users/kundan/Downloads/ORBITGUARD
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
 
-# 2. Activate virtual environment & install dependencies
-source backend/venv/bin/activate
-pip install -r backend/requirements.txt
+# Run automated tests
+pytest tests/ -v
 
-# 3. Launch FastAPI backend server
-PYTHONPATH=. uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+# Start FastAPI development server
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Frontend Setup
+### 2. Frontend Setup
 ```bash
-# 1. Navigate to frontend directory
-cd /Users/kundan/Downloads/ORBITGUARD/frontend
-
-# 2. Install dependencies & start Vite dev server
+cd frontend
 npm install
+npm run build
 npm run dev
 ```
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+Visit `http://localhost:5173` in your browser.
 
 ---
 
-## 7. Automated Testing Suite
+## 6. Technical Documentation
 
-Run the full pytest suite (25 automated unit & integration tests):
-```bash
-PYTHONPATH=. pytest backend/tests/
-```
-
-Run the standalone end-to-end orbital calculation pipeline test:
-```bash
-PYTHONPATH=. pytest -s backend/tests/test_real_orbital_pipeline.py
-```
+- [System Architecture](docs/ARCHITECTURE.md)
+- [Orbital Ingestion & Data Pipeline](docs/DATA_PIPELINE.md)
+- [Astrodynamics & SGP4 Engine](docs/ORBITAL_ENGINE.md)
+- [Conjunction Assessment & Risk Engine](docs/RISK_ENGINE.md)
+- [Astrodynamic Simulations (Breakup, Kessler, ADR)](docs/SIMULATIONS.md)
 
 ---
 
-## 8. Docker Deployment
+## 7. License & Credits
 
-```bash
-docker-compose up --build
-```
-- Backend: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Frontend: [http://localhost:5173](http://localhost:5173)
+Built with precision for the global aerospace community. Licensed under the [MIT License](LICENSE).

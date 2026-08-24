@@ -107,6 +107,12 @@ def get_data_status(db: Session = Depends(get_db)):
     """Retrieves live data synchronization, mode, catalog counts, and data freshness."""
     return TLEService.get_data_status(db)
 
+@router.get("/data/health")
+async def get_data_health(db: Session = Depends(get_db)):
+    """Retrieves comprehensive data provider health, latencies, stale TLE counts, and sync history."""
+    from backend.app.services.data_providers.manager import provider_manager
+    return await provider_manager.get_system_health(db=db)
+
 @router.get("/objects/positions", response_model=PositionsBatchResponse)
 def get_batch_positions(
     timestamp: Optional[datetime] = None,

@@ -63,28 +63,28 @@ export const Dashboard: React.FC<DashboardProps> = ({
         />
         <StatCard
           title="Active Satellites"
-          value={stats?.active_satellites ?? objects.filter(o => o.object_type === 'ACTIVE_SATELLITE').length}
+          value={stats?.total_active_satellites ?? stats?.active_satellites ?? objects.filter(o => o.object_type === 'ACTIVE_SATELLITE').length}
           subtitle="Operational payloads"
           icon={Satellite}
           variant="default"
         />
         <StatCard
           title="Space Debris"
-          value={stats?.space_debris ?? objects.filter(o => o.object_type === 'DEBRIS').length}
+          value={stats?.total_debris ?? stats?.space_debris ?? objects.filter(o => o.object_type === 'DEBRIS').length}
           subtitle="Tracked fragments"
           icon={Trash2}
           variant="default"
         />
         <StatCard
           title="Rocket Bodies"
-          value={stats?.rocket_bodies ?? objects.filter(o => o.object_type === 'ROCKET_BODY').length}
+          value={stats?.total_rocket_bodies ?? stats?.rocket_bodies ?? objects.filter(o => o.object_type === 'ROCKET_BODY').length}
           subtitle="Upper stages & boosters"
           icon={Flame}
           variant="warning"
         />
         <StatCard
           title="High-Risk Conjunctions"
-          value={stats?.high_risk_events ?? highRiskConjunctions.length}
+          value={stats?.critical_conjunctions ?? stats?.high_risk_conjunctions ?? highRiskConjunctions.length}
           subtitle="Urgent close encounters"
           icon={AlertTriangle}
           variant="danger"

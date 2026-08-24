@@ -6,12 +6,15 @@ import {
   GroundTrackResponse,
   PaginatedObjectsResponse,
   Conjunction,
-  ConjunctionSummary,
   Alert,
   SystemStatistics,
   DataStatus,
-  DensityResponse,
-  SystemHealth
+  DataHealthResponse,
+  VisibilityPassesResponse,
+  AIRiskPredictionResponse,
+  WhatIfSimulationResponse,
+  KesslerSimulationResponse,
+  ADRSimulationResponse
 } from '../types';
 
 const rawApiUrl = ((import.meta as any).env?.VITE_API_URL as string) || '';
@@ -36,14 +39,17 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  // System Health
-  getHealth: async (): Promise<SystemHealth> => {
-    return request<SystemHealth>('/health');
+  // System & Health
+  getHealth: async (): Promise<{ status: string; service: string }> => {
+    return request<{ status: string; service: string }>('/health');
   },
 
-  // Live Data Ingestion & Status
   getDataStatus: async (): Promise<DataStatus> => {
     return request<DataStatus>('/data/status');
+  },
+
+  getDataHealth: async (): Promise<DataHealthResponse> => {
+    return request<DataHealthResponse>('/data/health');
   },
 
   syncData: async (mode: string = 'LIVE'): Promise<any> => {
@@ -59,7 +65,7 @@ export const api = {
   },
 
   // Orbital Objects & Positions
-  getBatchPositions: async (timestamp?: string, limit: number = 500): Promise<PositionsBatchResponse> => {
+  getBatchPositions: async (timestamp?: string, limit: number = 1000): Promise<PositionsBatchResponse> => {
     const params = new URLSearchParams();
     if (timestamp) params.append('timestamp', timestamp);
     params.append('limit', limit.toString());
@@ -122,14 +128,6 @@ export const api = {
     return request<GroundTrackResponse>(`/objects/${id}/ground-track?${params.toString()}`);
   },
 
-  getDensity: async (): Promise<DensityResponse> => {
-    return request<DensityResponse>('/density');
-  },
-
-  getEvents: async (limit: number = 20): Promise<Conjunction[]> => {
-    return request<Conjunction[]>(`/events?limit=${limit}`);
-  },
-
   // Conjunctions & Screening
   getConjunctions: async (limit: number = 100, offset: number = 0): Promise<Conjunction[]> => {
     return request<Conjunction[]>(`/conjunctions?limit=${limit}&offset=${offset}`);
@@ -139,41 +137,135 @@ export const api = {
     return request<Conjunction[]>('/conjunctions/high-risk');
   },
 
-  getConjunctionSummary: async (): Promise<ConjunctionSummary> => {
-    return request<ConjunctionSummary>('/conjunctions/summary');
-  },
-
   triggerConjunctionScreening: async (
-    windowHours: number = 24,
-    thresholdKm: number = 50.0,
-    coarseStepMinutes: number = 5
+    windowHours: number = 72,
+    thresholdKm: number = 150.0,
+    coarseStepMinutes: number = 3
   ): Promise<any> => {
-    const params = new URLSearchParams({
-      window_hours: windowHours.toString(),
-      threshold_km: thresholdKm.toString(),
-      coarse_step_minutes: coarseStepMinutes.toString()
-    });
-    return request<any>(`/conjunctions/screen?${params.toString()}`, { method: 'POST' });
+    return request<any>(
+      `/conjunctions/screen?window_hours=${windowHours}&threshold_km=${thresholdKm}&coarse_step_minutes=${coarseStepMinutes}`,
+      { method: 'POST' }
+    );
   },
 
   // Alerts
-  getAlerts: async (status?: string, severity?: string): Promise<Alert[]> => {
-    const params = new URLSearchParams();
-    if (status) params.append('status', status);
-    if (severity) params.append('severity', severity);
-    return request<Alert[]>(`/alerts?${params.toString()}`);
+  getAlerts: async (limit: number = 50): Promise<Alert[]> => {
+    return request<Alert[]>(`/alerts?limit=${limit}`);
   },
 
   acknowledgeAlert: async (id: number): Promise<Alert> => {
-    return request<Alert>(`/alerts/${id}/acknowledge`, { method: 'PATCH' });
+    return request<Alert>(`/alerts/${id}/acknowledge`, { method: 'POST' });
   },
 
-  resolveAlert: async (id: number): Promise<Alert> => {
-    return request<Alert>(`/alerts/${id}/resolve`, { method: 'PATCH' });
+  resolveAlert: async (id: number, notes?: string): Promise<Alert> => {
+    const params = new URLSearchParams();
+    if (notes) params.append('notes', notes);
+    return request<Alert>(`/alerts/${id}/resolve?${params.toString()}`, { method: 'POST' });
   },
 
-  // Statistics
+  // Statistics & Analytics
   getStatistics: async (): Promise<SystemStatistics> => {
     return request<SystemStatistics>('/statistics');
   },
+
+  // Satellite Pass Visibility Predictor
+  getSatellitePasses: async (
+    noradId: number,
+    lat: number,
+    lon: number,
+    altM: number = 0.0,
+    hours: number = 48.0,
+    minElevation: number = 10.0
+  ): Promise<VisibilityPassesResponse> => {
+    const params = new URLSearchParams({
+      norad_id: noradId.toString(),
+      lat: lat.toString(),
+      lon: lon.toString(),
+      alt_m: altM.toString(),
+      hours: hours.toString(),
+      min_elevation: minElevation.toString()
+    });
+    return request<VisibilityPassesResponse>(`/visibility/passes?${params.toString()}`);
+  },
+
+  // AI Conjunction Risk Module
+  predictAIRisk: async (
+    missDistanceKm: number,
+    relativeVelocityKmS: number,
+    hoursToTca: number,
+    altitudeKm: number = 550.0,
+    inclinationDiffDeg: number = 15.0
+  ): Promise<AIRiskPredictionResponse> => {
+    const params = new URLSearchParams({
+      miss_distance_km: missDistanceKm.toString(),
+      relative_velocity_km_s: relativeVelocityKmS.toString(),
+      hours_to_tca: hoursToTca.toString(),
+      altitude_km: altitudeKm.toString(),
+      inclination_diff_deg: inclinationDiffDeg.toString()
+    });
+    return request<AIRiskPredictionResponse>(`/ai/predict-risk?${params.toString()}`);
+  },
+
+  getConjunctionAIAnalysis: async (conjunctionId: number): Promise<AIRiskPredictionResponse> => {
+    return request<AIRiskPredictionResponse>(`/ai/conjunction/${conjunctionId}/ai-analysis`);
+  },
+
+  // Space Simulations
+  runWhatIfSimulation: async (
+    targetName: string = 'SAT-1023',
+    noradId: number = 44713,
+    altitudeKm: number = 550.0,
+    massKg: number = 800.0,
+    fragmentCount: number = 150,
+    scenario: string = 'EXPLOSION'
+  ): Promise<WhatIfSimulationResponse> => {
+    const params = new URLSearchParams({
+      target_name: targetName,
+      norad_id: noradId.toString(),
+      altitude_km: altitudeKm.toString(),
+      mass_kg: massKg.toString(),
+      fragment_count: fragmentCount.toString(),
+      scenario: scenario
+    });
+    return request<WhatIfSimulationResponse>(`/simulations/what-if?${params.toString()}`);
+  },
+
+  runKesslerSimulation: async (
+    initialObjects: number = 19578,
+    annualLaunches: number = 1500,
+    collisionRate: number = 1.0,
+    fragmentsPerCollision: number = 400,
+    years: number = 30,
+    pmdCompliance: number = 85.0
+  ): Promise<KesslerSimulationResponse> => {
+    const params = new URLSearchParams({
+      initial_objects: initialObjects.toString(),
+      annual_launches: annualLaunches.toString(),
+      collision_rate: collisionRate.toString(),
+      fragments_per_collision: fragmentsPerCollision.toString(),
+      years: years.toString(),
+      pmd_compliance: pmdCompliance.toString()
+    });
+    return request<KesslerSimulationResponse>(`/simulations/kessler?${params.toString()}`);
+  },
+
+  runADRSimulation: async (
+    method: string = 'ROBOTIC_CAPTURE',
+    annualRemovals: number = 15,
+    targetAltitude: number = 800.0,
+    years: number = 20
+  ): Promise<ADRSimulationResponse> => {
+    const params = new URLSearchParams({
+      method: method,
+      annual_removals: annualRemovals.toString(),
+      target_altitude: targetAltitude.toString(),
+      years: years.toString()
+    });
+    return request<ADRSimulationResponse>(`/simulations/adr?${params.toString()}`);
+  },
+
+  // Export URLs
+  getExportUrl: (type: 'objects' | 'conjunctions', format: 'json' | 'csv' = 'json'): string => {
+    return `${API_BASE}/export/${type}?format=${format}&limit=1000`;
+  }
 };

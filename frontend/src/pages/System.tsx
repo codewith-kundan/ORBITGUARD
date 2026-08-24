@@ -172,7 +172,7 @@ export const System: React.FC<SystemProps> = ({
               <div className="flex justify-between">
                 <span className="text-slate-400">LAST SYNC:</span>
                 <span className="text-slate-300 text-[11px]">
-                  {dataStatus?.last_sync ? new Date(dataStatus.last_sync).toLocaleTimeString() : 'N/A'}
+                  {dataStatus?.last_updated || dataStatus?.last_sync ? new Date(dataStatus.last_updated || dataStatus.last_sync || '').toLocaleTimeString() : 'N/A'}
                 </span>
               </div>
               <div className="flex justify-between">

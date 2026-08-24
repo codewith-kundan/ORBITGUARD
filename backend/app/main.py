@@ -6,6 +6,10 @@ from backend.app.api.objects import router as objects_router
 from backend.app.api.conjunctions import router as conjunctions_router
 from backend.app.api.alerts import router as alerts_router
 from backend.app.api.statistics import router as statistics_router
+from backend.app.api.visibility import router as visibility_router
+from backend.app.api.ai_risk import router as ai_risk_router
+from backend.app.api.simulations import router as simulations_router
+from backend.app.api.export import router as export_router
 from backend.app.models.base import Base, engine, get_db
 from backend.app.models.orbital_object import OrbitalObject, SyncLog
 from backend.app.models.conjunction import Conjunction
@@ -14,9 +18,9 @@ from backend.app.models.conjunction import Conjunction
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="ORBITGUARD API",
-    description="Space Situational Awareness & Satellite Collision Risk Prediction Engine",
-    version="1.0.0",
+    title="SPACE SENTINEL API",
+    description="Space Debris Tracking & Satellite Collision Risk Prediction Engine",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -33,6 +37,10 @@ app.include_router(objects_router)
 app.include_router(conjunctions_router)
 app.include_router(alerts_router)
 app.include_router(statistics_router)
+app.include_router(visibility_router)
+app.include_router(ai_risk_router)
+app.include_router(simulations_router)
+app.include_router(export_router)
 
 @app.on_event("startup")
 async def startup_event():

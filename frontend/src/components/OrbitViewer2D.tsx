@@ -4,12 +4,13 @@ import { api } from '../services/api';
 import { ZoomIn, ZoomOut, RotateCcw, Crosshair } from 'lucide-react';
 
 interface OrbitViewer2DProps {
-  objects: OrbitalObject[];
-  conjunctions: Conjunction[];
+  objects?: OrbitalObject[];
+  conjunctions?: Conjunction[];
   selectedObject: OrbitalObject | null;
-  selectedConjunction: Conjunction | null;
-  onSelectObject: (obj: OrbitalObject) => void;
-  onSelectConjunction: (conj: Conjunction) => void;
+  selectedConjunction?: Conjunction | null;
+  onSelectObject?: (obj: OrbitalObject) => void;
+  onSelectConjunction?: (conj: Conjunction) => void;
+  durationMinutes?: number;
 }
 
 interface ObjectPoint {
@@ -18,12 +19,13 @@ interface ObjectPoint {
 }
 
 export const OrbitViewer2D: React.FC<OrbitViewer2DProps> = ({
-  objects,
-  conjunctions,
+  objects = [],
+  conjunctions = [],
   selectedObject,
   selectedConjunction,
   onSelectObject,
-  onSelectConjunction
+  onSelectConjunction,
+  durationMinutes = 180
 }) => {
   const [positions, setPositions] = useState<ObjectPoint[]>([]);
   const [trajectory, setTrajectory] = useState<TrajectoryResponse | null>(null);
@@ -77,7 +79,7 @@ export const OrbitViewer2D: React.FC<OrbitViewer2DProps> = ({
         return;
       }
       try {
-        const traj = await api.getObjectTrajectory(selectedObject.norad_id, 12, 5);
+        const traj = await api.getObjectTrajectory(selectedObject.norad_id, Math.max(1, Math.round(durationMinutes / 60)), 5);
         if (isMounted) setTrajectory(traj);
       } catch (err) {
         console.error('Failed to get trajectory:', err);
@@ -85,7 +87,7 @@ export const OrbitViewer2D: React.FC<OrbitViewer2DProps> = ({
     };
     fetchTraj();
     return () => { isMounted = false; };
-  }, [selectedObject]);
+  }, [selectedObject, durationMinutes]);
 
   // Convert Lon [-180, 180] and Lat [-90, 90] to SVG canvas coords (1000x500 viewBox)
   const lonLatToSVG = (lon: number, lat: number) => {
@@ -230,7 +232,7 @@ export const OrbitViewer2D: React.FC<OrbitViewer2DProps> = ({
               <g
                 key={`conj-${conj.id}`}
                 className="cursor-pointer"
-                onClick={() => onSelectConjunction(conj)}
+                onClick={() => onSelectConjunction?.(conj)}
               >
                 <circle
                   cx={pt.x}
@@ -265,7 +267,7 @@ export const OrbitViewer2D: React.FC<OrbitViewer2DProps> = ({
               <g
                 key={`sat-${pt.object.norad_id}`}
                 className="cursor-pointer transition-transform duration-100"
-                onClick={() => onSelectObject(pt.object)}
+                onClick={() => onSelectObject?.(pt.object)}
                 onMouseEnter={() => setHoveredPoint(pt)}
                 onMouseLeave={() => setHoveredPoint(null)}
               >

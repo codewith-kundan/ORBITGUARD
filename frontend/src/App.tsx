@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Navbar } from './components/Navbar';
+import { Navbar, NavTabKey } from './components/Navbar';
 import { DataStatusBar } from './components/DataStatusBar';
 import { SpaceView } from './pages/SpaceView';
 import { ObjectTable } from './components/ObjectTable';
 import { ConjunctionTable } from './components/ConjunctionTable';
 import { AlertPanel } from './components/AlertPanel';
 import { Analytics } from './pages/Analytics';
-import { System } from './pages/System';
+import { GroundTrackView } from './pages/GroundTrackView';
+import { PassPredictor } from './pages/PassPredictor';
+import { SimulationCenter } from './pages/SimulationCenter';
+import { DataHealthView } from './pages/DataHealthView';
 import { ObjectDetailsModal } from './components/ObjectDetailsModal';
 import { ConjunctionDetailsModal } from './components/ConjunctionDetailsModal';
 import { api } from './services/api';
@@ -20,7 +23,7 @@ import {
 import { Loader2 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'space' | 'catalog' | 'conjunctions' | 'alerts' | 'analytics' | 'system'>('space');
+  const [activeTab, setActiveTab] = useState<NavTabKey>('space');
   const [stats, setStats] = useState<SystemStatistics | null>(null);
   const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
   const [objects, setObjects] = useState<OrbitalObject[]>([]);
@@ -47,7 +50,7 @@ export default function App() {
         api.getDataStatus().catch(() => null),
         api.getStatistics().catch(() => null),
         api.getPaginatedObjects(1, 500).then(r => r.items).catch(() => []),
-        api.getConjunctions(50, 0).catch(() => []),
+        api.getConjunctions(100, 0).catch(() => []),
         api.getAlerts().catch(() => [])
       ]);
 
@@ -62,7 +65,7 @@ export default function App() {
         await handleSync('DEMO');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to communicate with ORBITGUARD backend');
+      setError(err.message || 'Failed to communicate with SPACE SENTINEL backend');
     } finally {
       setLoading(false);
     }
@@ -72,72 +75,53 @@ export default function App() {
     loadAllData();
   }, []);
 
-  // Handle TLE Synchronization (LIVE or DEMO)
   const handleSync = async (mode: 'LIVE' | 'DEMO' = 'LIVE') => {
-    setIsSyncing(true);
     try {
+      setIsSyncing(true);
       await api.syncData(mode);
-      await api.triggerConjunctionScreening(24, 50.0, 3);
-      
-      const [statusData, statsData, objsData, conjsData, alertsData] = await Promise.all([
-        api.getDataStatus(),
-        api.getStatistics(),
-        api.getPaginatedObjects(1, 100).then(r => r.items),
-        api.getConjunctions(50, 0),
-        api.getAlerts()
-      ]);
-      setDataStatus(statusData);
-      setStats(statsData);
-      setObjects(objsData);
-      setConjunctions(conjsData);
-      setAlerts(alertsData);
+      await loadAllData();
     } catch (err: any) {
-      console.error('Sync error:', err);
+      setError(err.message || 'Sync failed');
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Handle Conjunction Screening Run
   const handleScreenConjunctions = async () => {
-    setIsScreening(true);
     try {
-      await api.triggerConjunctionScreening(24, 50.0, 3);
-      const [statsData, conjsData, alertsData] = await Promise.all([
-        api.getStatistics(),
-        api.getConjunctions(50, 0),
-        api.getAlerts()
+      setIsScreening(true);
+      await api.triggerConjunctionScreening(72, 150.0, 3);
+      const [newConjs, newAlerts, newStats] = await Promise.all([
+        api.getConjunctions(100, 0),
+        api.getAlerts(),
+        api.getStatistics()
       ]);
-      setStats(statsData);
-      setConjunctions(conjsData);
-      setAlerts(alertsData);
-    } catch (err) {
-      console.error('Screening error:', err);
+      setConjunctions(newConjs);
+      setAlerts(newAlerts);
+      setStats(newStats);
+    } catch (err: any) {
+      setError(err.message || 'Conjunction screening error');
     } finally {
       setIsScreening(false);
     }
   };
 
-  // Handle Alert Acknowledgment
   const handleAcknowledgeAlert = async (id: number) => {
     try {
       await api.acknowledgeAlert(id);
-      const [statsData, alertsData] = await Promise.all([
-        api.getStatistics(),
-        api.getAlerts()
-      ]);
-      setStats(statsData);
-      setAlerts(alertsData);
+      setAlerts(prev => prev.map(a => a.id === id ? { ...a, acknowledged: true } : a));
     } catch (err) {
-      console.error('Failed to acknowledge alert:', err);
+      console.error(err);
     }
   };
 
   const handleSelectObject = (obj: OrbitalObject | null) => {
     setSelectedObject(obj);
-    if (obj && activeTab === 'catalog') {
-      setIsObjectModalOpen(true);
-    }
+  };
+
+  const handleOpenObjectModal = (obj: OrbitalObject) => {
+    setSelectedObject(obj);
+    setIsObjectModalOpen(true);
   };
 
   const handleSelectConjunction = (conj: Conjunction | null) => {
@@ -149,39 +133,38 @@ export default function App() {
     setIsConjunctionModalOpen(true);
   };
 
-  const handleInspectConjunctionFromAlert = async (conjId: number) => {
-    const found = conjunctions.find((c) => c.id === conjId);
-    if (found) {
-      handleOpenConjunctionModal(found);
-    }
+  const handleInspectConjunctionFromAlert = (conj: Conjunction) => {
+    setSelectedConjunction(conj);
+    setIsConjunctionModalOpen(true);
   };
 
   return (
-    <div className="min-h-screen bg-space-950 text-slate-100 flex flex-col font-sans radar-grid">
-      {/* Top Aerospace Navbar */}
+    <div className="min-h-screen bg-space-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-space-950">
+      {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         stats={stats}
         dataStatus={dataStatus}
-        onRefresh={() => handleSync('LIVE')}
-        isRefreshing={isSyncing}
+        onRefresh={loadAllData}
+        isRefreshing={loading}
       />
 
-      {/* Data Ingestion Status & Live Error Banner */}
+      {/* Global Data Provider Status Bar */}
       <DataStatusBar
         dataStatus={dataStatus}
+        stats={stats}
         onSync={handleSync}
         isSyncing={isSyncing}
       />
 
       {/* Main Container */}
-      <main className="flex-1 p-4 lg:p-6 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto w-full">
         {loading && objects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[60vh] gap-3 font-mono text-cyan-400">
             <Loader2 className="w-8 h-8 animate-spin text-cyan-neon" />
-            <p className="text-sm font-bold">Connecting to ORBITGUARD SGP4 Ephemeris Engine...</p>
-            <p className="text-xs text-slate-400">If using cloud free tier, backend takes ~30s to wake up on first load.</p>
+            <p className="text-sm font-bold">Connecting to SPACE SENTINEL SGP4 Ephemeris Engine...</p>
+            <p className="text-xs text-slate-400">Loading orbital state vectors and active collision screening tables...</p>
           </div>
         ) : error ? (
           <div className="bg-danger-500/10 border border-danger-500/30 rounded-2xl p-6 text-center font-mono text-danger-neon max-w-lg mx-auto mt-12 shadow-2xl">
@@ -204,7 +187,7 @@ export default function App() {
           </div>
         ) : (
           <>
-            {/* HERO DEFAULT: Full Space Traffic Control Center View */}
+            {/* HERO DEFAULT: Space Traffic Control Center 3D Globe */}
             {activeTab === 'space' && (
               <SpaceView
                 objects={objects}
@@ -223,6 +206,7 @@ export default function App() {
               <ObjectTable
                 selectedObject={selectedObject}
                 onSelectObject={handleSelectObject}
+                onOpenDetails={handleOpenObjectModal}
               />
             )}
 
@@ -242,7 +226,10 @@ export default function App() {
               <AlertPanel
                 alerts={alerts}
                 onAcknowledge={handleAcknowledgeAlert}
-                onSelectConjunction={handleInspectConjunctionFromAlert}
+                onSelectConjunction={(conjId: number) => {
+                  const c = conjunctions.find(x => x.id === conjId);
+                  if (c) handleInspectConjunctionFromAlert(c);
+                }}
               />
             )}
 
@@ -254,13 +241,28 @@ export default function App() {
               />
             )}
 
-            {/* SYSTEM: Health, Database, Sync & Operations */}
-            {activeTab === 'system' && (
-              <System
-                dataStatus={dataStatus}
-                onSync={handleSync}
-                isSyncing={isSyncing}
+            {/* GROUND TRACKS: 2D Mercator World Projection */}
+            {activeTab === 'ground-track' && (
+              <GroundTrackView
+                objects={objects}
+                selectedObject={selectedObject}
+                onSelectObject={handleSelectObject}
               />
+            )}
+
+            {/* PASS PREDICTOR: Look-Angle & Visibility Windows */}
+            {activeTab === 'passes' && (
+              <PassPredictor />
+            )}
+
+            {/* SIMULATIONS: What-If, Kessler Cascade & ADR */}
+            {activeTab === 'simulations' && (
+              <SimulationCenter />
+            )}
+
+            {/* DATA HEALTH: Source Status & Quality */}
+            {activeTab === 'data-health' && (
+              <DataHealthView />
             )}
           </>
         )}

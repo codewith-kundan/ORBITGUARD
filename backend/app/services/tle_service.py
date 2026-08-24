@@ -73,54 +73,21 @@ class TLEService:
     @classmethod
     async def fetch_tle_data(cls, mode: str = "LIVE") -> Tuple[List[Dict[str, Any]], str, str, Optional[str]]:
         """
-        Fetches live TLE orbital datasets across Space-Track / SatNOGS / CelesTrak providers.
+        Fetches live TLE orbital datasets across CelesTrak / Space-Track / SatNOGS / Fallback providers
+        using the DataProviderManager abstraction.
         """
-        if mode.upper() == "DEMO":
-            records = cls._load_local_fallback()
-            return records, "Local Cached Dataset", "DEMO", None
+        from backend.app.services.data_providers.manager import provider_manager
 
-        # 1. Primary: Official Space-Track.org REST API Session (US Space Force)
-        spacetrack_user = settings.SPACETRACK_USER or os.environ.get("SPACETRACK_USER")
-        spacetrack_pass = settings.SPACETRACK_PASSWORD or os.environ.get("SPACETRACK_PASSWORD")
-        if spacetrack_user and spacetrack_pass:
-            st_records, st_err = await cls._fetch_spacetrack(spacetrack_user, spacetrack_pass)
-            if st_records and len(st_records) > 0:
-                return st_records, "Space-Track.org (18th Space Defense Squadron)", "LIVE", None
+        raw_lines, source_name, status_mode, error_msg = await provider_manager.fetch_data(mode=mode)
+        if raw_lines:
+            raw_text = "\n".join(raw_lines)
+            records = cls.parse_tle_text(raw_text, source_group=source_name)
+            if records:
+                return records, source_name, status_mode, error_msg
 
-        # 2. Secondary: SatNOGS Global Satellite Mirror (1,600+ Live Objects from Space-Track)
-        try:
-            req = urllib.request.Request(cls.SATNOGS_URL, headers={"User-Agent": "ORBITGUARD-SSA/1.0 (Mozilla/5.0)"})
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                if resp.status == 200:
-                    raw_data = json.loads(resp.read().decode("utf-8"))
-                    records = cls._parse_satnogs_json(raw_data)
-                    if records and len(records) > 0:
-                        return records, "SatNOGS Live Space-Track Mirror", "LIVE", None
-        except Exception:
-            pass
-
-        # 3. Tertiary: CelesTrak Public Groups
-        all_records: List[Dict[str, Any]] = []
-        seen_norad = set()
-
-        try:
-            async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "ORBITGUARD-SSA/1.0 (Mozilla/5.0)"}) as client:
-                for group_name, group_url, default_type in cls.CELESTRAK_GROUPS:
-                    try:
-                        res = await client.get(group_url)
-                        if res.status_code == 200:
-                            parsed = cls.parse_tle_text(res.text, default_type=default_type, source_group=group_name)
-                            for r in parsed:
-                                if r["norad_id"] not in seen_norad:
-                                    seen_norad.add(r["norad_id"])
-                                    all_records.append(r)
-                    except Exception:
-                        continue
-        except Exception:
-            pass
-
-        if all_records:
-            return all_records, "CelesTrak Live Catalog", "LIVE", None
+        # Fallback to local cache if parsing empty
+        records = cls._load_local_fallback()
+        return records, "Local Verified Cache", "DEMO", error_msg or "Failed to parse provider response"
 
         # If live fetch failed
         return [], "Orbital Data Providers", "LIVE ERROR", "Could not establish network connection to live providers"

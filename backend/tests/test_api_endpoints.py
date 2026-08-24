@@ -24,7 +24,7 @@ def test_full_api_pipeline():
     assert res_refresh.status_code == 200
     refresh_data = res_refresh.json()
     assert refresh_data["total_objects"] > 0
-    assert refresh_data["data_source"] in ["CelesTrak", "Local Cached Dataset"]
+    assert refresh_data["data_source"] in ["CelesTrak", "Local Cached Dataset", "Local Verified Cache"]
 
     # 4. Paginated Objects Catalog
     res_objs = client.get("/api/objects?page=1&page_size=10")
