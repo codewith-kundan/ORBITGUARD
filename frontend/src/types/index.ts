@@ -24,6 +24,7 @@ export interface OrbitalObject {
   semi_major_axis_km?: number;
   perigee_km?: number;
   apogee_km?: number;
+  last_position_update?: string;
   last_propagated_at?: string;
   created_at: string;
   updated_at: string;
@@ -131,9 +132,11 @@ export interface Conjunction {
   longitude_deg?: number;
   risk_score: number;
   risk_level: RiskLevel;
+  status?: string;
   object_a?: OrbitalObject;
   object_b?: OrbitalObject;
   factors?: RiskFactors;
+  calculated_at?: string;
   created_at: string;
 }
 
@@ -152,8 +155,11 @@ export interface Alert {
   id: number;
   conjunction_id: number;
   severity: RiskLevel;
+  title?: string;
   status: AlertStatus;
   message: string;
+  acknowledged: boolean;
+  resolved: boolean;
   created_at: string;
   acknowledged_at?: string;
   conjunction?: Conjunction;
@@ -198,4 +204,30 @@ export interface SystemStatistics {
   status_mode: string;
   last_sync?: string;
   data_age_minutes?: number;
+}
+
+export interface DensityBin {
+  altitude_range_km: string;
+  min_alt_km: number;
+  max_alt_km: number;
+  count: number;
+  satellites: number;
+  debris: number;
+  rocket_bodies: number;
+}
+
+export interface DensityResponse {
+  total_catalog_objects: number;
+  bins: DensityBin[];
+}
+
+export interface SystemHealth {
+  status: string;
+  service: string;
+  database_connected: boolean;
+  orbital_provider_connected: boolean;
+  last_sync?: string;
+  object_count: number;
+  last_conjunction_scan?: string;
+  propagation_status: string;
 }

@@ -6,7 +6,8 @@ from datetime import datetime, timezone, timedelta
 import math
 
 from backend.app.models.base import get_db, Base, engine
-from backend.app.models.orbital_object import OrbitalObject, TLERecord, SyncLog
+from backend.app.models.orbital_object import OrbitalObject, TLERecord, SyncLog, SyncHistory
+from backend.app.models.conjunction import Conjunction
 from backend.app.schemas.orbital_object import (
     OrbitalObjectResponse,
     ObjectType,
@@ -15,8 +16,11 @@ from backend.app.schemas.orbital_object import (
     OrbitalPosition,
     PositionsBatchResponse,
     PaginatedObjectsResponse,
-    DataStatusResponse
+    DataStatusResponse,
+    DensityResponse,
+    DensityBin
 )
+from backend.app.schemas.conjunction import ConjunctionResponse
 from backend.app.services.tle_service import TLEService
 from backend.app.services.propagation_service import PropagationService
 from backend.app.utils.time_utils import to_utc
@@ -24,7 +28,7 @@ from backend.app.utils.time_utils import to_utc
 # Ensure tables exist
 Base.metadata.create_all(bind=engine)
 
-router = APIRouter(prefix="/api", tags=["Orbital Objects & Data Ingestion"])
+router = APIRouter(prefix="/api", tags=["Orbital Objects & Telemetry"])
 
 @router.post("/data/sync")
 @router.post("/data/refresh")
@@ -33,13 +37,12 @@ async def sync_orbital_data(
     db: Session = Depends(get_db)
 ):
     """
-    Synchronizes the orbital catalog from the configured provider (CelesTrak) or Demo Cache.
-    Reports real errors if live data is unreachable. Never silently fakes data.
+    Synchronizes the orbital catalog from CelesTrak public feeds (or local demo cache).
+    Never silently fakes live data.
     """
     records, source_name, status_mode, error_msg = await TLEService.fetch_tle_data(mode=mode)
     
     if status_mode == "LIVE ERROR":
-        # Log failure
         log = SyncLog(
             mode="LIVE",
             source=source_name,
@@ -70,7 +73,7 @@ async def sync_orbital_data(
 
 @router.get("/data/status", response_model=DataStatusResponse)
 def get_data_status(db: Session = Depends(get_db)):
-    """Retrieves dynamic live data synchronization and catalog statistics."""
+    """Retrieves live data synchronization, mode, catalog counts, and data freshness."""
     return TLEService.get_data_status(db)
 
 @router.get("/objects/positions", response_model=PositionsBatchResponse)
@@ -80,8 +83,7 @@ def get_batch_positions(
     db: Session = Depends(get_db)
 ):
     """
-    High-performance real-time batch propagation endpoint for the 3D globe and 2D map.
-    Returns 3D ECI/TEME (x, y, z) and geodetic (lat, lon, alt) coordinates.
+    High-performance real-time batch propagation endpoint for the 3D space environment and 2D map.
     """
     target_time = to_utc(timestamp) if timestamp else datetime.now(timezone.utc)
     objects = db.query(OrbitalObject).limit(limit).all()
@@ -131,7 +133,6 @@ def list_orbital_objects(
     total = query.count()
     total_pages = math.ceil(total / page_size) if total > 0 else 1
 
-    # Sorting
     sort_column = getattr(OrbitalObject, sort_by, OrbitalObject.norad_id)
     if order.lower() == "desc":
         query = query.order_by(desc(sort_column))
@@ -258,3 +259,59 @@ def get_object_ground_track(
         name=obj.name,
         points=track
     )
+
+@router.get("/density", response_model=DensityResponse)
+def get_orbital_density(db: Session = Depends(get_db)):
+    """Computes real spatial object density distribution across orbital altitude shells."""
+    objects = db.query(OrbitalObject.object_type, OrbitalObject.perigee_km, OrbitalObject.apogee_km).all()
+    
+    bins_def = [
+        ("200-400 km (VLEO/LEO)", 200.0, 400.0),
+        ("400-600 km (ISS/Starlink)", 400.0, 600.0),
+        ("600-800 km (Sun-Sync LEO)", 600.0, 800.0),
+        ("800-1200 km (High LEO)", 800.0, 1200.0),
+        ("1200-2000 km (Upper LEO)", 1200.0, 2000.0),
+        ("2000-20000 km (MEO / Navigation)", 2000.0, 20000.0),
+        ("20000-35786 km (GEO Transfer)", 20000.0, 35786.0),
+        (">35786 km (Geostationary / Deep Space)", 35786.0, 100000.0)
+    ]
+
+    density_bins = []
+    for label, min_alt, max_alt in bins_def:
+        b_count = 0
+        b_sat = 0
+        b_deb = 0
+        b_rb = 0
+        for obj_type, p, a in objects:
+            avg = ((p or 0) + (a or 0)) / 2.0
+            if min_alt <= avg < max_alt:
+                b_count += 1
+                if obj_type == ObjectType.ACTIVE_SATELLITE:
+                    b_sat += 1
+                elif obj_type == ObjectType.DEBRIS:
+                    b_deb += 1
+                elif obj_type == ObjectType.ROCKET_BODY:
+                    b_rb += 1
+
+        density_bins.append(DensityBin(
+            altitude_range_km=label,
+            min_alt_km=min_alt,
+            max_alt_km=max_alt,
+            count=b_count,
+            satellites=b_sat,
+            debris=b_deb,
+            rocket_bodies=b_rb
+        ))
+
+    return DensityResponse(
+        total_catalog_objects=len(objects),
+        bins=density_bins
+    )
+
+@router.get("/events", response_model=List[ConjunctionResponse])
+def get_conjunction_event_timeline(
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """Retrieves chronologically ordered upcoming conjunction events."""
+    return db.query(Conjunction).order_by(asc(Conjunction.tca)).limit(limit).all()

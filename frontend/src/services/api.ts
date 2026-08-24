@@ -9,7 +9,9 @@ import {
   ConjunctionSummary,
   Alert,
   SystemStatistics,
-  DataStatus
+  DataStatus,
+  DensityResponse,
+  SystemHealth
 } from '../types';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -34,8 +36,8 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   // System Health
-  getHealth: async (): Promise<{ status: string; service: string }> => {
-    return request<{ status: string; service: string }>('/health');
+  getHealth: async (): Promise<SystemHealth> => {
+    return request<SystemHealth>('/health');
   },
 
   // Live Data Ingestion & Status
@@ -109,6 +111,14 @@ export const api = {
     });
     if (timestamp) params.append('timestamp', timestamp);
     return request<GroundTrackResponse>(`/objects/${id}/ground-track?${params.toString()}`);
+  },
+
+  getDensity: async (): Promise<DensityResponse> => {
+    return request<DensityResponse>('/density');
+  },
+
+  getEvents: async (limit: number = 20): Promise<Conjunction[]> => {
+    return request<Conjunction[]>(`/events?limit=${limit}`);
   },
 
   // Conjunctions & Screening

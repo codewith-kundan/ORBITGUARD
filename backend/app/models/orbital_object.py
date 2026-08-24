@@ -22,7 +22,7 @@ class OrbitalObject(Base):
     tle_line2 = Column(String(80), nullable=False)
     tle_epoch = Column(DateTime, nullable=True, index=True)
     
-    # Keplerian elements
+    # Keplerian orbital elements
     inclination = Column(Float, nullable=True)
     eccentricity = Column(Float, nullable=True)
     mean_motion = Column(Float, nullable=True)
@@ -31,9 +31,9 @@ class OrbitalObject(Base):
     perigee_km = Column(Float, nullable=True)
     apogee_km = Column(Float, nullable=True)
     
-    last_propagated_at = Column(DateTime, nullable=True)
+    last_position_update = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False, index=True)
 
     tle_history = relationship("TLERecord", back_populates="orbital_object", cascade="all, delete-orphan")
 
@@ -56,6 +56,21 @@ class TLERecord(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     orbital_object = relationship("OrbitalObject", back_populates="tle_history")
+
+class SyncHistory(Base):
+    __tablename__ = "sync_history"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    source = Column(String(50), default="CelesTrak", nullable=False)
+    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+    records_fetched = Column(Integer, default=0)
+    records_inserted = Column(Integer, default=0)
+    records_updated = Column(Integer, default=0)
+    records_failed = Column(Integer, default=0)
+    status = Column(String(20), default="SUCCESS", nullable=False) # SUCCESS, FAILED
+    error_message = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 class SyncLog(Base):
     __tablename__ = "sync_logs"

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 from enum import Enum
 
@@ -34,7 +34,7 @@ class OrbitalObjectCreate(OrbitalObjectBase):
 
 class OrbitalObjectResponse(OrbitalObjectBase):
     id: int
-    last_propagated_at: Optional[datetime] = None
+    last_position_update: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
@@ -127,3 +127,26 @@ class DataStatusResponse(BaseModel):
     data_age_minutes: Optional[float] = None
     sync_error: Optional[str] = None
     is_syncing: bool = False
+
+class DensityBin(BaseModel):
+    altitude_range_km: str
+    min_alt_km: float
+    max_alt_km: float
+    count: int
+    satellites: int
+    debris: int
+    rocket_bodies: int
+
+class DensityResponse(BaseModel):
+    total_catalog_objects: int
+    bins: List[DensityBin]
+
+class SystemHealthResponse(BaseModel):
+    status: str
+    service: str
+    database_connected: bool
+    orbital_provider_connected: bool
+    last_sync: Optional[datetime] = None
+    object_count: int
+    last_conjunction_scan: Optional[datetime] = None
+    propagation_status: str

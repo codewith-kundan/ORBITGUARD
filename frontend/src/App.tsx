@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { DataStatusBar } from './components/DataStatusBar';
-import { Dashboard } from './pages/Dashboard';
+import { SpaceView } from './pages/SpaceView';
 import { ObjectTable } from './components/ObjectTable';
 import { ConjunctionTable } from './components/ConjunctionTable';
 import { AlertPanel } from './components/AlertPanel';
 import { Analytics } from './pages/Analytics';
-import { OrbitViewer3D } from './components/OrbitViewer3D';
+import { System } from './pages/System';
 import { ObjectDetailsModal } from './components/ObjectDetailsModal';
 import { ConjunctionDetailsModal } from './components/ConjunctionDetailsModal';
 import { api } from './services/api';
@@ -14,13 +14,13 @@ import {
   OrbitalObject, 
   Conjunction, 
   Alert, 
-  SystemStatistics,
+  SystemStatistics, 
   DataStatus 
 } from './types';
 import { Loader2 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'objects' | 'conjunctions' | 'alerts' | 'analytics' | '3d'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'space' | 'catalog' | 'conjunctions' | 'alerts' | 'analytics' | 'system'>('space');
   const [stats, setStats] = useState<SystemStatistics | null>(null);
   const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
   const [objects, setObjects] = useState<OrbitalObject[]>([]);
@@ -57,12 +57,12 @@ export default function App() {
       setConjunctions(conjsData);
       setAlerts(alertsData);
 
-      // If database catalog is empty on first boot, trigger initial sync
+      // If catalog is empty on initial boot, trigger initial sync
       if (objsData.length === 0) {
         await handleSync('DEMO');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to communicate with ORBITGUARD API');
+      setError(err.message || 'Failed to communicate with ORBITGUARD backend');
     } finally {
       setLoading(false);
     }
@@ -77,9 +77,8 @@ export default function App() {
     setIsSyncing(true);
     try {
       await api.syncData(mode);
-      // Run screening on new data
       await api.triggerConjunctionScreening(24, 50.0, 3);
-      // Reload fresh data
+      
       const [statusData, statsData, objsData, conjsData, alertsData] = await Promise.all([
         api.getDataStatus(),
         api.getStatistics(),
@@ -136,18 +135,24 @@ export default function App() {
 
   const handleSelectObject = (obj: OrbitalObject | null) => {
     setSelectedObject(obj);
-    if (obj) setIsObjectModalOpen(true);
+    if (obj && activeTab === 'catalog') {
+      setIsObjectModalOpen(true);
+    }
   };
 
   const handleSelectConjunction = (conj: Conjunction | null) => {
     setSelectedConjunction(conj);
-    if (conj) setIsConjunctionModalOpen(true);
+  };
+
+  const handleOpenConjunctionModal = (conj: Conjunction) => {
+    setSelectedConjunction(conj);
+    setIsConjunctionModalOpen(true);
   };
 
   const handleInspectConjunctionFromAlert = async (conjId: number) => {
     const found = conjunctions.find((c) => c.id === conjId);
     if (found) {
-      handleSelectConjunction(found);
+      handleOpenConjunctionModal(found);
     }
   };
 
@@ -158,11 +163,12 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         stats={stats}
+        dataStatus={dataStatus}
         onRefresh={() => handleSync('LIVE')}
         isRefreshing={isSyncing}
       />
 
-      {/* Data Ingestion Status Banner */}
+      {/* Data Ingestion Status & Live Error Banner */}
       <DataStatusBar
         dataStatus={dataStatus}
         onSync={handleSync}
@@ -170,7 +176,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-4 lg:p-6 max-w-7xl mx-auto w-full">
         {loading && objects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[60vh] gap-3 font-mono text-cyan-400">
             <Loader2 className="w-8 h-8 animate-spin text-cyan-neon" />
@@ -189,37 +195,39 @@ export default function App() {
           </div>
         ) : (
           <>
-            {activeTab === 'dashboard' && (
-              <Dashboard
-                stats={stats}
+            {/* HERO DEFAULT: Full Space Traffic Control Center View */}
+            {activeTab === 'space' && (
+              <SpaceView
                 objects={objects}
                 conjunctions={conjunctions}
-                alerts={alerts}
                 selectedObject={selectedObject}
                 selectedConjunction={selectedConjunction}
                 onSelectObject={handleSelectObject}
                 onSelectConjunction={handleSelectConjunction}
-                onNavigateTab={setActiveTab}
+                onOpenConjunctionDetails={handleOpenConjunctionModal}
               />
             )}
 
-            {activeTab === 'objects' && (
+            {/* CATALOG: Paginated, searchable object catalog */}
+            {activeTab === 'catalog' && (
               <ObjectTable
                 selectedObject={selectedObject}
                 onSelectObject={handleSelectObject}
               />
             )}
 
+            {/* CONJUNCTIONS: Screening & Encounter Analyzer */}
             {activeTab === 'conjunctions' && (
               <ConjunctionTable
                 conjunctions={conjunctions}
                 selectedConjunction={selectedConjunction}
-                onSelectConjunction={handleSelectConjunction}
+                onSelectConjunction={handleOpenConjunctionModal}
                 onScreenNew={handleScreenConjunctions}
                 isScreening={isScreening}
               />
             )}
 
+            {/* ALERTS: Active Collision Warnings */}
             {activeTab === 'alerts' && (
               <AlertPanel
                 alerts={alerts}
@@ -228,6 +236,7 @@ export default function App() {
               />
             )}
 
+            {/* ANALYTICS: Spatial & Altitude Distributions */}
             {activeTab === 'analytics' && (
               <Analytics
                 stats={stats}
@@ -235,21 +244,19 @@ export default function App() {
               />
             )}
 
-            {activeTab === '3d' && (
-              <OrbitViewer3D
-                objects={objects}
-                conjunctions={conjunctions}
-                selectedObject={selectedObject}
-                selectedConjunction={selectedConjunction}
-                onSelectObject={handleSelectObject}
-                onSelectConjunction={handleSelectConjunction}
+            {/* SYSTEM: Health, Database, Sync & Operations */}
+            {activeTab === 'system' && (
+              <System
+                dataStatus={dataStatus}
+                onSync={handleSync}
+                isSyncing={isSyncing}
               />
             )}
           </>
         )}
       </main>
 
-      {/* Modals */}
+      {/* Telemetry Modal for Catalog */}
       {isObjectModalOpen && selectedObject && (
         <ObjectDetailsModal
           object={selectedObject}
@@ -257,6 +264,7 @@ export default function App() {
         />
       )}
 
+      {/* Conjunction Modal */}
       {isConjunctionModalOpen && selectedConjunction && (
         <ConjunctionDetailsModal
           conjunction={selectedConjunction}
