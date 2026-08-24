@@ -2,18 +2,21 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { 
+  Compass, 
   Play, 
   Pause, 
   RotateCcw, 
   Maximize2, 
   Minimize2, 
+  Search, 
   AlertTriangle,
-  Clock, 
-  Crosshair, 
-  FastForward, 
-  Share2, 
-  Sliders,
-  Compass
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Crosshair,
+  FastForward,
+  Globe,
+  Sliders
 } from 'lucide-react';
 import { 
   OrbitalObject, 
@@ -21,7 +24,7 @@ import {
   Conjunction, 
   OrbitalPosition, 
   TrajectoryResponse, 
-  GroundTrackResponse, 
+  GroundTrackResponse,
   SystemStatistics 
 } from '../types';
 import { api } from '../services/api';
@@ -40,16 +43,6 @@ interface SpaceViewProps {
 
 const EARTH_RADIUS = 6.371; // 1 unit = 1000 km in 3D scene
 
-// Known Phased-Array Space Radars (LeoLabs & Global SSA Network)
-const RADAR_STATIONS = [
-  { name: 'Kiwi Space Radar', lat: -45.03, lon: 169.68, country: 'New Zealand', color: 0xef4444, maxAlt: 2.2, span: 1.2 },
-  { name: 'Costa Rica Space Radar', lat: 10.02, lon: -84.18, country: 'Costa Rica', color: 0xf97316, maxAlt: 2.0, span: 1.1 },
-  { name: 'Alaska Space Radar', lat: 64.84, lon: -147.72, country: 'United States', color: 0xef4444, maxAlt: 2.2, span: 1.3 },
-  { name: 'Texas Space Radar', lat: 31.96, lon: -99.90, country: 'United States', color: 0xf59e0b, maxAlt: 1.8, span: 1.0 },
-  { name: 'Azores Space Radar', lat: 38.72, lon: -27.22, country: 'Portugal', color: 0xef4444, maxAlt: 2.1, span: 1.2 },
-  { name: 'West Australia Radar', lat: -29.04, lon: 115.34, country: 'Australia', color: 0xef4444, maxAlt: 2.0, span: 1.1 },
-];
-
 // Astronomical Solar Declination & Right Ascension Calculator
 function calculateSunDirection(date: Date): THREE.Vector3 {
   const dayOfYear = Math.floor(
@@ -67,30 +60,41 @@ function calculateSunDirection(date: Date): THREE.Vector3 {
 }
 
 function calculateMoonPosition(date: Date): THREE.Vector3 {
+  // Simplified lunar ephemeris from Jean Meeus
   const JD = 2440587.5 + date.getTime() / 86400000;
   const T = (JD - 2451545.0) / 36525.0;
   
+  // Mean elongation of the Moon
   const D = (297.8501921 + 445267.1114034 * T) % 360;
+  // Sun's mean anomaly
   const M = (357.5291092 + 35999.0502909 * T) % 360;
+  // Moon's mean anomaly  
   const Mp = (134.9633964 + 477198.8675055 * T) % 360;
+  // Moon's mean longitude
   const L0 = (218.3164477 + 481267.88123421 * T) % 360;
   
   const toRad = Math.PI / 180;
   
+  // Ecliptic longitude (simplified)
   const eclLon = (L0 + 6.289 * Math.sin(Mp * toRad)
     - 1.274 * Math.sin((2 * D - Mp) * toRad)
     + 0.658 * Math.sin(2 * D * toRad)
     - 0.214 * Math.sin(2 * Mp * toRad)
     - 0.186 * Math.sin(M * toRad)) * toRad;
     
+  // Ecliptic latitude (simplified)
   const eclLat = (5.128 * Math.sin((93.272 + 483202.0175 * T) * toRad)) * toRad;
+  
+  // Obliquity of ecliptic
   const obliquity = 23.439 * toRad;
   
+  // Convert ecliptic to equatorial
   const x = Math.cos(eclLat) * Math.cos(eclLon);
   const y = Math.cos(obliquity) * Math.cos(eclLat) * Math.sin(eclLon) - Math.sin(obliquity) * Math.sin(eclLat);
   const z = Math.sin(obliquity) * Math.cos(eclLat) * Math.sin(eclLon) + Math.cos(obliquity) * Math.sin(eclLat);
   
-  const moonDistance = 60;
+  // Scene distance (proportional — real is 384,400 km, Earth radius 6,371 km)
+  const moonDistance = 60; // ~60 Earth radii in scene units
   return new THREE.Vector3(x * moonDistance, z * moonDistance, -y * moonDistance);
 }
 
@@ -106,34 +110,22 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   
-  // UI State (LeoLabs Style Multi-Filter & Control Dock)
+  // UI State (LeoLabs Style Multi-Filter & Search Dock)
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(true);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  
-  // LeoLabs Checkbox Toggles
-  const [showDebris, setShowDebris] = useState<boolean>(true);
-  const [showBeams, setShowBeams] = useState<boolean>(true);
-  const [showInstruments, setShowInstruments] = useState<boolean>(true);
-  const [followEarth, setFollowEarth] = useState<boolean>(true);
-  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
-
-  // LeoLabs Views selector
-  const [activeView, setActiveView] = useState<'type' | 'perigee' | 'period' | 'inclination' | 'country'>('type');
-
-  // LeoLabs Filters
-  const [minPerigee, setMinPerigee] = useState<string>('');
-  const [maxPerigee, setMaxPerigee] = useState<string>('');
-
+  const [activeFleetFilter, setActiveFleetFilter] = useState<string>('ALL');
+  const [altitudeFilter, setAltitudeFilter] = useState<string>('ALL');
+  const [isDebrisMode, setIsDebrisMode] = useState<boolean>(false);
   const [isFollowMode, setIsFollowMode] = useState<boolean>(false);
   const [showGroundTrack, setShowGroundTrack] = useState<boolean>(true);
-  const [showOrbitRings] = useState<boolean>(true);
+  const [showOrbitRings, setShowOrbitRings] = useState<boolean>(true);
 
-  // Time Engine State
+  // Time Engine State (Default 50X for noticeable real-time orbital revolution)
   const [simTime, setSimTime] = useState<Date>(new Date());
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [simSpeed, setSimSpeed] = useState<number>(25);
-  const [trajectoryHours] = useState<number>(12);
+  const [simSpeed, setSimSpeed] = useState<number>(50);
+  const [trajectoryHours, setTrajectoryHours] = useState<number>(12);
 
   // Ephemeris State
   const [positions, setPositions] = useState<OrbitalPosition[]>([]);
@@ -152,10 +144,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     screenY: number;
   } | null>(null);
 
-  // Share link feedback
-  const [copiedLink, setCopiedLink] = useState<boolean>(false);
-
-  // Live Position synchronization refs
+  // Mutable Refs for 60 FPS Animation & Screen-Space Raycasting
   const positionsRef = useRef<OrbitalPosition[]>([]);
   const livePositionsRef = useRef<OrbitalPosition[]>([]);
   const visiblePositionsRef = useRef<OrbitalPosition[]>([]);
@@ -163,10 +152,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const isFollowModeRef = useRef<boolean>(false);
   const selectedPosRef = useRef<OrbitalPosition | null>(null);
   const isPlayingRef = useRef<boolean>(true);
-  const simSpeedRef = useRef<number>(25);
-  const showDebrisRef = useRef<boolean>(true);
-  const minPerigeeRef = useRef<number | null>(null);
-  const maxPerigeeRef = useRef<number | null>(null);
+  const simSpeedRef = useRef<number>(50);
 
   positionsRef.current = positions;
   objectsRef.current = objects;
@@ -174,9 +160,6 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   selectedPosRef.current = selectedPos;
   isPlayingRef.current = isPlaying;
   simSpeedRef.current = simSpeed;
-  showDebrisRef.current = showDebris;
-  minPerigeeRef.current = minPerigee ? parseFloat(minPerigee) : null;
-  maxPerigeeRef.current = maxPerigee ? parseFloat(maxPerigee) : null;
 
   // Three.js Scene References
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -184,18 +167,15 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const earthMeshRef = useRef<THREE.Mesh | null>(null);
-  const cloudsMeshRef = useRef<THREE.Mesh | null>(null);
   const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
   const sunMeshRef = useRef<THREE.Mesh | null>(null);
   const moonMeshRef = useRef<THREE.Mesh | null>(null);
-  const radarGroupRef = useRef<THREE.Group | null>(null);
 
-  // LeoLabs Instanced Meshes (Color-coded by type)
+  // Specialized LeoLabs 3D Instanced Meshes
+  const debrisMeshRef = useRef<THREE.InstancedMesh | null>(null);
   const satMeshRef = useRef<THREE.InstancedMesh | null>(null);
   const starlinkMeshRef = useRef<THREE.InstancedMesh | null>(null);
-  const debrisMeshRef = useRef<THREE.InstancedMesh | null>(null);
   const rocketMeshRef = useRef<THREE.InstancedMesh | null>(null);
-  const unknownMeshRef = useRef<THREE.InstancedMesh | null>(null);
   
   const trajectoryLineRef = useRef<THREE.Line | null>(null);
   const groundTrackLineRef = useRef<THREE.Line | null>(null);
@@ -204,7 +184,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const animationFrameId = useRef<number | null>(null);
 
   const simTimeRef = useRef<Date>(simTime);
-  const satrecMapRef = useRef<Map<number, { satrec: any; name: string; type: ObjectType; norad_id: number; perigee_km?: number; period_min?: number; inclination?: number; country?: string }>>(new Map());
+  const satrecMapRef = useRef<Map<number, { satrec: any; name: string; type: ObjectType; norad_id: number }>>(new Map());
 
   useEffect(() => {
     simTimeRef.current = simTime;
@@ -222,11 +202,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                 satrec,
                 name: obj.name,
                 type: obj.object_type,
-                norad_id: obj.norad_id,
-                perigee_km: obj.perigee_km,
-                period_min: obj.period_minutes,
-                inclination: obj.inclination,
-                country: obj.country_code || obj.country
+                norad_id: obj.norad_id
               });
             }
           } catch (e) {
@@ -272,17 +248,23 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     };
 
     fetchPositions();
-    let interval: any = null;
-    if (autoRefresh) {
-      interval = setInterval(fetchPositions, 30000);
-    }
+    const interval = setInterval(fetchPositions, 15000);
     return () => {
       isMounted = false;
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
     };
-  }, [autoRefresh]);
+  }, [selectedObject]);
 
-  // Fetch Trajectory Ribbon
+  // Simulation Clock Progression
+  useEffect(() => {
+    if (!isPlaying) return;
+    const timer = setInterval(() => {
+      setSimTime((prev) => new Date(prev.getTime() + 1000 * simSpeed));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isPlaying, simSpeed]);
+
+  // Fetch Trajectory & Ground Track on Selected Object Change
   useEffect(() => {
     if (!selectedObject) {
       setTrajectoryData(null);
@@ -291,131 +273,99 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     }
 
     let isMounted = true;
-    const fetchTrajectoryAndTrack = async () => {
+    const fetchEphemerisDetails = async () => {
       try {
-        const [traj, track] = await Promise.all([
-          api.getObjectTrajectory(selectedObject.norad_id, trajectoryHours, 4, simTime.toISOString()).catch(() => null),
-          api.getObjectGroundTrack(selectedObject.norad_id, 180, 2, simTime.toISOString()).catch(() => null)
-        ]);
+        const traj = await api.getObjectTrajectory(selectedObject.norad_id, trajectoryHours, 5);
+        if (isMounted) setTrajectoryData(traj);
 
-        if (isMounted) {
-          if (traj) setTrajectoryData(traj);
-          if (track) setGroundTrackData(track);
+        if (showGroundTrack) {
+          const track = await api.getObjectGroundTrack(selectedObject.norad_id, 180, 2);
+          if (isMounted) setGroundTrackData(track);
         }
       } catch (err) {
-        console.error('Failed to fetch telemetry tracks:', err);
+        console.error('Failed to fetch detailed trajectory/ground track:', err);
       }
     };
 
-    fetchTrajectoryAndTrack();
+    fetchEphemerisDetails();
     return () => { isMounted = false; };
-  }, [selectedObject, trajectoryHours]);
+  }, [selectedObject, trajectoryHours, showGroundTrack]);
 
-  // SGP4 High-Speed Astrodynamics Time Propagator
+  // Initialize Three.js WebGL Scene (LeoLabs Aesthetics)
   useEffect(() => {
-    if (!isPlaying) return;
+    const container = mountRef.current;
+    if (!container) return;
 
-    const timer = setInterval(() => {
-      setSimTime((prev) => new Date(prev.getTime() + (simSpeedRef.current * 1000) / 10));
-    }, 100);
-
-    return () => clearInterval(timer);
-  }, [isPlaying]);
-
-  // Toggle Radar Beams visibility in Three.js scene
-  useEffect(() => {
-    if (radarGroupRef.current) {
-      radarGroupRef.current.visible = showBeams;
-    }
-  }, [showBeams]);
-
-  // Toggle Orbit Rings
-  useEffect(() => {
-    if (orbitRingsGroupRef.current) {
-      orbitRingsGroupRef.current.visible = showOrbitRings;
-    }
-  }, [showOrbitRings]);
-
-  // INITIALIZE THREE.JS PHOTOREALISTIC SPACE ENVIRONMENT
-  useEffect(() => {
-    if (!mountRef.current) return;
-
-    // 1. Scene & Depth Configuration
+    // 1. Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x020611); // Deepest space black-blue
     sceneRef.current = scene;
 
-    // 2. High-Precision Perspective Camera
+    // 2. Camera
     const camera = new THREE.PerspectiveCamera(
-      42,
-      mountRef.current.clientWidth / mountRef.current.clientHeight,
+      45,
+      container.clientWidth / container.clientHeight,
       0.1,
       2500
     );
     camera.position.set(0, 11, 27);
     cameraRef.current = camera;
 
-    // 3. WebGL Renderer with High Dynamic Range
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-    renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
+    // 3. WebGL Renderer with ACES Tone Mapping
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.35;
-    mountRef.current.appendChild(renderer.domElement);
+    renderer.toneMappingExposure = 1.25;
+    container.replaceChildren(renderer.domElement);
     rendererRef.current = renderer;
 
-    // 4. Smooth Orbit Controls
+    // 4. Orbit Controls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = EARTH_RADIUS + 0.35;
-    controls.maxDistance = 220;
-    controls.autoRotate = false;
+    controls.minDistance = EARTH_RADIUS + 0.3;
+    controls.maxDistance = 300;
+    controls.rotateSpeed = 0.7;
     controlsRef.current = controls;
 
-    // 5. Deep Space Milky Way Starfield
-    const starsCount = 4000;
-    const starsGeom = new THREE.BufferGeometry();
-    const starPositions = new Float32Array(starsCount * 3);
-    const starColors = new Float32Array(starsCount * 3);
+    // 5. Deep Space High-Density Starfield
+    const starGeom = new THREE.BufferGeometry();
+    const starCount = 5000;
+    const starPositions = new Float32Array(starCount * 3);
+    const starColors = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i += 3) {
+      const radius = 700 + Math.random() * 350;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(Math.random() * 2 - 1);
+      starPositions[i] = radius * Math.sin(phi) * Math.cos(theta);
+      starPositions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
+      starPositions[i + 2] = radius * Math.cos(phi);
 
-    for (let i = 0; i < starsCount; i++) {
-      const u = Math.random();
-      const v = Math.random();
-      const theta = u * 2.0 * Math.PI;
-      const phi = Math.acos(2.0 * v - 1.0);
-      const r = 900 + Math.random() * 300;
-
-      starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      starPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      starPositions[i * 3 + 2] = r * Math.cos(phi);
-
-      const brightness = 0.6 + Math.random() * 0.4;
-      starColors[i * 3] = brightness * 0.9;
-      starColors[i * 3 + 1] = brightness * 0.95;
-      starColors[i * 3 + 2] = brightness;
+      const tint = 0.85 + Math.random() * 0.15;
+      starColors[i] = tint;
+      starColors[i + 1] = tint * 0.95;
+      starColors[i + 2] = tint * 1.15;
     }
-    starsGeom.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-    starsGeom.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
-    const starsMat = new THREE.PointsMaterial({ size: 1.2, vertexColors: true, transparent: true, opacity: 0.85 });
-    scene.add(new THREE.Points(starsGeom, starsMat));
+    starGeom.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    starGeom.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+    const starMat = new THREE.PointsMaterial({ size: 1.2, vertexColors: true, transparent: true, opacity: 0.85 });
+    scene.add(new THREE.Points(starGeom, starMat));
 
-    // 6. Solar Illuminator
-    const sunLight = new THREE.DirectionalLight(0xffffff, 2.4);
-    sunLight.position.set(120, 20, 90);
+    // 6. Real Sun Mesh & Directional Light
+    const sunLight = new THREE.DirectionalLight(0xffffff, 2.6);
     scene.add(sunLight);
     sunLightRef.current = sunLight;
 
-    const sunGeom = new THREE.SphereGeometry(3.5, 32, 32);
-    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfffaed });
+    const sunGeom = new THREE.SphereGeometry(2.5, 32, 32);
+    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfff6d6 });
     const sunMesh = new THREE.Mesh(sunGeom, sunMat);
-    sunMesh.position.copy(sunLight.position);
     scene.add(sunMesh);
     sunMeshRef.current = sunMesh;
 
-    scene.add(new THREE.AmbientLight(0x1a2638, 0.45));
+    const ambLight = new THREE.AmbientLight(0x283b5e, 0.48);
+    scene.add(ambLight);
 
-    // 7. Photorealistic Earth Body with Day/Night Shader
+    // 7. LeoLabs Photorealistic Live Earth Textures (STATIONARY GLOBE)
     const texLoader = new THREE.TextureLoader();
     const dayTexture = texLoader.load('/textures/earth_day.jpg');
     const nightTexture = texLoader.load('/textures/earth_night.jpg');
@@ -453,9 +403,11 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           vec4 dayColor = texture2D(dayTexture, vUv);
           vec4 nightColor = texture2D(nightTexture, vUv);
           
+          // Realistic Night: city lights + ambient oceanic & land relief
           vec3 nightAmbient = dayColor.rgb * 0.30 + nightColor.rgb * 1.8;
           vec3 finalColor = mix(nightAmbient, dayColor.rgb * 1.25, dayMix);
           
+          // Atmospheric Rayleigh blue limb scattering
           float rim = 1.0 - max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));
           finalColor += vec3(0.08, 0.65, 1.0) * pow(rim, 3.0) * 0.6;
           
@@ -466,11 +418,11 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
     const earthGeom = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
     const earthMesh = new THREE.Mesh(earthGeom, earthShaderMat);
-    earthMesh.rotation.y = -Math.PI / 2;
+    earthMesh.rotation.y = -Math.PI / 2; // Precise WGS84 ECEF Prime Meridian alignment
     scene.add(earthMesh);
     earthMeshRef.current = earthMesh;
 
-    // 8. Atmospheric Clouds Layer
+    // 8. High-Altitude Atmospheric Cloud Layer
     const cloudsTexture = texLoader.load('/textures/earth_clouds.jpg');
     const cloudsGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.015, 64, 64);
     const cloudsMat = new THREE.MeshStandardMaterial({
@@ -482,9 +434,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     const cloudMesh = new THREE.Mesh(cloudsGeom, cloudsMat);
     cloudMesh.rotation.y = -Math.PI / 2;
     scene.add(cloudMesh);
-    cloudsMeshRef.current = cloudMesh;
 
-    // 9. Atmospheric Glow
+    // 9. Atmospheric Rayleigh Outer Glow Shell
     const atmosGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.04, 64, 64);
     const atmosMat = new THREE.MeshBasicMaterial({
       color: 0x00e5ff,
@@ -494,93 +445,36 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     });
     scene.add(new THREE.Mesh(atmosGeom, atmosMat));
 
-    // 10. Lunar Body
+    // 10. Lunar Satellite Body
     const moonTexture = texLoader.load('/textures/moon.jpg');
     const moonGeom = new THREE.SphereGeometry(1.737, 32, 32);
     const moonMat = new THREE.MeshStandardMaterial({ map: moonTexture, roughness: 0.9 });
     const moonMesh = new THREE.Mesh(moonGeom, moonMat);
     scene.add(moonMesh);
+    // Moon position is updated in the animation loop via calculateMoonPosition()
     if (moonMeshRef) moonMeshRef.current = moonMesh;
 
-    // 11. LeoLabs Radar Beams Group & Ground Pins
-    const radarGroup = new THREE.Group();
-    RADAR_STATIONS.forEach(site => {
-      const latRad = (site.lat * Math.PI) / 180;
-      const lonRad = (site.lon * Math.PI) / 180;
-      
-      const r0 = EARTH_RADIUS;
-      const origin = new THREE.Vector3(
-        r0 * Math.cos(latRad) * Math.cos(lonRad),
-        r0 * Math.sin(latRad),
-        -r0 * Math.cos(latRad) * Math.sin(lonRad)
-      );
-      
-      const normal = origin.clone().normalize();
-      const segments = 16;
-      const vertices: number[] = [];
-      const uvs: number[] = [];
-      const indices: number[] = [];
-      
-      const up = Math.abs(normal.y) < 0.99 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
-      const tangent = new THREE.Vector3().crossVectors(normal, up).normalize();
-      const bitangent = new THREE.Vector3().crossVectors(normal, tangent).normalize();
-      
-      vertices.push(origin.x, origin.y, origin.z);
-      uvs.push(0.5, 0);
-      
-      const halfSpan = site.span * 0.5;
-      for (let i = 0; i <= segments; i++) {
-        const frac = i / segments;
-        const angle = (frac - 0.5) * halfSpan;
-        
-        const dir = normal.clone()
-          .add(tangent.clone().multiplyScalar(Math.sin(angle) * 0.9))
-          .add(bitangent.clone().multiplyScalar(Math.cos(angle) * 0.1))
-          .normalize();
-          
-        const topPt = origin.clone().add(dir.multiplyScalar(site.maxAlt));
-        vertices.push(topPt.x, topPt.y, topPt.z);
-        uvs.push(frac, 1.0);
-      }
-      
-      for (let i = 1; i <= segments; i++) {
-        indices.push(0, i, i + 1);
-      }
-      
-      const geom = new THREE.BufferGeometry();
-      geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-      geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-      geom.setIndex(indices);
-      geom.computeVertexNormals();
-      
-      const mat = new THREE.MeshBasicMaterial({
-        color: site.color,
-        transparent: true,
-        opacity: 0.35,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending
-      });
-      
-      const fanMesh = new THREE.Mesh(geom, mat);
-      radarGroup.add(fanMesh);
-      
-      // Ground Instrument Station Pin Marker
-      const pinGeom = new THREE.RingGeometry(0.06, 0.12, 16);
-      const pinMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, side: THREE.DoubleSide });
-      const pinMesh = new THREE.Mesh(pinGeom, pinMat);
-      pinMesh.position.copy(origin.clone().multiplyScalar(1.002));
-      pinMesh.lookAt(origin.clone().add(normal));
-      radarGroup.add(pinMesh);
-    });
-    scene.add(radarGroup);
-    radarGroupRef.current = radarGroup;
-
-    // 12. Reference Orbital Altitude Rings
+    // 11. Reference Equatorial & Altitude Orbital Rings (LeoLabs Style)
     const ringsGroup = new THREE.Group();
+    const ringRadii = [EARTH_RADIUS + 0.5, EARTH_RADIUS + 1.2, EARTH_RADIUS + 2.0, EARTH_RADIUS + 10.0, EARTH_RADIUS + 35.786];
+    ringRadii.forEach((rad) => {
+      const ringGeom = new THREE.BufferGeometry();
+      const ringPts: THREE.Vector3[] = [];
+      for (let a = 0; a <= Math.PI * 2; a += 0.05) {
+        ringPts.push(new THREE.Vector3(rad * Math.cos(a), 0, rad * Math.sin(a)));
+      }
+      ringGeom.setFromPoints(ringPts);
+      const ringMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.12 });
+      ringsGroup.add(new THREE.Line(ringGeom, ringMat));
+    });
+    scene.add(ringsGroup);
+    orbitRingsGroupRef.current = ringsGroup;
+
+    // Altitude Reference Rings (LEO, ISS, Sun-sync, GEO)
+    const altRingsGroup = new THREE.Group();
     const ringDefs = [
-      { alt: 420, color: 0x22c55e, label: 'ISS ~420km' },
-      { alt: 550, color: 0x4ade80, label: 'Starlink ~550km' },
+      { alt: 420, color: 0x00f0ff, label: 'ISS ~420km' },
+      { alt: 550, color: 0x8b5cf6, label: 'Starlink ~550km' },
       { alt: 800, color: 0x38bdf8, label: 'Sun-sync ~800km' },
       { alt: 20200, color: 0x3b82f6, label: 'MEO/GPS ~20,200km' },
     ];
@@ -590,20 +484,19 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
       const ring = new THREE.Mesh(ringGeom, ringMat);
       ring.rotation.x = -Math.PI / 2;
-      ringsGroup.add(ring);
+      altRingsGroup.add(ring);
     });
-    scene.add(ringsGroup);
-    orbitRingsGroupRef.current = ringsGroup;
+    scene.add(altRingsGroup);
 
-    // 13. LEOLABS COLOR-CODED INSTANCED MESHES:
+    // 12. LEOLABS SPECIALIZED 3D INSTANCED MESHES:
     const maxInst = 2500;
 
-    // A) Payload / Active Satellite (LeoLabs Green #22c55e)
-    const satGeom = new THREE.OctahedronGeometry(0.19, 0);
+    // A) Operational Payloads & Active Satellites (Cyan/Electric Blue Octahedron Diamond)
+    const satGeom = new THREE.OctahedronGeometry(0.20, 0);
     const satMat = new THREE.MeshStandardMaterial({
-      color: 0x22c55e,
-      emissive: 0x054415,
-      roughness: 0.15,
+      color: 0x00f0ff,
+      emissive: 0x004466,
+      roughness: 0.2,
       metalness: 0.9
     });
     const satMesh = new THREE.InstancedMesh(satGeom, satMat, maxInst);
@@ -611,12 +504,12 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(satMesh);
     satMeshRef.current = satMesh;
 
-    // B) Megaconstellations (LeoLabs Light Green #4ade80)
+    // B) Megaconstellations (e.g. Starlink, OneWeb - Violet/Purple Diamond)
     const starlinkGeom = new THREE.OctahedronGeometry(0.18, 0);
     const starlinkMat = new THREE.MeshStandardMaterial({
-      color: 0x4ade80,
-      emissive: 0x104420,
-      roughness: 0.15,
+      color: 0xaa55ff,
+      emissive: 0x331166,
+      roughness: 0.2,
       metalness: 0.9
     });
     const starlinkMesh = new THREE.InstancedMesh(starlinkGeom, starlinkMat, maxInst);
@@ -624,12 +517,12 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(starlinkMesh);
     starlinkMeshRef.current = starlinkMesh;
 
-    // C) Debris Fragments (LeoLabs Vivid Red #ef4444)
-    const debrisGeom = new THREE.DodecahedronGeometry(0.17, 0);
+    // C) Debris / Shattered Destroyed Satellite Fragments (Jagged Faceted Dodecahedron)
+    const debrisGeom = new THREE.DodecahedronGeometry(0.18, 0);
     const debrisMat = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      emissive: 0x660505,
-      roughness: 0.25,
+      color: 0xff3355,
+      emissive: 0x550011,
+      roughness: 0.35,
       metalness: 0.8
     });
     const debrisMesh = new THREE.InstancedMesh(debrisGeom, debrisMat, maxInst);
@@ -637,12 +530,12 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(debrisMesh);
     debrisMeshRef.current = debrisMesh;
 
-    // D) Rocket Bodies (LeoLabs Amber/Orange #f59e0b)
-    const rocketGeom = new THREE.CylinderGeometry(0.08, 0.12, 0.36, 8);
+    // D) Rocket Bodies & Booster Upper Stages (Cylindrical Fuselage)
+    const rocketGeom = new THREE.CylinderGeometry(0.08, 0.12, 0.38, 8);
     const rocketMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0x553300,
-      roughness: 0.3,
+      color: 0xffaa00,
+      emissive: 0x442200,
+      roughness: 0.4,
       metalness: 0.8
     });
     const rocketMesh = new THREE.InstancedMesh(rocketGeom, rocketMat, maxInst);
@@ -650,20 +543,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(rocketMesh);
     rocketMeshRef.current = rocketMesh;
 
-    // E) Unknown / Uncorrelated Objects (LeoLabs Blue #3b82f6)
-    const unknownGeom = new THREE.OctahedronGeometry(0.17, 0);
-    const unknownMat = new THREE.MeshStandardMaterial({
-      color: 0x3b82f6,
-      emissive: 0x052266,
-      roughness: 0.2,
-      metalness: 0.8
-    });
-    const unknownMesh = new THREE.InstancedMesh(unknownGeom, unknownMat, maxInst);
-    unknownMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    scene.add(unknownMesh);
-    unknownMeshRef.current = unknownMesh;
-
-    // Screen-Space Distance Hit Tester
+    // Screen-Space Distance Hit Tester (Works reliably on all dots)
     const findClosestDot = (clientX: number, clientY: number, maxScreenDistPx: number = 28) => {
       if (!camera || !renderer || visiblePositionsRef.current.length === 0) return null;
       const rect = renderer.domElement.getBoundingClientRect();
@@ -679,6 +559,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         tempVec.set(pos.x_km / 1000, pos.z_km / 1000, -pos.y_km / 1000);
         tempVec.project(camera);
 
+        // Discard points behind camera
         if (tempVec.z > 1.0) continue;
 
         const sx = (tempVec.x * 0.5 + 0.5) * w;
@@ -718,47 +599,57 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       }
     };
 
-    // Click Detection
-    const handleClick = (e: MouseEvent) => {
-      const match = findClosestDot(e.clientX, e.clientY, 28);
+    // Instant Click Selection on Any Dot
+    const handleCanvasClick = async (e: MouseEvent) => {
+      const match = findClosestDot(e.clientX, e.clientY, 32);
       if (match) {
-        const found = objectsRef.current.find((o) => o.norad_id === match.pos.norad_id);
-        if (found) {
-          onSelectObject(found);
-          setSelectedPos(match.pos);
-        } else {
-          onSelectObject({
-            id: match.pos.norad_id,
-            norad_id: match.pos.norad_id,
-            name: match.pos.name,
-            object_type: match.pos.type,
-            source: 'Space-Track',
-            tle_line1: match.pos.tle_line1 || '',
-            tle_line2: match.pos.tle_line2 || '',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-          setSelectedPos(match.pos);
+        const p = match.pos;
+        const found = objectsRef.current.find((o) => o.norad_id === p.norad_id);
+        const fallbackObj: OrbitalObject = found || {
+          id: p.norad_id,
+          norad_id: p.norad_id,
+          name: p.name || `NORAD #${p.norad_id}`,
+          object_type: (p.type as any) || 'ACTIVE_SATELLITE',
+          source: 'Space-Track.org (US Space Force)',
+          source_group: 'live_ephemeris',
+          tle_line1: '',
+          tle_line2: '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        onSelectObject(fallbackObj);
+        setSelectedPos(p);
+
+        // Fetch full Keplerian details & TLE lines from backend
+        try {
+          const fullDetails = await api.getObjectDetails(p.norad_id);
+          if (fullDetails) {
+            onSelectObject(fullDetails);
+          }
+        } catch (err) {
+          // Keep using fallback
         }
+
+        const targetVec = new THREE.Vector3(
+          p.x_km / 1000,
+          p.z_km / 1000,
+          -p.y_km / 1000
+        );
+        controls.target.copy(targetVec);
+        camera.position.copy(targetVec.clone().add(new THREE.Vector3(0, 3, 7)));
+        controls.update();
       }
     };
 
-    const domElem = renderer.domElement;
-    domElem.addEventListener('mousemove', handlePointerMove);
-    domElem.addEventListener('click', handleClick);
+    renderer.domElement.addEventListener('mousemove', handlePointerMove);
+    renderer.domElement.addEventListener('click', handleCanvasClick);
 
-    const handleResize = () => {
-      if (!mountRef.current || !renderer || !camera) return;
-      camera.aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
-    };
-    window.addEventListener('resize', handleResize);
-
+    // 60 FPS Orbit Simulation Clock
     const clock = new THREE.Clock();
     let tumbleAngle = 0;
 
-    // Animation Loop
+    // Animation Loop: Real-Time SGP4 Trajectory Motion around Still Earth
     const animate = () => {
       animationFrameId.current = requestAnimationFrame(animate);
       controls.update();
@@ -766,6 +657,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       const delta = clock.getDelta();
       tumbleAngle += delta * 2.5;
 
+      // SGP4 LIVE EPHEMERIS PROPAGATION AT 60 FPS
       const currentSimDate = simTimeRef.current || new Date();
       const gmst = satellite.gstime(currentSimDate);
       const dummy = new THREE.Object3D();
@@ -775,11 +667,6 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       let starlinkIdx = 0;
       let debrisIdx = 0;
       let rocketIdx = 0;
-      let unknownIdx = 0;
-
-      const showDeb = showDebrisRef.current;
-      const minP = minPerigeeRef.current;
-      const maxP = maxPerigeeRef.current;
 
       if (satrecMapRef.current.size > 0) {
         satrecMapRef.current.forEach((item) => {
@@ -804,6 +691,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               vSpeed = Math.sqrt(vx * vx + vy * vy + vz * vz);
             }
 
+            // Three.js coordinates mapped to stationary WGS84 Blue Marble Earth
             const x3d = ecf.x / 1000;
             const y3d = ecf.z / 1000;
             const z3d = -ecf.y / 1000;
@@ -825,20 +713,29 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               lon: lon
             };
 
-            // LeoLabs Filter Rules
-            if (!showDeb && pos.type === 'DEBRIS') return;
-            if (minP != null && alt < minP) return;
-            if (maxP != null && alt > maxP) return;
-
+            // Apply Fleet & Altitude Filters
             const nameUpper = (pos.name || '').toUpperCase();
             const isStarlink = nameUpper.includes('STARLINK');
             const isOneWeb = nameUpper.includes('ONEWEB');
+            const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO');
+
+            if (isDebrisMode && pos.type !== 'DEBRIS') return;
+            if (activeFleetFilter === 'STARLINK' && !isStarlink) return;
+            if (activeFleetFilter === 'ONEWEB' && !isOneWeb) return;
+            if (activeFleetFilter === 'GPS' && !isGps) return;
+            if (activeFleetFilter === 'DEBRIS' && pos.type !== 'DEBRIS') return;
+            if (activeFleetFilter === 'PAYLOAD' && pos.type !== 'ACTIVE_SATELLITE') return;
+            if (activeFleetFilter === 'ROCKET' && pos.type !== 'ROCKET_BODY') return;
+
+            if (altitudeFilter === 'LEO' && pos.alt_km > 2000) return;
+            if (altitudeFilter === 'MEO' && (pos.alt_km <= 2000 || pos.alt_km > 20000)) return;
+            if (altitudeFilter === 'GEO' && pos.alt_km <= 20000) return;
 
             currentVisible.push(pos);
 
             dummy.position.set(x3d, y3d, z3d);
             const isSelected = selectedObject?.norad_id === pos.norad_id;
-            const scale = isSelected ? 3.2 : 1.1;
+            const scale = isSelected ? 3.4 : 1.15;
             dummy.scale.set(scale, scale, scale);
 
             if (pos.type === 'DEBRIS') {
@@ -862,13 +759,6 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                 starlinkMeshRef.current.setMatrixAt(starlinkIdx, dummy.matrix);
                 starlinkIdx++;
               }
-            } else if (pos.type === 'UNKNOWN') {
-              if (unknownMeshRef.current && unknownIdx < maxInst) {
-                dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
-                dummy.updateMatrix();
-                unknownMeshRef.current.setMatrixAt(unknownIdx, dummy.matrix);
-                unknownIdx++;
-              }
             } else {
               if (satMeshRef.current && satIdx < maxInst) {
                 dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
@@ -882,7 +772,43 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               selectedPosRef.current = pos;
             }
           } catch (e) {
-            // Skip invalid propagation frame
+            // Ignore propagation calculation error for expired orbital epochs
+          }
+        });
+      } else if (livePositionsRef.current.length > 0) {
+        // Fallback propagation using backend SGP4 batch positions
+        livePositionsRef.current.forEach((pos) => {
+          const x3d = pos.x_km / 1000;
+          const y3d = pos.z_km / 1000;
+          const z3d = -pos.y_km / 1000;
+
+          currentVisible.push(pos);
+          dummy.position.set(x3d, y3d, z3d);
+          const isSelected = selectedObject?.norad_id === pos.norad_id;
+          const scale = isSelected ? 3.4 : 1.15;
+          dummy.scale.set(scale, scale, scale);
+
+          if (pos.type === 'DEBRIS') {
+            if (debrisMeshRef.current && debrisIdx < maxInst) {
+              dummy.rotation.set(tumbleAngle * 0.8 + pos.norad_id, tumbleAngle * 1.2, tumbleAngle * 0.5);
+              dummy.updateMatrix();
+              debrisMeshRef.current.setMatrixAt(debrisIdx, dummy.matrix);
+              debrisIdx++;
+            }
+          } else if (pos.type === 'ROCKET_BODY') {
+            if (rocketMeshRef.current && rocketIdx < maxInst) {
+              dummy.rotation.set(0.3, tumbleAngle * 0.3 + pos.norad_id, 0);
+              dummy.updateMatrix();
+              rocketMeshRef.current.setMatrixAt(rocketIdx, dummy.matrix);
+              rocketIdx++;
+            }
+          } else {
+            if (satMeshRef.current && satIdx < maxInst) {
+              dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
+              dummy.updateMatrix();
+              satMeshRef.current.setMatrixAt(satIdx, dummy.matrix);
+              satIdx++;
+            }
           }
         });
       }
@@ -905,12 +831,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         rocketMeshRef.current.count = rocketIdx;
         rocketMeshRef.current.instanceMatrix.needsUpdate = true;
       }
-      if (unknownMeshRef.current) {
-        unknownMeshRef.current.count = unknownIdx;
-        unknownMeshRef.current.instanceMatrix.needsUpdate = true;
-      }
 
-      // Follow Camera
+      // Follow Camera Mode
       if (isFollowModeRef.current && selectedPosRef.current && controlsRef.current && cameraRef.current) {
         const sp = selectedPosRef.current;
         const targetPos = new THREE.Vector3(
@@ -926,22 +848,30 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
       renderer.render(scene, camera);
     };
-
     animate();
 
-    return () => {
-      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-      window.removeEventListener('resize', handleResize);
-      domElem.removeEventListener('mousemove', handlePointerMove);
-      domElem.removeEventListener('click', handleClick);
-      renderer.dispose();
-      if (mountRef.current && domElem) {
-        mountRef.current.removeChild(domElem);
-      }
+    const handleResize = () => {
+      if (!container || !renderer || !camera) return;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
     };
-  }, []);
+    window.addEventListener('resize', handleResize);
 
-  // Update Earth Rotation, Solar Lighting & Lunar Coordinates
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (renderer.domElement) {
+        renderer.domElement.removeEventListener('mousemove', handlePointerMove);
+        renderer.domElement.removeEventListener('click', handleCanvasClick);
+      }
+      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+      renderer.dispose();
+    };
+  }, [activeFleetFilter, altitudeFilter, isDebrisMode, selectedObject]);
+
+  // Update Solar Illumination Vector with Simulation Time
   useEffect(() => {
     const sunDir = calculateSunDirection(simTime);
     if (sunLightRef.current) {
@@ -951,108 +881,121 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       sunMeshRef.current.position.copy(sunDir.clone().multiplyScalar(150));
     }
     if (earthMeshRef.current) {
+      // Earth rotation via GMST
+      const JD = 2440587.5 + simTime.getTime() / 86400000;
+      const T = (JD - 2451545.0) / 36525.0;
+      const gmst = (280.46061837 + 360.98564736629 * (JD - 2451545.0) + 0.000387933 * T * T) % 360;
+      earthMeshRef.current.rotation.y = gmst * (Math.PI / 180);
       const mat = earthMeshRef.current.material as THREE.ShaderMaterial;
       if (mat.uniforms?.sunDirection) {
         mat.uniforms.sunDirection.value.copy(sunDir);
       }
     }
+    // Update Moon position
     if (moonMeshRef.current) {
       const moonPos = calculateMoonPosition(simTime);
       moonMeshRef.current.position.copy(moonPos);
     }
   }, [simTime]);
 
-  // Update Trajectory Ribbon
+  // Toggle Orbit Reference Rings
+  useEffect(() => {
+    if (orbitRingsGroupRef.current) {
+      orbitRingsGroupRef.current.visible = showOrbitRings;
+    }
+  }, [showOrbitRings]);
+
+  // Update Trajectory Ribbon for Selected Object (LeoLabs Glowing Track)
   useEffect(() => {
     if (!sceneRef.current) return;
+    const scene = sceneRef.current;
+
     if (trajectoryLineRef.current) {
-      sceneRef.current.remove(trajectoryLineRef.current);
+      scene.remove(trajectoryLineRef.current);
       trajectoryLineRef.current.geometry.dispose();
       trajectoryLineRef.current = null;
     }
 
-    if (trajectoryData && trajectoryData.points.length > 0) {
-      const pts: THREE.Vector3[] = [];
-      const currentSimDate = simTimeRef.current || new Date();
-      const gmst = satellite.gstime(currentSimDate);
-
-      trajectoryData.points.forEach((pt) => {
-        const xEci = pt.x_km;
-        const yEci = pt.y_km;
-        const zEci = pt.z_km;
-        const ecf = satellite.eciToEcf({ x: xEci, y: yEci, z: zEci }, gmst);
-        pts.push(new THREE.Vector3(ecf.x / 1000, ecf.z / 1000, -ecf.y / 1000));
+    if (trajectoryData && trajectoryData.points.length > 1) {
+      const pts = trajectoryData.points.map((pt) => {
+        return new THREE.Vector3(pt.x_km / 1000, pt.z_km / 1000, -pt.y_km / 1000);
       });
 
       const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
-      const isDebris = trajectoryData.object_type === 'DEBRIS';
+      const isDebris = selectedObject?.object_type === 'DEBRIS';
+      const lineColor = isDebris ? 0xff3344 : 0x00f0ff;
+
       const lineMat = new THREE.LineBasicMaterial({
-        color: isDebris ? 0xef4444 : 0x22c55e,
+        color: lineColor,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.9,
         linewidth: 2
       });
+
       const line = new THREE.Line(lineGeom, lineMat);
-      sceneRef.current.add(line);
+      scene.add(line);
       trajectoryLineRef.current = line;
     }
-  }, [trajectoryData, simTime]);
+  }, [trajectoryData, selectedObject]);
 
-  // Update Ground Track Ribbon
+  // Update Ground Track Ribbon on Earth Surface
   useEffect(() => {
     if (!sceneRef.current) return;
+    const scene = sceneRef.current;
+
     if (groundTrackLineRef.current) {
-      sceneRef.current.remove(groundTrackLineRef.current);
+      scene.remove(groundTrackLineRef.current);
       groundTrackLineRef.current.geometry.dispose();
       groundTrackLineRef.current = null;
     }
 
-    if (showGroundTrack && _groundTrackData && _groundTrackData.points.length > 0) {
-      const pts: THREE.Vector3[] = [];
-      _groundTrackData.points.forEach((pt) => {
+    if (_groundTrackData && _groundTrackData.points.length > 1 && showGroundTrack) {
+      const pts = _groundTrackData.points.map((pt) => {
         const latRad = (pt.lat * Math.PI) / 180;
         const lonRad = (pt.lon * Math.PI) / 180;
         const r = EARTH_RADIUS * 1.002;
-        pts.push(new THREE.Vector3(
+        return new THREE.Vector3(
           r * Math.cos(latRad) * Math.cos(lonRad),
           r * Math.sin(latRad),
           -r * Math.cos(latRad) * Math.sin(lonRad)
-        ));
+        );
       });
 
       const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
       const lineMat = new THREE.LineDashedMaterial({
-        color: 0x00f0ff,
-        dashSize: 0.15,
-        gapSize: 0.08,
+        color: 0x00ffff,
+        dashSize: 0.2,
+        gapSize: 0.1,
         transparent: true,
-        opacity: 0.65
+        opacity: 0.7
       });
       const line = new THREE.Line(lineGeom, lineMat);
       line.computeLineDistances();
-      sceneRef.current.add(line);
+      scene.add(line);
       groundTrackLineRef.current = line;
     }
-  }, [showGroundTrack, _groundTrackData]);
+  }, [_groundTrackData, showGroundTrack]);
 
-  // Update Conjunction Vector Indicator
+  // Update Visual Conjunction Vector Line
   useEffect(() => {
     if (!sceneRef.current) return;
+    const scene = sceneRef.current;
+
     if (conjLineRef.current) {
-      sceneRef.current.remove(conjLineRef.current);
+      scene.remove(conjLineRef.current);
       conjLineRef.current.geometry.dispose();
       conjLineRef.current = null;
     }
 
-    if (selectedConjunction) {
-      const posA = positions.find((p) => p.norad_id === selectedConjunction.object_a_id);
-      const posB = positions.find((p) => p.norad_id === selectedConjunction.object_b_id);
+    if (selectedConjunction && positions.length > 0) {
+      const posA = positions.find((p) => p.norad_id === selectedConjunction.object_a?.norad_id);
+      const posB = positions.find((p) => p.norad_id === selectedConjunction.object_b?.norad_id);
 
       if (posA && posB) {
-        const p1 = new THREE.Vector3(posA.x_km / 1000, posA.z_km / 1000, -posA.y_km / 1000);
-        const p2 = new THREE.Vector3(posB.x_km / 1000, posB.z_km / 1000, -posB.y_km / 1000);
+        const vA = new THREE.Vector3(posA.x_km / 1000, posA.z_km / 1000, -posA.y_km / 1000);
+        const vB = new THREE.Vector3(posB.x_km / 1000, posB.z_km / 1000, -posB.y_km / 1000);
 
-        const lineGeom = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+        const lineGeom = new THREE.BufferGeometry().setFromPoints([vA, vB]);
         const lineMat = new THREE.LineDashedMaterial({
           color: 0xff0044,
           dashSize: 0.3,
@@ -1061,7 +1004,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         });
         const line = new THREE.Line(lineGeom, lineMat);
         line.computeLineDistances();
-        sceneRef.current.add(line);
+        scene.add(line);
         conjLineRef.current = line;
       }
     }
@@ -1118,279 +1061,199 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     }
   };
 
-  const handleCopyShare = () => {
-    if (navigator?.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2000);
-    }
-  };
-
   return (
-    <div className={`relative w-full h-[calc(100vh-140px)] min-h-[580px] bg-[#020611] rounded-2xl overflow-hidden border border-slate-800/80 shadow-2xl ${isFullscreen ? 'fixed inset-0 z-50 h-screen rounded-none border-none' : ''}`}>
+    <div className={`relative w-full h-[calc(100vh-140px)] min-h-[580px] bg-space-950 rounded-2xl overflow-hidden border border-space-800 shadow-2xl ${isFullscreen ? 'fixed inset-0 z-50 h-screen rounded-none border-none' : ''}`}>
       {/* 3D WebGL Canvas Mounting Container */}
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* FLOATING HOVER TOOLTIP */}
+      {/* FLOATING HOVER TOOLTIP (LeoLabs Style) */}
       {hoveredObject && (
         <div 
-          className="fixed pointer-events-none z-50 bg-slate-900/90 backdrop-blur-xl border border-white/20 p-2.5 rounded-xl text-xs font-mono shadow-2xl text-white animate-fade-in -translate-x-1/2 -translate-y-full mb-3"
+          className="fixed pointer-events-none z-50 bg-slate-900/40 backdrop-blur-xl border border-white/10 p-2.5 rounded-xl text-xs font-mono shadow-2xl text-white animate-fade-in -translate-x-1/2 -translate-y-full mb-3"
           style={{ left: hoveredObject.screenX, top: hoveredObject.screenY }}
         >
-          <div className="font-bold text-emerald-400 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <div className="font-bold text-cyan-neon flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
             <span>{hoveredObject.name}</span>
           </div>
           <div className="text-[10px] text-slate-400">
             NORAD #{hoveredObject.norad_id} • {hoveredObject.type}
           </div>
-          <div className="grid grid-cols-2 gap-2 mt-1 pt-1 border-t border-slate-800 text-[10px]">
+          <div className="grid grid-cols-2 gap-2 mt-1 pt-1 border-t border-space-800 text-[10px]">
             <div>Alt: <span className="text-white font-bold">{hoveredObject.alt_km.toFixed(1)} km</span></div>
-            <div>Vel: <span className="text-emerald-400 font-bold">{hoveredObject.velocity_km_s.toFixed(2)} km/s</span></div>
+            <div>Vel: <span className="text-cyan-400 font-bold">{hoveredObject.velocity_km_s.toFixed(2)} km/s</span></div>
           </div>
-          <div className="text-[9px] text-slate-500 mt-0.5 text-center">Click for detailed telemetry</div>
+          <div className="text-[9px] text-slate-500 mt-0.5 text-center">Click dot for full telemetry</div>
         </div>
       )}
 
-      {/* TOP LEFT: Exact LeoLabs Control & Multi-View Dock */}
-      <div className="absolute top-3 sm:top-4 left-3 sm:left-4 z-20 flex flex-col gap-2 max-w-[calc(100vw-24px)] sm:max-w-xs">
-        {isLeftPanelOpen ? (
-          <div className="bg-slate-950/85 backdrop-blur-xl border border-slate-800 rounded-xl p-3 sm:p-3.5 flex flex-col gap-2.5 font-sans text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-210px)] overflow-y-auto w-72 sm:w-80">
-            {/* 1. Search */}
-            <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
-              <span className="text-slate-400 text-xs font-medium w-14">Search</span>
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  placeholder="Enter a satellite name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+      {/* TOP LEFT: LeoLabs Style Multi-Fleet Filter & Search Dock */}
+      <div className="absolute top-3 sm:top-4 left-3 sm:left-4 z-20 flex flex-col gap-2 max-w-[calc(100vw-24px)] sm:max-w-sm">
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-mono text-xs text-white shadow-xl flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-cyan-neon animate-pulse" />
+            <span className="font-bold tracking-wider text-cyan-neon text-[11px] sm:text-xs">ORBITAL RADAR</span>
+          </div>
+          <button
+            onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
+            className="p-1 hover:bg-space-800 rounded text-slate-400 hover:text-white"
+            title={isLeftPanelOpen ? 'Collapse HUD' : 'Expand HUD'}
+          >
+            {isLeftPanelOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+        </div>
+
+        {isLeftPanelOpen && (
+          <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-3 sm:p-3.5 flex flex-col gap-2.5 sm:gap-3 font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-220px)] overflow-y-auto">
+            {/* Search Input */}
+            <form onSubmit={handleSearchSubmit} className="relative">
+              <input
+                type="text"
+                placeholder="Search Satellite, Starlink, Debris, NORAD..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-space-950 border border-space-700 rounded-lg px-3 py-1.5 pl-8 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 shadow-inner"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
             </form>
 
-            {/* 2. Speed Slider */}
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 text-xs font-medium w-14">Speed</span>
-              <input
-                type="range"
-                min="1"
-                max="200"
-                value={simSpeed}
-                onChange={(e) => setSimSpeed(parseInt(e.target.value))}
-                className="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-              />
-              <span className="text-cyan-400 font-mono text-xs w-8 text-right">{simSpeed}</span>
-            </div>
-
-            {/* 3. Checkboxes (Exact LeoLabs options) */}
-            <div className="flex flex-col gap-1.5 pt-1 border-t border-slate-800/80">
-              <label className="flex items-center justify-between cursor-pointer text-slate-300 hover:text-white select-none">
-                <span>Debris</span>
-                <input
-                  type="checkbox"
-                  checked={showDebris}
-                  onChange={(e) => setShowDebris(e.target.checked)}
-                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
-                />
-              </label>
-
-              <label className="flex items-center justify-between cursor-pointer text-slate-300 hover:text-white select-none">
-                <span>Beams</span>
-                <input
-                  type="checkbox"
-                  checked={showBeams}
-                  onChange={(e) => setShowBeams(e.target.checked)}
-                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
-                />
-              </label>
-
-              <label className="flex items-center justify-between cursor-pointer text-slate-300 hover:text-white select-none">
-                <span>Instruments</span>
-                <input
-                  type="checkbox"
-                  checked={showInstruments}
-                  onChange={(e) => setShowInstruments(e.target.checked)}
-                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
-                />
-              </label>
-
-              <label className="flex items-center justify-between cursor-pointer text-slate-300 hover:text-white select-none">
-                <span>Follow Earth</span>
-                <input
-                  type="checkbox"
-                  checked={followEarth}
-                  onChange={(e) => setFollowEarth(e.target.checked)}
-                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
-                />
-              </label>
-
-              <label className="flex items-center justify-between cursor-pointer text-slate-300 hover:text-white select-none">
-                <span>Auto Refresh</span>
-                <input
-                  type="checkbox"
-                  checked={autoRefresh}
-                  onChange={(e) => setAutoRefresh(e.target.checked)}
-                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
-                />
-              </label>
-            </div>
-
-            {/* 4. Views Selection Box */}
-            <div className="pt-1.5 border-t border-slate-800/80">
-              <div className="text-[11px] text-slate-400 font-semibold text-center mb-1 bg-slate-900/60 py-0.5 rounded">Views</div>
-              <div className="flex flex-col bg-slate-900/80 rounded border border-slate-800 overflow-hidden text-xs">
+            {/* LeoLabs Fleet & Constellation Filters */}
+            <div>
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Sliders className="w-3 h-3 text-cyan-400" />
+                  Fleet & Constellations
+                </span>
+                <span className="text-[9px] text-cyan-400">
+                  {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (positions.length > 0 ? positions.length.toLocaleString() : objects.length.toLocaleString())} Tracked
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1 text-[11px]">
                 {[
-                  { key: 'type', label: 'Object Type' },
-                  { key: 'perigee', label: 'Perigee' },
-                  { key: 'period', label: 'Period' },
-                  { key: 'inclination', label: 'Inclination' },
-                  { key: 'country', label: 'Country of Origin' }
-                ].map((v) => (
+                  { key: 'ALL', label: 'All Objects', color: 'text-white' },
+                  { key: 'PAYLOAD', label: '◆ Operational', color: 'text-cyan-400' },
+                  { key: 'STARLINK', label: '◆ Starlink Fleet', color: 'text-purple-400' },
+                  { key: 'ONEWEB', label: '◆ OneWeb', color: 'text-purple-400' },
+                  { key: 'GPS', label: '◆ GPS / GNSS', color: 'text-emerald-400' },
+                  { key: 'DEBRIS', label: '⬟ Debris Clouds', color: 'text-danger-400' },
+                  { key: 'ROCKET', label: '❚ Rocket Bodies', color: 'text-warning-400' }
+                ].map((f) => (
                   <button
-                    key={v.key}
-                    onClick={() => setActiveView(v.key as any)}
-                    className={`px-3 py-1.5 text-left transition ${
-                      activeView === v.key
-                        ? 'bg-slate-700/60 text-white font-semibold'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                    key={f.key}
+                    onClick={() => { setActiveFleetFilter(f.key); setIsDebrisMode(false); }}
+                    className={`px-2 py-1 rounded transition text-left ${
+                      activeFleetFilter === f.key && !isDebrisMode
+                        ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
+                        : 'bg-space-950 text-slate-400 hover:text-slate-200 border border-space-800'
                     }`}
                   >
-                    {v.label}
+                    <span className={f.color}>{f.label}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* 5. Filters Section */}
-            <div className="pt-1.5 border-t border-slate-800/80">
-              <div className="text-[11px] text-slate-400 font-semibold text-center mb-1.5 bg-slate-900/60 py-0.5 rounded">Filters</div>
-              <div className="space-y-1">
-                <div className="text-[10px] text-slate-400">Perigee</div>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    placeholder="min km"
-                    value={minPerigee}
-                    onChange={(e) => setMinPerigee(e.target.value)}
-                    className="w-1/2 bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-white placeholder-slate-500"
-                  />
-                  <input
-                    type="number"
-                    placeholder="max km"
-                    value={maxPerigee}
-                    onChange={(e) => setMaxPerigee(e.target.value)}
-                    className="w-1/2 bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-white placeholder-slate-500"
-                  />
-                </div>
+            {/* Altitude Shell Filter */}
+            <div>
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <Compass className="w-3 h-3 text-cyan-400" />
+                <span>Orbital Regime</span>
+              </div>
+              <div className="grid grid-cols-4 gap-1 text-[10px]">
+                {[
+                  { key: 'ALL', label: 'ALL' },
+                  { key: 'LEO', label: 'LEO' },
+                  { key: 'MEO', label: 'MEO' },
+                  { key: 'GEO', label: 'GEO' }
+                ].map((alt) => (
+                  <button
+                    key={alt.key}
+                    onClick={() => setAltitudeFilter(alt.key)}
+                    className={`py-1 rounded text-center ${
+                      altitudeFilter === alt.key
+                        ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
+                        : 'bg-space-950 text-slate-400 hover:text-slate-200 border border-space-800'
+                    }`}
+                  >
+                    {alt.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* 6. Footer Controls */}
-            <div className="pt-2 border-t border-slate-800/80 flex flex-col gap-1.5 text-[11px] text-slate-400">
+            {/* Visual Overlays: Orbit Rings & Debris Mode */}
+            <div className="pt-2 border-t border-space-800 flex items-center justify-between">
               <button
-                onClick={() => setIsLeftPanelOpen(false)}
-                className="text-left text-slate-400 hover:text-white py-0.5 font-medium transition"
+                onClick={() => setShowOrbitRings(!showOrbitRings)}
+                className={`px-2 py-1 rounded text-[10px] font-bold border transition flex items-center gap-1 ${
+                  showOrbitRings
+                    ? 'bg-cyan-500/20 text-cyan-neon border-cyan-500/40'
+                    : 'bg-space-950 text-slate-500 border-space-800'
+                }`}
               >
-                Hide Menu
+                <Compass className="w-3 h-3" />
+                ORBIT RINGS
               </button>
-              
-              <div className="text-[10px] text-slate-500 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3 text-amber-500/80" />
-                <span>Special events are not shown</span>
-              </div>
 
               <button
-                onClick={handleCopyShare}
-                className="text-left text-slate-400 hover:text-cyan-400 flex items-center gap-1 text-[10px] transition"
+                onClick={() => setIsDebrisMode(!isDebrisMode)}
+                className={`px-2 py-1 rounded text-[10px] font-bold border transition flex items-center gap-1 ${
+                  isDebrisMode
+                    ? 'bg-danger-600 text-white border-danger-400 shadow-md'
+                    : 'bg-space-950 text-danger-400 border-space-800'
+                }`}
               >
-                <Share2 className="w-3 h-3" />
-                <span>{copiedLink ? 'Copied to clipboard!' : 'Copy link to share'}</span>
+                <AlertTriangle className="w-3 h-3" />
+                DEBRIS ISOLATE
               </button>
             </div>
           </div>
-        ) : (
-          <button
-            onClick={() => setIsLeftPanelOpen(true)}
-            className="bg-slate-950/85 backdrop-blur-xl border border-slate-800 px-3 py-1.5 rounded-xl font-sans text-xs text-slate-300 hover:text-white shadow-xl flex items-center gap-1.5 transition"
-          >
-            <Sliders className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Show Menu</span>
-          </button>
         )}
       </div>
 
-      {/* TOP RIGHT: Exact LeoLabs Object Type Legend */}
-      <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-20 flex flex-col items-end gap-2">
-        {/* Global Action Bar */}
-        <div className="flex items-center gap-1.5 bg-slate-950/80 backdrop-blur-xl border border-slate-800/80 p-1 rounded-xl shadow-xl">
-          <div className="hidden sm:flex items-center gap-1.5 px-2 font-mono text-[11px] text-emerald-400">
-            <Clock className="w-3 h-3 text-slate-400" />
-            <span>UTC: {simTime.toISOString().substring(11, 19)}</span>
-          </div>
+      {/* TOP RIGHT: Global View Toggles & Clock */}
+      <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-20 flex items-center gap-1.5 sm:gap-2">
+        {/* UTC Clock (hidden on very small screens) */}
+        <div className="hidden sm:flex bg-slate-900/40 backdrop-blur-xl border border-white/10 px-2.5 py-1.5 rounded-xl font-mono text-[11px] sm:text-xs text-cyan-400 shadow-xl items-center gap-1.5">
+          <Clock className="w-3.5 h-3.5 text-slate-400" />
+          <span>UTC: {simTime.toISOString().replace('T', ' ').substring(11, 19)}</span>
+        </div>
 
+        {/* Camera Reset & Fullscreen */}
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 p-1 rounded-xl flex items-center gap-1 shadow-xl">
           <button
             onClick={handleResetCamera}
-            className="p-1.5 hover:bg-slate-800 rounded text-slate-300 hover:text-emerald-400 transition"
-            title="Reset Camera"
+            className="p-1 sm:p-1.5 hover:bg-space-800 rounded text-slate-300 hover:text-cyan-neon"
+            title="Reset Camera View"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 hover:bg-slate-800 rounded text-slate-300 hover:text-emerald-400 transition"
+            className="p-1 sm:p-1.5 hover:bg-space-800 rounded text-slate-300 hover:text-cyan-neon"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
           </button>
-        </div>
-
-        {/* LeoLabs Object Type Floating Card */}
-        <div className="bg-slate-950/85 backdrop-blur-xl border border-slate-800/80 rounded-xl p-2.5 sm:p-3 font-sans text-xs text-slate-200 shadow-2xl w-40 sm:w-44">
-          <div className="text-slate-300 font-semibold text-xs mb-2 border-b border-slate-800 pb-1 flex items-center justify-between">
-            <span>Object Type</span>
-            <span className="text-[10px] text-emerald-400 font-mono">
-              {stats?.tracked_objects ? `${stats.tracked_objects.toLocaleString()}` : 'LIVE'}
-            </span>
-          </div>
-          <div className="space-y-1.5 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-sm bg-[#22c55e] shadow-sm"></span>
-              <span className="text-slate-200">Payload</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-sm bg-[#f59e0b] shadow-sm"></span>
-              <span className="text-slate-200">Rocket Body</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-sm bg-[#ef4444] shadow-sm"></span>
-              <span className="text-slate-200">Debris</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-sm bg-[#3b82f6] shadow-sm"></span>
-              <span className="text-slate-200">Unknown</span>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* RIGHT PANEL: Selected Telemetry Card */}
+      {/* RIGHT PANEL: Compact Non-Intrusive Telemetry Card */}
       {selectedObject && (
-        <div className="absolute top-44 right-3 sm:right-4 z-30 w-72 sm:w-80 max-w-[88vw] bg-slate-950/90 backdrop-blur-xl border border-slate-800 p-3.5 rounded-xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-260px)] overflow-y-auto">
+        <div className="absolute top-14 sm:top-16 right-3 z-30 w-72 sm:w-80 max-w-[88vw] bg-slate-900/40 backdrop-blur-xl border border-white/10 p-3 rounded-xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-140px)] overflow-y-auto">
           {/* Header */}
-          <div className="flex items-start justify-between border-b border-slate-800 pb-2 mb-2">
+          <div className="flex items-start justify-between border-b border-space-800 pb-2 mb-2">
             <div className="pr-2">
-              <div className="font-bold text-white text-xs sm:text-sm truncate max-w-[200px]" title={selectedObject.name}>
+              <div className="font-bold text-cyan-neon text-xs sm:text-sm truncate max-w-[200px]" title={selectedObject.name}>
                 {selectedObject.name}
               </div>
               <div className="text-[9px] text-slate-400">
-                NORAD #{selectedObject.norad_id} • <span className="text-emerald-400">{selectedObject.object_type.replace('_', ' ')}</span>
+                NORAD #{selectedObject.norad_id} • <span className="text-cyan-400">{selectedObject.object_type.replace('_', ' ')}</span>
               </div>
             </div>
             <button
               onClick={() => onSelectObject(null)}
-              className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition"
+              className="p-1 hover:bg-space-800 rounded text-slate-400 hover:text-white transition"
               title="Close Panel"
             >
               ✕
@@ -1403,8 +1266,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               onClick={() => setIsFollowMode(!isFollowMode)}
               className={`py-1 px-2 rounded-lg font-bold text-[10px] border transition flex items-center justify-center gap-1 ${
                 isFollowMode
-                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md'
-                  : 'bg-slate-900 text-emerald-400 border-emerald-500/30 hover:bg-slate-800'
+                  ? 'bg-cyan-500 text-space-950 border-cyan-400 shadow-md'
+                  : 'bg-space-900 text-cyan-400 border-cyan-500/30 hover:bg-space-800'
               }`}
             >
               <Crosshair className="w-3 h-3" />
@@ -1416,18 +1279,18 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               className={`py-1 px-2 rounded-lg font-bold text-[10px] border transition flex items-center justify-center gap-1 ${
                 showGroundTrack
                   ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                  : 'bg-space-900 text-slate-400 border-space-800 hover:text-slate-200'
               }`}
             >
               <Compass className="w-3 h-3" />
-              GROUND TRACK
+              TRACK
             </button>
           </div>
 
           {/* Live Real-Time SGP4 Coordinates */}
-          <div className="space-y-1 bg-slate-900/80 p-2 rounded-lg border border-slate-800 mb-2">
-            <div className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
-              <span>SGP4 TELEMETRY</span>
+          <div className="space-y-1 bg-space-900/80 p-2 rounded-lg border border-space-800 mb-2">
+            <div className="text-[9px] font-bold text-cyan-400 uppercase tracking-wider flex items-center justify-between">
+              <span>LIVE SGP4 TELEMETRY</span>
               <span className="text-emerald-400 text-[8px]">● REALTIME</span>
             </div>
             <div className="flex justify-between">
@@ -1436,7 +1299,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Velocity:</span>
-              <span className="text-emerald-400 font-bold">{selectedPos ? `${selectedPos.velocity_km_s.toFixed(2)} km/s` : '7.65 km/s'}</span>
+              <span className="text-cyan-400 font-bold">{selectedPos ? `${selectedPos.velocity_km_s.toFixed(2)} km/s` : '7.65 km/s'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Lat / Lon:</span>
@@ -1445,7 +1308,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           </div>
 
           {/* Orbital Parameters */}
-          <div className="space-y-1 bg-slate-900/80 p-2 rounded-lg border border-slate-800 text-[10px] mb-2">
+          <div className="space-y-1 bg-space-900/80 p-2 rounded-lg border border-space-800 text-[10px] mb-2">
             <div className="flex justify-between">
               <span className="text-slate-400">Inclination:</span>
               <span className="text-slate-200">{selectedObject.inclination != null ? `${selectedObject.inclination.toFixed(2)}°` : '—'}</span>
@@ -1461,8 +1324,39 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               <span className="text-slate-200">{selectedObject.period_minutes ? `${selectedObject.period_minutes.toFixed(1)} min` : '—'}</span>
             </div>
             <div className="flex justify-between">
+              <span className="text-slate-400">Epoch:</span>
+              <span className="text-slate-200">{selectedObject.tle_epoch ? selectedObject.tle_epoch.replace('T', ' ').substring(0, 16) + ' UTC' : 'Recent'}</span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-slate-400">Data Source:</span>
-              <span className="text-emerald-400 font-bold">{selectedObject.source || 'Space-Track'}</span>
+              <span className="text-cyan-400 font-bold">{selectedObject.source || 'CelesTrak'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Last Update:</span>
+              <span className="text-slate-200">{selectedObject.updated_at ? selectedObject.updated_at.replace('T', ' ').substring(0, 16) + ' UTC' : '—'}</span>
+            </div>
+          </div>
+
+          {/* Trajectory Prediction Horizon */}
+          <div className="pt-1">
+            <div className="text-[9px] text-slate-400 mb-1 flex items-center justify-between">
+              <span>ORBIT RIBBON:</span>
+              <span className="text-cyan-400 font-bold">+{trajectoryHours}H</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1">
+              {[1, 6, 12, 24].map((h) => (
+                <button
+                  key={h}
+                  onClick={() => setTrajectoryHours(h)}
+                  className={`py-0.5 rounded text-[9px] font-bold transition ${
+                    trajectoryHours === h
+                      ? 'bg-cyan-500 text-space-950'
+                      : 'bg-space-900 text-slate-400 hover:text-white border border-space-800'
+                  }`}
+                >
+                  {h}H
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -1470,15 +1364,15 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
       {/* Conjunction Encounter Overlay */}
       {selectedConjunction && (
-        <div className="absolute top-44 right-3 sm:right-4 z-30 w-72 sm:w-80 max-w-[88vw] bg-slate-950/90 backdrop-blur-xl border border-red-500/40 p-3 rounded-xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in">
-          <div className="flex items-center justify-between border-b border-red-500/30 pb-1.5 mb-1.5">
-            <div className="font-bold text-red-400 flex items-center gap-1.5 text-xs">
-              <Crosshair className="w-3.5 h-3.5 text-red-400" />
+        <div className="absolute top-14 sm:top-16 right-3 z-30 w-72 sm:w-80 max-w-[88vw] bg-slate-900/40 backdrop-blur-xl border border-white/10 p-3 rounded-xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in">
+          <div className="flex items-center justify-between border-b border-danger-500/30 pb-1.5 mb-1.5">
+            <div className="font-bold text-danger-neon flex items-center gap-1.5 text-xs">
+              <Crosshair className="w-3.5 h-3.5 text-danger-neon" />
               <span>CONJUNCTION ALERT</span>
             </div>
             <button
               onClick={() => onSelectConjunction(null)}
-              className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition"
+              className="p-1 hover:bg-space-800 rounded text-slate-400 hover:text-white transition"
             >
               ✕
             </button>
@@ -1486,50 +1380,50 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           <div className="space-y-1 text-[10px]">
             <div className="text-white font-semibold truncate">{selectedConjunction.object_a?.name || 'Object A'} ↔ {selectedConjunction.object_b?.name || 'Object B'}</div>
             <div className="text-slate-400">TCA: <span className="text-white">{selectedConjunction.tca} UTC</span></div>
-            <div className="text-slate-400">Miss Distance: <span className="text-red-400 font-bold">{selectedConjunction.miss_distance_km} km</span></div>
-            <div className="text-slate-400">Relative Velocity: <span className="text-amber-400">{selectedConjunction.relative_velocity_km_s} km/s</span></div>
-            <div className="text-slate-400">Risk Score: <span className="text-red-400 font-bold">{selectedConjunction.risk_score} / 100 ({selectedConjunction.risk_level})</span></div>
+            <div className="text-slate-400">Miss Distance: <span className="text-danger-neon font-bold">{selectedConjunction.miss_distance_km} km</span></div>
+            <div className="text-slate-400">Relative Velocity: <span className="text-warning-400">{selectedConjunction.relative_velocity_km_s} km/s</span></div>
+            <div className="text-slate-400">Risk Score: <span className="text-danger-neon font-bold">{selectedConjunction.risk_score} / 100 ({selectedConjunction.risk_level})</span></div>
             
-            <div className="grid grid-cols-2 gap-1.5 mt-2 pt-1.5 border-t border-red-500/20">
+            <div className="grid grid-cols-2 gap-1.5 mt-2 pt-1.5 border-t border-danger-500/20">
               <button
                 onClick={() => handleJumpToTca(selectedConjunction)}
-                className="py-1 bg-red-600 hover:bg-red-500 text-white rounded font-bold text-[10px] flex items-center justify-center gap-1 shadow-lg transition"
+                className="py-1 bg-danger-600 hover:bg-danger-500 text-white rounded font-bold text-[10px] flex items-center justify-center gap-1 shadow-lg transition"
               >
                 <FastForward className="w-3 h-3" />
                 JUMP TCA
               </button>
               <button
                 onClick={() => onOpenConjunctionDetails(selectedConjunction)}
-                className="py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-bold text-[10px] transition"
+                className="py-1 bg-space-900 hover:bg-space-800 text-cyan-400 border border-cyan-500/40 rounded font-bold text-[10px] flex items-center justify-center transition"
               >
-                DETAILS
+                ANALYSIS
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* BOTTOM BAR: Astrodynamics Time Control Dock */}
-      <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 z-20 bg-slate-950/85 backdrop-blur-xl border border-slate-800 p-2 sm:p-2.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-4 font-mono text-xs shadow-2xl">
+      {/* BOTTOM BAR: Astrodynamics Mission Control Dock */}
+      <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 z-20 bg-slate-900/40 backdrop-blur-xl border border-white/10 p-2 sm:p-2.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-4 font-mono text-xs shadow-2xl">
         {/* Play/Pause & Speed Multipliers */}
         <div className="flex items-center justify-between sm:justify-start gap-2">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => setIsPlaying(!isPlaying)}
-              className="p-1 sm:p-1.5 bg-emerald-500 text-slate-950 font-bold rounded-lg hover:bg-emerald-400 transition"
+              className="p-1 sm:p-1.5 bg-cyan-500 text-space-950 font-bold rounded-lg hover:bg-cyan-400 transition"
               title={isPlaying ? 'Pause Simulation' : 'Play Simulation'}
             >
               {isPlaying ? <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
             </button>
 
-            <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
-              {[1, 10, 25, 50, 200].map((spd) => (
+            <div className="flex items-center gap-0.5 sm:gap-1 bg-space-950 p-1 rounded-lg border border-space-800">
+              {[1, 10, 50, 200, 1000].map((spd) => (
                 <button
                   key={spd}
                   onClick={() => setSimSpeed(spd)}
                   className={`px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold ${
                     simSpeed === spd
-                      ? 'bg-emerald-500 text-slate-950'
+                      ? 'bg-cyan-500 text-space-950'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -1540,8 +1434,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           </div>
 
           <button
-            onClick={() => { setSimTime(new Date()); setSimSpeed(25); }}
-            className="px-2 sm:px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-700 rounded-lg text-[9px] sm:text-[10px] font-bold transition"
+            onClick={() => { setSimTime(new Date()); setSimSpeed(50); }}
+            className="px-2 sm:px-2.5 py-1 bg-space-950 hover:bg-space-800 text-cyan-400 border border-space-700 rounded-lg text-[9px] sm:text-[10px] font-bold transition"
           >
             NOW
           </button>
@@ -1560,17 +1454,17 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               const offsetSec = parseFloat(e.target.value);
               setSimTime(new Date(Date.now() + offsetSec * 1000));
             }}
-            className="w-full h-1.5 bg-slate-900 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+            className="w-full h-1.5 bg-space-950 rounded-lg appearance-none cursor-pointer accent-cyan-500"
           />
-          <span className="text-[10px] text-emerald-400 font-bold whitespace-nowrap">
+          <span className="text-[10px] text-cyan-400 font-bold whitespace-nowrap">
             {((simTime.getTime() - Date.now()) / 3600000).toFixed(1)}h
           </span>
         </div>
 
-        {/* Quick Conjunction Hotspots */}
+        {/* Quick Conjunction Encounter List */}
         {conjunctions.length > 0 && (
           <div className="hidden sm:flex items-center gap-1.5">
-            <span className="text-[10px] text-red-400 font-bold flex items-center gap-1">
+            <span className="text-[10px] text-danger-400 font-bold flex items-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5" />
               HOTSPOTS:
             </span>
@@ -1578,7 +1472,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               <button
                 key={c.id}
                 onClick={() => { onSelectConjunction(c); handleJumpToTca(c); }}
-                className="px-2 py-0.5 bg-red-500/20 text-red-300 border border-red-500/40 rounded text-[10px] font-bold hover:bg-red-500/30 transition"
+                className="px-2 py-0.5 bg-danger-500/20 text-danger-300 border border-danger-500/40 rounded text-[10px] font-bold hover:bg-danger-500/30 transition"
               >
                 {c.miss_distance_km.toFixed(1)} km ({new Date(c.tca).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
               </button>
