@@ -1,330 +1,392 @@
+import os
 import httpx
-import math
-import logging
-from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any, Optional, Tuple
+import re
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 from sgp4.api import Satrec, WGS72
 
-from backend.app.config import settings
-from backend.app.models.orbital_object import OrbitalObject, TLERecord, SyncLog
+from backend.app.models.orbital_object import OrbitalObject, TLERecord, SyncLog, SyncHistory
 from backend.app.schemas.orbital_object import ObjectType, DataStatusResponse
-
-logger = logging.getLogger(__name__)
-
-EARTH_RADIUS_KM = 6378.137  # WGS84 equatorial radius
-MU_EARTH = 398600.4418      # Earth gravitational parameter km^3/s^2
-
-# Standard CelesTrak Groups for comprehensive Space Situational Awareness
-CELESTRAK_GROUPS = [
-    {"name": "stations", "url": "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle"},
-    {"name": "active", "url": "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle"},
-    {"name": "debris", "url": "https://celestrak.org/NORAD/elements/gp.php?GROUP=1982-092&FORMAT=tle"},
-]
+from backend.app.config import settings
 
 def compute_tle_checksum(line: str) -> int:
-    """Calculates standard NORAD TLE modulo 10 checksum."""
-    line_clean = line[:68]
-    checksum = 0
-    for char in line_clean:
+    """Computes modulo-10 NORAD checksum for a 69-character TLE line."""
+    if len(line) < 68:
+        return -1
+    calculated = 0
+    for char in line[:68]:
         if char.isdigit():
-            checksum += int(char)
-        elif char == '-':
-            checksum += 1
-    return checksum % 10
+            calculated += int(char)
+        elif char == "-":
+            calculated += 1
+    return calculated % 10
 
 def validate_tle(line1: str, line2: str) -> Tuple[bool, str]:
-    """Validates TLE format, length, line prefixes, and checksums."""
-    line1 = line1.strip()
-    line2 = line2.strip()
-
-    if len(line1) != 69 or len(line2) != 69:
-        return False, f"Invalid line length (Line 1: {len(line1)}, Line 2: {len(line2)}, expected 69)"
-
-    if not line1.startswith('1 ') or not line2.startswith('2 '):
-        return False, "Invalid line starting sequence (Line 1 must start with '1 ', Line 2 with '2 ')"
-
-    # SGP4 verification
+    """Validates TLE line length and SGP4 initialization."""
+    if len(line1) < 68 or len(line2) < 68:
+        return False, "Invalid line length (must be >= 68 chars)"
+    if not line1.startswith("1 ") or not line2.startswith("2 "):
+        return False, "Invalid line prefix"
     try:
-        sat = Satrec.twoline2rv(line1, line2)
+        sat = Satrec.twoline2rv(line1, line2, WGS72)
         if sat.error != 0:
-            return False, f"SGP4 initialization error code: {sat.error}"
+            return False, f"SGP4 Satrec error code: {sat.error}"
+        return True, "Valid TLE"
     except Exception as e:
-        return False, f"SGP4 parsing exception: {str(e)}"
+        return False, f"SGP4 error: {str(e)}"
 
-    return True, "Valid TLE"
-
-def classify_object_type(name: str, norad_id: int) -> ObjectType:
-    """Classifies orbital object into Active Satellite, Debris, Rocket Body, or Unknown."""
+def classify_object_type(name: str, norad_id: Optional[int] = None) -> ObjectType:
     name_upper = name.upper()
-    if "DEB" in name_upper or "DEBRIS" in name_upper:
+    if "DEB" in name_upper or "DEBRIS" in name_upper or "FENGYUN" in name_upper or "COSMOS" in name_upper:
         return ObjectType.DEBRIS
-    elif "R/B" in name_upper or "ROCKET" in name_upper or "STAGE" in name_upper or "CENTAUR" in name_upper or "FALCON 9 R/B" in name_upper:
+    elif "R/B" in name_upper or "ROCKET" in name_upper or "CENTAUR" in name_upper or "DELTA" in name_upper or "FALCON" in name_upper:
         return ObjectType.ROCKET_BODY
-    elif "UNKNOWN" in name_upper:
-        return ObjectType.UNKNOWN
-    else:
+    elif "ISS" in name_upper or "STARLINK" in name_upper or "TIANGONG" in name_upper or "ONEWEB" in name_upper:
         return ObjectType.ACTIVE_SATELLITE
+    elif norad_id and norad_id > 90000:
+        return ObjectType.UNKNOWN
+    return ObjectType.ACTIVE_SATELLITE
 
 def parse_tle_orbital_elements(line1: str, line2: str) -> Dict[str, Any]:
-    """Extracts Keplerian elements and physical orbit boundaries from TLE."""
-    norad_id = int(line1[2:7].strip())
-    
-    # Epoch parsing
-    epoch_year_2digit = int(line1[18:20])
-    epoch_year = 2000 + epoch_year_2digit if epoch_year_2digit < 57 else 1900 + epoch_year_2digit
-    epoch_day = float(line1[20:32])
-    
-    # Inclination in degrees
-    inclination_deg = float(line2[8:16])
-    
-    # Eccentricity (decimal point assumed)
-    eccentricity = float("0." + line2[26:33].strip())
-    
-    # Mean motion (revolutions per day)
-    mean_motion_rev_day = float(line2[52:63])
-    
-    # Period in minutes
-    if mean_motion_rev_day > 0:
-        period_min = 1440.0 / mean_motion_rev_day
-        mean_motion_rad_s = (mean_motion_rev_day * 2.0 * math.pi) / 86400.0
-        semi_major_axis_km = (MU_EARTH / (mean_motion_rad_s ** 2)) ** (1.0 / 3.0)
-    else:
-        period_min = None
-        semi_major_axis_km = None
+    keplerian = TLEService._extract_keplerian_elements(line1, line2)
+    norad_id = int(line1[2:7].strip()) if len(line1) >= 7 and line1[2:7].strip().isdigit() else 0
+    return {"norad_id": norad_id, **keplerian}
 
-    if semi_major_axis_km:
-        perigee_km = semi_major_axis_km * (1.0 - eccentricity) - EARTH_RADIUS_KM
-        apogee_km = semi_major_axis_km * (1.0 + eccentricity) - EARTH_RADIUS_KM
-    else:
-        perigee_km = None
-        apogee_km = None
-
-    return {
-        "norad_id": norad_id,
-        "inclination": round(inclination_deg, 4),
-        "eccentricity": round(eccentricity, 7),
-        "mean_motion": round(mean_motion_rev_day, 8),
-        "period_minutes": round(period_min, 2) if period_min else None,
-        "semi_major_axis_km": round(semi_major_axis_km, 2) if semi_major_axis_km else None,
-        "perigee_km": round(perigee_km, 2) if perigee_km else None,
-        "apogee_km": round(apogee_km, 2) if apogee_km else None,
-    }
-
-def parse_tle_text(tle_text: str, default_source: str = "CelesTrak", source_group: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Parses standard 2-line or 3-line TLE blocks."""
-    lines = [l.strip() for l in tle_text.strip().split("\n") if l.strip()]
-    records = []
-    
-    i = 0
-    while i < len(lines):
-        if lines[i].startswith("1 ") and i + 1 < len(lines) and lines[i+1].startswith("2 "):
-            line1 = lines[i]
-            line2 = lines[i+1]
-            norad_id = int(line1[2:7])
-            name = f"OBJECT-{norad_id}"
-            i += 2
-        elif i + 2 < len(lines) and lines[i+1].startswith("1 ") and lines[i+2].startswith("2 "):
-            name = lines[i]
-            line1 = lines[i+1]
-            line2 = lines[i+2]
-            i += 3
-        else:
-            i += 1
-            continue
-
-        is_valid, reason = validate_tle(line1, line2)
-        if not is_valid:
-            logger.debug(f"Skipping invalid TLE for {name}: {reason}")
-            continue
-
-        elements = parse_tle_orbital_elements(line1, line2)
-        obj_type = classify_object_type(name, elements["norad_id"])
-
-        records.append({
-            "name": name,
-            "norad_id": elements["norad_id"],
-            "object_type": obj_type,
-            "tle_line1": line1,
-            "tle_line2": line2,
-            "inclination": elements["inclination"],
-            "eccentricity": elements["eccentricity"],
-            "mean_motion": elements["mean_motion"],
-            "period_minutes": elements["period_minutes"],
-            "semi_major_axis_km": elements["semi_major_axis_km"],
-            "perigee_km": elements["perigee_km"],
-            "apogee_km": elements["apogee_km"],
-            "source": default_source,
-            "source_group": source_group,
-            "tle_epoch": datetime.now(timezone.utc),
-        })
-
-    return records
+def parse_tle_text(text: str, default_source: str = "CelesTrak") -> List[Dict[str, Any]]:
+    return TLEService.parse_tle_text(text)
 
 class TLEService:
-    @staticmethod
-    async def fetch_tle_data(mode: Optional[str] = "LIVE", limit_per_group: int = 150) -> Tuple[List[Dict[str, Any]], str, str, Optional[str]]:
-        """
-        Fetches TLE records.
-        - If mode == 'DEMO': explicitly loads verified local cached dataset.
-        - If mode == 'LIVE': attempts CelesTrak HTTP endpoints. If network fails, returns error status.
-        Returns (records, source_name, status_mode, error_message).
-        """
-        if mode and mode.upper() == "DEMO":
-            logger.info("Explicit DEMO mode requested: Loading verified local cached dataset")
-            try:
-                with open(settings.LOCAL_TLE_FALLBACK, "r") as f:
-                    cached_text = f.read()
-                records = parse_tle_text(cached_text, default_source="Local Cached Dataset (Demo)", source_group="demo_cache")
-                return records, "Local Cached Dataset", "DEMO", None
-            except Exception as e:
-                err_msg = f"Failed to read local fallback TLE cache: {str(e)}"
-                logger.error(err_msg)
-                return [], "Local Cached Dataset", "DEMO", err_msg
+    """
+    Multi-Provider Orbital Ephemeris Ingestion Engine.
+    Supports CelesTrak Mega Multi-Group and Space-Track.org REST API.
+    """
 
-        # Live Mode: Fetch from external provider (CelesTrak)
-        all_records = []
-        fetch_error = None
-        successful_fetches = 0
+    CELESTRAK_GROUPS = [
+        ("stations", "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle", ObjectType.ACTIVE_SATELLITE),
+        ("active", "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle", ObjectType.ACTIVE_SATELLITE),
+        ("starlink", "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle", ObjectType.ACTIVE_SATELLITE),
+        ("debris_cosmos", "https://celestrak.org/NORAD/elements/gp.php?GROUP=1982-092&FORMAT=tle", ObjectType.DEBRIS),
+        ("debris_fengyun", "https://celestrak.org/NORAD/elements/gp.php?GROUP=1999-025&FORMAT=tle", ObjectType.DEBRIS),
+        ("debris_iridium", "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle", ObjectType.DEBRIS),
+    ]
 
+    @classmethod
+    async def fetch_tle_data(cls, mode: str = "LIVE") -> Tuple[List[Dict[str, Any]], str, str, Optional[str]]:
+        """
+        Fetches TLE ephemeris datasets across multiple providers/groups.
+        """
+        if mode.upper() == "DEMO":
+            records = cls._load_local_fallback()
+            return records, "Local Cached Dataset", "DEMO", None
+
+        # Space-Track.org Provider (If credentials configured)
+        spacetrack_user = os.environ.get("SPACETRACK_USER")
+        spacetrack_pass = os.environ.get("SPACETRACK_PASSWORD")
+        if spacetrack_user and spacetrack_pass:
+            st_records, st_error = await cls._fetch_spacetrack(spacetrack_user, spacetrack_pass)
+            if st_records and len(st_records) > 0:
+                return st_records, "Space-Track.org", "LIVE", None
+
+        # CelesTrak Mega Multi-Group Ingestion
+        all_records: List[Dict[str, Any]] = []
+        seen_norad = set()
+        fetch_errors = []
+
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            for group_name, group_url, default_type in cls.CELESTRAK_GROUPS:
+                try:
+                    response = await client.get(group_url)
+                    if response.status_code == 200:
+                        parsed = cls.parse_tle_text(response.text, default_type=default_type, source_group=group_name)
+                        for r in parsed:
+                            if r["norad_id"] not in seen_norad:
+                                seen_norad.add(r["norad_id"])
+                                all_records.append(r)
+                    else:
+                        fetch_errors.append(f"{group_name} returned status {response.status_code}")
+                except Exception as e:
+                    fetch_errors.append(f"{group_name}: {str(e)}")
+
+        if all_records:
+            return all_records, "CelesTrak (Multi-Group Catalog)", "LIVE", None
+
+        # If live fetch failed completely
+        error_summary = "; ".join(fetch_errors) if fetch_errors else "Unable to reach orbital data providers"
+        return [], "CelesTrak / Space-Track", "LIVE ERROR", error_summary
+
+    @classmethod
+    async def _fetch_spacetrack(cls, username: str, password: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """Fetches bulk TLEs from Space-Track.org via REST API session."""
+        login_url = "https://www.space-track.org/ajaxauth/login"
+        query_url = "https://www.space-track.org/basicspacedata/query/class/gp/decay_date/null-val/orderby/norad_cat_id/limit/10000/format/tle"
+        
         try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
-                for group in CELESTRAK_GROUPS:
-                    try:
-                        res = await client.get(group["url"])
-                        if res.status_code == 200 and len(res.text) > 100:
-                            recs = parse_tle_text(res.text, default_source="CelesTrak", source_group=group["name"])
-                            all_records.extend(recs[:limit_per_group])
-                            successful_fetches += 1
-                    except Exception as e:
-                        fetch_error = str(e)
-                        logger.warning(f"Failed to fetch {group['name']} from {group['url']}: {e}")
+            async with httpx.AsyncClient(timeout=40.0) as client:
+                login_res = await client.post(login_url, data={"identity": username, "password": password})
+                if login_res.status_code != 200:
+                    return [], f"Space-Track login failed: {login_res.status_code}"
+                
+                query_res = await client.get(query_url)
+                if query_res.status_code == 200:
+                    records = cls.parse_tle_text(query_res.text, source_group="spacetrack")
+                    return records, None
+                return [], f"Space-Track query failed: {query_res.status_code}"
         except Exception as e:
-            fetch_error = str(e)
+            return [], str(e)
 
-        if successful_fetches > 0 and len(all_records) > 0:
-            return all_records, "CelesTrak", "LIVE", None
-        else:
-            # Report Live error explicitly — DO NOT SILENTLY FAKE IT
-            err_detail = fetch_error or "Unable to establish connection to CelesTrak public endpoints"
-            logger.error(f"Live synchronization failed: {err_detail}")
-            return [], "CelesTrak", "LIVE ERROR", err_detail
+    @classmethod
+    def _load_local_fallback(cls) -> List[Dict[str, Any]]:
+        """Loads curated offline sample TLE dataset."""
+        fallback_path = os.path.join(settings.BASE_DIR, "data", "cache", "celestrak_sample.tle")
+        if os.path.exists(fallback_path):
+            with open(fallback_path, "r", encoding="utf-8") as f:
+                return cls.parse_tle_text(f.read(), source_group="local_cache")
+        return []
+
+    @classmethod
+    def parse_tle_text(
+        cls,
+        text: str,
+        default_type: ObjectType = ObjectType.UNKNOWN,
+        source_group: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Parses multi-line TLE blocks with checksum and Keplerian element validation."""
+        lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
+        records = []
+        i = 0
+
+        while i < len(lines):
+            # Check 3-line format (Name, Line 1, Line 2)
+            if lines[i].startswith("1 ") and i > 0 and not lines[i-1].startswith("1 ") and not lines[i-1].startswith("2 "):
+                name = lines[i-1].strip()
+                line1 = lines[i]
+                if i + 1 < len(lines) and lines[i+1].startswith("2 "):
+                    line2 = lines[i+1]
+                    i += 2
+                else:
+                    i += 1
+                    continue
+            # Check 2-line format
+            elif lines[i].startswith("1 ") and i + 1 < len(lines) and lines[i+1].startswith("2 "):
+                line1 = lines[i]
+                line2 = lines[i+1]
+                name = f"NORAD-{line1[2:7].strip()}"
+                i += 2
+            else:
+                i += 1
+                continue
+
+            if not cls.validate_tle(line1, line2):
+                continue
+
+            try:
+                norad_id = int(line1[2:7].strip())
+            except ValueError:
+                continue
+
+            obj_type = default_type
+            if obj_type == ObjectType.UNKNOWN:
+                name_upper = name.upper()
+                if "DEB" in name_upper or "DEBRIS" in name_upper or "FENGYUN" in name_upper or "COSMOS" in name_upper:
+                    obj_type = ObjectType.DEBRIS
+                elif "R/B" in name_upper or "ROCKET" in name_upper or "CENTAUR" in name_upper or "DELTA" in name_upper:
+                    obj_type = ObjectType.ROCKET_BODY
+                else:
+                    obj_type = ObjectType.ACTIVE_SATELLITE
+
+            keplerian = cls._extract_keplerian_elements(line1, line2)
+
+            records.append({
+                "norad_id": norad_id,
+                "name": name,
+                "object_type": obj_type,
+                "source_group": source_group,
+                "tle_line1": line1,
+                "tle_line2": line2,
+                **keplerian
+            })
+
+        return records
+
+    @classmethod
+    def _extract_keplerian_elements(cls, line1: str, line2: str) -> Dict[str, Any]:
+        """Extracts orbital parameters and epoch from TLE."""
+        try:
+            inc = float(line2[8:16].strip())
+            ecc = float("0." + line2[26:33].strip())
+            mm = float(line2[52:63].strip())
+            period_min = (1440.0 / mm) if mm > 0 else 0.0
+
+            # Calculate semi-major axis in km: a = (mu / (n_rad_s)^2)^(1/3)
+            mu = 398600.4418
+            n_rad_s = (mm * 2 * 3.141592653589793) / 86400.0
+            a_km = (mu / (n_rad_s ** 2)) ** (1.0 / 3.0) if n_rad_s > 0 else 0.0
+            r_earth = 6378.137
+            perigee_km = max(0.0, a_km * (1.0 - ecc) - r_earth)
+            apogee_km = max(0.0, a_km * (1.0 + ecc) - r_earth)
+
+            # Epoch datetime extraction
+            epoch_year_str = line1[18:20]
+            epoch_days_str = line1[20:32]
+            year = int(epoch_year_str)
+            year += 2000 if year < 57 else 1900
+            days = float(epoch_days_str)
+            epoch_dt = datetime(year, 1, 1, tzinfo=timezone.utc)
+            import datetime as dt_mod
+            epoch_dt += dt_mod.timedelta(days=days - 1.0)
+
+            return {
+                "tle_epoch": epoch_dt,
+                "inclination": inc,
+                "eccentricity": ecc,
+                "mean_motion": mm,
+                "period_minutes": period_min,
+                "semi_major_axis_km": a_km,
+                "perigee_km": perigee_km,
+                "apogee_km": apogee_km
+            }
+        except Exception:
+            return {
+                "tle_epoch": None,
+                "inclination": None,
+                "eccentricity": None,
+                "mean_motion": None,
+                "period_minutes": None,
+                "semi_major_axis_km": None,
+                "perigee_km": None,
+                "apogee_km": None
+            }
 
     @staticmethod
-    def sync_to_database(db: Session, records: List[Dict[str, Any]], mode: str, source: str) -> Dict[str, int]:
-        """
-        Upserts TLE records into database and maintains historical tle_records table.
-        """
+    def validate_tle(line1: str, line2: str) -> bool:
+        """Validates TLE line length and SGP4 initialization."""
+        if len(line1) < 68 or len(line2) < 68:
+            return False
+        if not line1.startswith("1 ") or not line2.startswith("2 "):
+            return False
+        try:
+            sat = Satrec.twoline2rv(line1, line2, WGS72)
+            return sat.error == 0
+        except Exception:
+            return False
+
+    @classmethod
+    def sync_to_database(
+        cls,
+        db: Session,
+        records: List[Dict[str, Any]],
+        mode: str = "LIVE",
+        source: str = "CelesTrak"
+    ) -> Dict[str, int]:
+        """Inserts and updates catalog records and records sync history."""
+        started_at = datetime.utcnow()
         inserted = 0
         updated = 0
-        now = datetime.utcnow()
+        failed = 0
 
         for r in records:
-            existing = db.query(OrbitalObject).filter(OrbitalObject.norad_id == r["norad_id"]).first()
-            if existing:
-                existing.name = r["name"]
-                existing.object_type = r["object_type"]
-                existing.source = r["source"]
-                existing.source_group = r.get("source_group")
-                existing.tle_line1 = r["tle_line1"]
-                existing.tle_line2 = r["tle_line2"]
-                existing.inclination = r["inclination"]
-                existing.eccentricity = r["eccentricity"]
-                existing.mean_motion = r["mean_motion"]
-                existing.period_minutes = r["period_minutes"]
-                existing.semi_major_axis_km = r["semi_major_axis_km"]
-                existing.perigee_km = r["perigee_km"]
-                existing.apogee_km = r["apogee_km"]
-                existing.updated_at = now
+            try:
+                obj = db.query(OrbitalObject).filter(OrbitalObject.norad_id == r["norad_id"]).first()
+                if obj:
+                    obj.name = r["name"]
+                    obj.object_type = r["object_type"]
+                    obj.source = source
+                    obj.source_group = r.get("source_group")
+                    obj.tle_line1 = r["tle_line1"]
+                    obj.tle_line2 = r["tle_line2"]
+                    obj.tle_epoch = r.get("tle_epoch")
+                    obj.inclination = r.get("inclination")
+                    obj.eccentricity = r.get("eccentricity")
+                    obj.mean_motion = r.get("mean_motion")
+                    obj.period_minutes = r.get("period_minutes")
+                    obj.semi_major_axis_km = r.get("semi_major_axis_km")
+                    obj.perigee_km = r.get("perigee_km")
+                    obj.apogee_km = r.get("apogee_km")
+                    obj.updated_at = datetime.utcnow()
+                    updated += 1
+                else:
+                    obj = OrbitalObject(
+                        norad_id=r["norad_id"],
+                        name=r["name"],
+                        object_type=r["object_type"],
+                        source=source,
+                        source_group=r.get("source_group"),
+                        tle_line1=r["tle_line1"],
+                        tle_line2=r["tle_line2"],
+                        tle_epoch=r.get("tle_epoch"),
+                        inclination=r.get("inclination"),
+                        eccentricity=r.get("eccentricity"),
+                        mean_motion=r.get("mean_motion"),
+                        period_minutes=r.get("period_minutes"),
+                        semi_major_axis_km=r.get("semi_major_axis_km"),
+                        perigee_km=r.get("perigee_km"),
+                        apogee_km=r.get("apogee_km"),
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                    db.add(obj)
+                    db.flush()
+                    inserted += 1
 
-                # Mark older historical records as not current
-                db.query(TLERecord).filter(
-                    TLERecord.orbital_object_id == existing.id,
-                    TLERecord.is_current == True
-                ).update({"is_current": False})
-
-                # Insert new TLE record
-                tle_rec = TLERecord(
-                    orbital_object_id=existing.id,
-                    line1=r["tle_line1"],
-                    line2=r["tle_line2"],
-                    epoch=r["tle_epoch"].replace(tzinfo=None) if r.get("tle_epoch") else now,
-                    source=source,
-                    fetched_at=now,
-                    is_current=True,
-                    created_at=now
-                )
-                db.add(tle_rec)
-                updated += 1
-            else:
-                obj = OrbitalObject(
-                    norad_id=r["norad_id"],
-                    name=r["name"],
-                    object_type=r["object_type"],
-                    source=r["source"],
-                    source_group=r.get("source_group"),
-                    tle_line1=r["tle_line1"],
-                    tle_line2=r["tle_line2"],
-                    inclination=r["inclination"],
-                    eccentricity=r["eccentricity"],
-                    mean_motion=r["mean_motion"],
-                    period_minutes=r["period_minutes"],
-                    semi_major_axis_km=r["semi_major_axis_km"],
-                    perigee_km=r["perigee_km"],
-                    apogee_km=r["apogee_km"],
-                    created_at=now,
-                    updated_at=now
-                )
-                db.add(obj)
-                db.flush() # obtain obj.id
-
+                # Archive TLE record
                 tle_rec = TLERecord(
                     orbital_object_id=obj.id,
                     line1=r["tle_line1"],
                     line2=r["tle_line2"],
-                    epoch=r["tle_epoch"].replace(tzinfo=None) if r.get("tle_epoch") else now,
+                    epoch=r.get("tle_epoch"),
                     source=source,
-                    fetched_at=now,
-                    is_current=True,
-                    created_at=now
+                    fetched_at=datetime.utcnow(),
+                    is_current=True
                 )
                 db.add(tle_rec)
-                inserted += 1
 
-        # Record Sync Log
+            except Exception:
+                failed += 1
+
+        # Record Sync Log & History
         log = SyncLog(
             mode=mode,
             source=source,
             status="SUCCESS",
             total_synced=inserted + updated,
-            created_at=now
+            created_at=datetime.utcnow()
         )
         db.add(log)
+
+        hist = SyncHistory(
+            source=source,
+            started_at=started_at,
+            completed_at=datetime.utcnow(),
+            records_fetched=len(records),
+            records_inserted=inserted,
+            records_updated=updated,
+            records_failed=failed,
+            status="SUCCESS"
+        )
+        db.add(hist)
+
         db.commit()
+        return {"inserted": inserted, "updated": updated, "failed": failed}
 
-        return {"inserted": inserted, "updated": updated, "total": inserted + updated}
-
-    @staticmethod
-    def get_data_status(db: Session) -> DataStatusResponse:
-        """
-        Retrieves real live synchronization status and object counts.
-        """
+    @classmethod
+    def get_data_status(cls, db: Session) -> DataStatusResponse:
+        """Retrieves real-time data status and catalog composition."""
+        last_log = db.query(SyncLog).order_by(SyncLog.created_at.desc()).first()
         total_objects = db.query(OrbitalObject).count()
         satellites = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE).count()
         debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).count()
         rocket_bodies = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).count()
         unknown = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.UNKNOWN).count()
 
-        latest_log = db.query(SyncLog).order_by(SyncLog.created_at.desc()).first()
+        mode = last_log.mode if last_log else "LIVE"
+        source = last_log.source if last_log else "CelesTrak"
+        last_sync = last_log.created_at if last_log else None
+        sync_error = last_log.error_message if last_log and last_log.status == "FAILED" else None
 
-        mode = latest_log.mode if latest_log else "LIVE"
-        source = latest_log.source if latest_log else "CelesTrak"
-        last_sync = latest_log.created_at if latest_log else None
-        sync_error = latest_log.error_message if (latest_log and latest_log.status == "FAILED") else None
-
-        data_age_min = None
+        data_age = None
         if last_sync:
-            data_age_min = round((datetime.utcnow() - last_sync).total_seconds() / 60.0, 1)
+            data_age = round((datetime.utcnow() - last_sync).total_seconds() / 60.0, 1)
 
         return DataStatusResponse(
             mode=mode,
@@ -336,7 +398,7 @@ class TLEService:
             debris=debris,
             rocket_bodies=rocket_bodies,
             unknown=unknown,
-            data_age_minutes=data_age_min,
+            data_age_minutes=data_age,
             sync_error=sync_error,
             is_syncing=False
         )

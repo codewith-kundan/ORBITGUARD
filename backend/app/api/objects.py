@@ -71,6 +71,30 @@ async def sync_orbital_data(
         "total_objects": db.query(OrbitalObject).count(),
     }
 
+@router.post("/data/upload-tle")
+async def upload_custom_tle_file(
+    content: str = Query(..., description="Raw TLE text string or multi-line payload"),
+    source_name: str = Query("Custom Upload", description="Source provider label"),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload and parse custom TLE datasets directly into the database catalog.
+    Supports arbitrarily large batches from Space-Track, ISRO, NASA, or research datasets.
+    """
+    records = TLEService.parse_tle_text(content, source_group="custom_upload")
+    if not records:
+        raise HTTPException(status_code=400, detail="No valid TLE pairs found in payload")
+
+    sync_result = TLEService.sync_to_database(db, records, mode="LIVE", source=source_name)
+    return {
+        "status": "success",
+        "data_source": source_name,
+        "mode": "LIVE",
+        "inserted": sync_result["inserted"],
+        "updated": sync_result["updated"],
+        "total_objects": db.query(OrbitalObject).count(),
+    }
+
 @router.get("/data/status", response_model=DataStatusResponse)
 def get_data_status(db: Session = Depends(get_db)):
     """Retrieves live data synchronization, mode, catalog counts, and data freshness."""

@@ -1,8 +1,12 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Optional
 import os
+from pathlib import Path
+
+BASE_DIR_PATH = str(Path(__file__).resolve().parent.parent.parent)
 
 class Settings(BaseSettings):
+    BASE_DIR: str = BASE_DIR_PATH
     APP_NAME: str = "ORBITGUARD"
     APP_ENV: str = "production"
     API_PORT: int = 8000

@@ -49,6 +49,14 @@ export const api = {
     return request<any>(`/data/sync?mode=${mode}`, { method: 'POST' });
   },
 
+  uploadCustomTle: async (content: string, sourceName: string = 'Custom Dataset'): Promise<any> => {
+    const params = new URLSearchParams({
+      content,
+      source_name: sourceName
+    });
+    return request<any>(`/data/upload-tle?${params.toString()}`, { method: 'POST' });
+  },
+
   // Orbital Objects & Positions
   getBatchPositions: async (timestamp?: string, limit: number = 500): Promise<PositionsBatchResponse> => {
     const params = new URLSearchParams();
