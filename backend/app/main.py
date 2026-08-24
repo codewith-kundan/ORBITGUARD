@@ -23,7 +23,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -33,6 +33,37 @@ app.include_router(objects_router)
 app.include_router(conjunctions_router)
 app.include_router(alerts_router)
 app.include_router(statistics_router)
+
+@app.on_event("startup")
+async def startup_event():
+    """Ensure database has live space catalog data on startup."""
+    import asyncio
+    from backend.app.models.base import SessionLocal
+    from backend.app.services.tle_service import TLEService
+
+    def check_and_sync():
+        db = SessionLocal()
+        try:
+            count = db.query(OrbitalObject).count()
+            if count == 0:
+                print("Initial database is empty. Triggering automated space catalog sync...")
+                TLEService.sync_to_database(db, mode="LIVE")
+        except Exception as e:
+            print(f"Startup sync check: {e}")
+        finally:
+            db.close()
+
+    asyncio.get_event_loop().run_in_executor(None, check_and_sync)
+
+@app.get("/")
+async def root():
+    """Root status endpoint."""
+    return {
+        "service": "ORBITGUARD API",
+        "status": "online",
+        "docs": "/docs",
+        "health": "/api/health"
+    }
 
 @app.get("/api/health")
 async def health_check(db: Session = Depends(get_db)):

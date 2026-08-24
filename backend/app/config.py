@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "production"
     API_PORT: int = 8000
     API_HOST: str = "0.0.0.0"
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
+    CORS_ORIGINS: str = "*"
 
     DATABASE_URL: str = "sqlite:///./data/orbitguard.db"
     SUPABASE_URL: Optional[str] = None

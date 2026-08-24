@@ -180,18 +180,27 @@ export default function App() {
         {loading && objects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[60vh] gap-3 font-mono text-cyan-400">
             <Loader2 className="w-8 h-8 animate-spin text-cyan-neon" />
-            <p className="text-sm">Connecting to ORBITGUARD SGP4 Ephemeris Engine...</p>
+            <p className="text-sm font-bold">Connecting to ORBITGUARD SGP4 Ephemeris Engine...</p>
+            <p className="text-xs text-slate-400">If using cloud free tier, backend takes ~30s to wake up on first load.</p>
           </div>
         ) : error ? (
-          <div className="bg-danger-500/10 border border-danger-500/30 rounded-xl p-6 text-center font-mono text-danger-neon">
-            <p className="font-bold text-base mb-2">Backend Connection Alert</p>
+          <div className="bg-danger-500/10 border border-danger-500/30 rounded-2xl p-6 text-center font-mono text-danger-neon max-w-lg mx-auto mt-12 shadow-2xl">
+            <p className="font-bold text-base mb-2">Cloud Backend Connecting</p>
             <p className="text-xs text-slate-300 mb-4">{error}</p>
-            <button
-              onClick={loadAllData}
-              className="px-4 py-2 bg-space-800 hover:bg-space-700 text-white rounded-lg border border-space-700 text-xs"
-            >
-              RETRY CONNECTION
-            </button>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={loadAllData}
+                className="px-4 py-2 bg-cyan-500 text-space-950 font-bold hover:bg-cyan-400 rounded-xl text-xs transition"
+              >
+                RETRY CONNECTION
+              </button>
+              <button
+                onClick={() => handleSync('LIVE')}
+                className="px-4 py-2 bg-space-800 hover:bg-space-700 text-white rounded-xl border border-space-700 text-xs transition"
+              >
+                FORCE SYNC
+              </button>
+            </div>
           </div>
         ) : (
           <>
