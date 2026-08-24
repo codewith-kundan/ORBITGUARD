@@ -39,11 +39,11 @@ def validate_tle(line1: str, line2: str) -> Tuple[bool, str]:
 
 def classify_object_type(name: str, norad_id: Optional[int] = None) -> ObjectType:
     name_upper = name.upper()
-    if "DEB" in name_upper or "DEBRIS" in name_upper or "FENGYUN" in name_upper or "COSMOS" in name_upper:
+    if "DEB" in name_upper or "DEBRIS" in name_upper or "FRAG" in name_upper or "SHRAPNEL" in name_upper:
         return ObjectType.DEBRIS
-    elif "R/B" in name_upper or "ROCKET" in name_upper or "CENTAUR" in name_upper or "DELTA" in name_upper or "FALCON" in name_upper:
+    elif "R/B" in name_upper or "ROCKET" in name_upper or "CENTAUR" in name_upper or "DELTA" in name_upper or "STAGE" in name_upper or "BOOSTER" in name_upper:
         return ObjectType.ROCKET_BODY
-    elif "ISS" in name_upper or "STARLINK" in name_upper or "TIANGONG" in name_upper or "ONEWEB" in name_upper or "VANGUARD" in name_upper:
+    elif "ISS" in name_upper or "STARLINK" in name_upper or "TIANGONG" in name_upper or "ONEWEB" in name_upper or "GPS" in name_upper or "NAVSTAR" in name_upper or "BEIDOU" in name_upper or "GALILEO" in name_upper or "NOAA" in name_upper or "LANDSAT" in name_upper or "COSMOS" in name_upper or "FENGYUN" in name_upper:
         return ObjectType.ACTIVE_SATELLITE
     elif norad_id and norad_id > 90000:
         return ObjectType.UNKNOWN

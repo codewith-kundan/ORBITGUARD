@@ -110,14 +110,30 @@ def get_data_status(db: Session = Depends(get_db)):
 @router.get("/objects/positions", response_model=PositionsBatchResponse)
 def get_batch_positions(
     timestamp: Optional[datetime] = None,
-    limit: int = Query(600, ge=1, le=3000),
+    limit: int = Query(1000, ge=1, le=3000),
     db: Session = Depends(get_db)
 ):
     """
     High-performance real-time batch propagation endpoint for the 3D space environment and 2D map.
+    Returns a balanced, stratified selection of active payloads, debris fragments, and rocket stages.
     """
     target_time = to_utc(timestamp) if timestamp else datetime.now(timezone.utc)
-    objects = db.query(OrbitalObject).limit(limit).all()
+    
+    sat_limit = int(limit * 0.50)
+    deb_limit = int(limit * 0.35)
+    rkt_limit = int(limit * 0.15)
+
+    satellites = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE).limit(sat_limit).all()
+    debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(deb_limit).all()
+    rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(rkt_limit).all()
+
+    objects = list(satellites) + list(debris) + list(rockets)
+    if len(objects) < limit:
+        remaining = db.query(OrbitalObject).limit(limit - len(objects)).all()
+        existing_ids = {o.id for o in objects}
+        for o in remaining:
+            if o.id not in existing_ids:
+                objects.append(o)
 
     positions: List[OrbitalPosition] = []
     for obj in objects:
