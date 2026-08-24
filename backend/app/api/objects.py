@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime, timezone
 from backend.app.models.base import get_db, Base, engine
 from backend.app.models.orbital_object import OrbitalObject
-from backend.app.schemas.orbital_object import OrbitalObjectResponse, ObjectType
+from backend.app.schemas.orbital_object import OrbitalObjectResponse, ObjectType, TrajectoryResponse, OrbitalPosition
 from backend.app.services.tle_service import TLEService
+from backend.app.services.propagation_service import PropagationService
 
 # Ensure tables exist
 Base.metadata.create_all(bind=engine)
@@ -56,3 +58,56 @@ def get_orbital_object(id: int, db: Session = Depends(get_db)):
     if not obj:
         raise HTTPException(status_code=404, detail=f"Orbital object with ID or NORAD {id} not found")
     return obj
+
+@router.get("/objects/{id}/position", response_model=OrbitalPosition)
+def get_object_current_position(id: int, db: Session = Depends(get_db)):
+    """Computes real-time 3D and geodetic orbital position using SGP4 propagation."""
+    obj = db.query(OrbitalObject).filter(
+        (OrbitalObject.id == id) | (OrbitalObject.norad_id == id)
+    ).first()
+    
+    if not obj:
+        raise HTTPException(status_code=404, detail=f"Orbital object with ID or NORAD {id} not found")
+
+    now = datetime.now(timezone.utc)
+    pos = PropagationService.propagate_satellite(obj.tle_line1, obj.tle_line2, now)
+    if not pos:
+        raise HTTPException(status_code=500, detail="Failed to propagate orbital position via SGP4")
+    return pos
+
+@router.get("/objects/{id}/trajectory", response_model=TrajectoryResponse)
+def get_object_trajectory(
+    id: int,
+    hours: int = Query(24, ge=1, le=72),
+    step_minutes: int = Query(5, ge=1, le=60),
+    db: Session = Depends(get_db)
+):
+    """Computes projected future orbital trajectory over time."""
+    obj = db.query(OrbitalObject).filter(
+        (OrbitalObject.id == id) | (OrbitalObject.norad_id == id)
+    ).first()
+    
+    if not obj:
+        raise HTTPException(status_code=404, detail=f"Orbital object with ID or NORAD {id} not found")
+
+    start_time = datetime.now(timezone.utc)
+    from datetime import timedelta
+    end_time = start_time + timedelta(hours=hours)
+
+    points = PropagationService.get_trajectory(
+        obj.tle_line1,
+        obj.tle_line2,
+        start_time=start_time,
+        end_time=end_time,
+        step_minutes=step_minutes
+    )
+
+    return TrajectoryResponse(
+        norad_id=obj.norad_id,
+        name=obj.name,
+        object_type=obj.object_type,
+        points=points,
+        start_time=start_time,
+        end_time=end_time,
+        step_minutes=step_minutes
+    )
