@@ -3,6 +3,17 @@ import { Alert } from '../types';
 import { RiskBadge } from './RiskBadge';
 import { AlertTriangle, CheckCircle, ShieldAlert, Download, CheckCheck } from 'lucide-react';
 
+const formatTcaCountdown = (tcaStr: string) => {
+  const tca = new Date(tcaStr);
+  const now = new Date();
+  const diffMs = tca.getTime() - now.getTime();
+  if (diffMs <= 0) return 'PASSED';
+  const hours = Math.floor(diffMs / 3600000);
+  const mins = Math.floor((diffMs % 3600000) / 60000);
+  const secs = Math.floor((diffMs % 60000) / 1000);
+  return `T-${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
 interface AlertPanelProps {
   alerts: Alert[];
   onAcknowledge: (id: number) => void;
@@ -130,7 +141,7 @@ export const AlertPanel: React.FC<AlertPanelProps> = ({
                 key={alert.id}
                 className={`p-4 transition flex flex-col md:flex-row md:items-center justify-between gap-4 ${
                   alert.severity === 'CRITICAL'
-                    ? 'bg-danger-500/5 hover:bg-danger-500/10'
+                    ? 'bg-danger-500/5 hover:bg-danger-500/10 animate-pulse'
                     : 'hover:bg-space-850/50'
                 }`}
               >
@@ -143,6 +154,11 @@ export const AlertPanel: React.FC<AlertPanelProps> = ({
                     <span className="text-xs text-slate-500">
                       • {new Date(alert.created_at).toLocaleTimeString()} UTC
                     </span>
+                    {alert.conjunction?.tca && (
+                      <span className="text-xs font-bold text-amber-400 ml-2">
+                        TCA: {formatTcaCountdown(alert.conjunction.tca)}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-white font-medium">
                     {alert.message}

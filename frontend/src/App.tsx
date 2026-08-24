@@ -211,6 +211,7 @@ export default function App() {
                 conjunctions={conjunctions}
                 selectedObject={selectedObject}
                 selectedConjunction={selectedConjunction}
+                stats={stats}
                 onSelectObject={handleSelectObject}
                 onSelectConjunction={handleSelectConjunction}
                 onOpenConjunctionDetails={handleOpenConjunctionModal}

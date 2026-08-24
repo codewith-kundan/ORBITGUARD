@@ -55,7 +55,7 @@ async def startup_event():
             conj_count = db.query(Conjunction).count()
             if conj_count == 0:
                 print("Running initial automated conjunction screening...")
-                ConjunctionService.run_full_conjunction_screening(db)
+                ConjunctionService.run_full_conjunction_screening(db, window_hours=72, threshold_km=150.0, coarse_step_minutes=3)
         except Exception as e:
             print(f"Startup sync check: {e}")
         finally:

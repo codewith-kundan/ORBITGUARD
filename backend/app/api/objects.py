@@ -169,9 +169,11 @@ def get_batch_positions(
         if pos:
             positions.append(pos)
 
+    total_catalog_count = db.query(OrbitalObject).count()
+
     return PositionsBatchResponse(
         timestamp=target_time,
-        total_objects=len(positions),
+        total_objects=total_catalog_count,
         positions=positions
     )
 

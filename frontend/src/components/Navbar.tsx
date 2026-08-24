@@ -56,9 +56,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="font-bold text-sm sm:text-base tracking-wider text-white">ORBITGUARD</span>
-              <span className="text-[9px] sm:text-[10px] uppercase font-mono px-1.5 sm:px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold">
-                ENTERPRISE SSA
-              </span>
             </div>
             <p className="text-[10px] sm:text-[11px] text-slate-400 font-mono hidden sm:block">Space Situational Awareness</p>
           </div>
@@ -100,7 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Satellite className="w-3.5 h-3.5 text-cyan-400" />
             <span>ASSETS:</span>
             <span className="text-cyan-neon font-bold">
-              {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '19,578')}
+              {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '—')}
             </span>
           </div>
 

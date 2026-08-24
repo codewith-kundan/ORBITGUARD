@@ -3,6 +3,23 @@ import { Conjunction } from '../types';
 import { RiskBadge } from './RiskBadge';
 import { ShieldAlert, Activity, Crosshair } from 'lucide-react';
 
+const formatTcaCountdown = (tcaStr: string) => {
+  const tca = new Date(tcaStr);
+  const now = new Date();
+  const diffMs = tca.getTime() - now.getTime();
+  if (diffMs <= 0) return 'PASSED';
+  const hours = Math.floor(diffMs / 3600000);
+  const mins = Math.floor((diffMs % 3600000) / 60000);
+  const secs = Math.floor((diffMs % 60000) / 1000);
+  return `T-${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
+const getMissDistanceColor = (km: number) => {
+  if (km < 5) return 'text-red-400';
+  if (km < 25) return 'text-amber-400';
+  return 'text-cyan-400';
+};
+
 interface ConjunctionTableProps {
   conjunctions: Conjunction[];
   selectedConjunction: Conjunction | null;
@@ -101,6 +118,7 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
               <th className="py-3 px-4">Miss Distance ($d$)</th>
               <th className="py-3 px-4">Rel. Velocity ($\Delta v$)</th>
               <th className="py-3 px-4">Time of Closest Approach (TCA)</th>
+              <th className="py-3 px-4 text-center">TCA Countdown</th>
               <th className="py-3 px-4 text-center">Collision Risk Score</th>
               <th className="py-3 px-4 text-right">Actions</th>
             </tr>
@@ -108,7 +126,7 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
           <tbody className="divide-y divide-space-800">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-16 text-center text-slate-500">
+                <td colSpan={8} className="py-16 text-center text-slate-500">
                   No conjunction events matching the selected filter level.
                 </td>
               </tr>
@@ -142,7 +160,7 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
                       </div>
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className={`font-bold ${c.miss_distance_km < 5.0 ? 'text-danger-neon' : c.miss_distance_km < 15.0 ? 'text-warning-neon' : 'text-slate-200'}`}>
+                      <span className={`font-bold ${getMissDistanceColor(c.miss_distance_km)}`}>
                         {c.miss_distance_km.toFixed(2)} km
                       </span>
                     </td>
@@ -152,6 +170,9 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
                     <td className="py-3.5 px-4">
                       <div className="text-slate-200 font-medium">{timeFormatted}</div>
                       <div className="text-[10px] text-slate-400">{countdown}</div>
+                    </td>
+                    <td className="py-3.5 px-4 text-center font-bold text-amber-400">
+                      {formatTcaCountdown(c.tca)}
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <RiskBadge level={c.risk_level} score={c.risk_score} size="sm" />

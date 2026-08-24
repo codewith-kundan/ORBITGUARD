@@ -11,9 +11,9 @@ router = APIRouter(prefix="/api/conjunctions", tags=["Conjunctions"])
 
 @router.post("/screen")
 def trigger_conjunction_screening(
-    window_hours: int = Query(24, ge=1, le=72),
-    threshold_km: float = Query(50.0, ge=1.0, le=200.0),
-    coarse_step_minutes: int = Query(5, ge=1, le=30),
+    window_hours: int = 72,
+    threshold_km: float = 150.0,
+    coarse_step_minutes: int = 3,
     db: Session = Depends(get_db)
 ):
     """Executes full multi-object conjunction screening pipeline across current catalog."""

@@ -24,7 +24,8 @@ import {
   Conjunction, 
   OrbitalPosition, 
   TrajectoryResponse, 
-  GroundTrackResponse 
+  GroundTrackResponse,
+  SystemStatistics 
 } from '../types';
 import { api } from '../services/api';
 import * as satellite from 'satellite.js';
@@ -34,6 +35,7 @@ interface SpaceViewProps {
   conjunctions: Conjunction[];
   selectedObject: OrbitalObject | null;
   selectedConjunction: Conjunction | null;
+  stats?: SystemStatistics | null;
   onSelectObject: (obj: OrbitalObject | null) => void;
   onSelectConjunction: (conj: Conjunction | null) => void;
   onOpenConjunctionDetails: (conj: Conjunction) => void;
@@ -57,11 +59,51 @@ function calculateSunDirection(date: Date): THREE.Vector3 {
   return new THREE.Vector3(x, y, z).normalize();
 }
 
+function calculateMoonPosition(date: Date): THREE.Vector3 {
+  // Simplified lunar ephemeris from Jean Meeus
+  const JD = 2440587.5 + date.getTime() / 86400000;
+  const T = (JD - 2451545.0) / 36525.0;
+  
+  // Mean elongation of the Moon
+  const D = (297.8501921 + 445267.1114034 * T) % 360;
+  // Sun's mean anomaly
+  const M = (357.5291092 + 35999.0502909 * T) % 360;
+  // Moon's mean anomaly  
+  const Mp = (134.9633964 + 477198.8675055 * T) % 360;
+  // Moon's mean longitude
+  const L0 = (218.3164477 + 481267.88123421 * T) % 360;
+  
+  const toRad = Math.PI / 180;
+  
+  // Ecliptic longitude (simplified)
+  const eclLon = (L0 + 6.289 * Math.sin(Mp * toRad)
+    - 1.274 * Math.sin((2 * D - Mp) * toRad)
+    + 0.658 * Math.sin(2 * D * toRad)
+    - 0.214 * Math.sin(2 * Mp * toRad)
+    - 0.186 * Math.sin(M * toRad)) * toRad;
+    
+  // Ecliptic latitude (simplified)
+  const eclLat = (5.128 * Math.sin((93.272 + 483202.0175 * T) * toRad)) * toRad;
+  
+  // Obliquity of ecliptic
+  const obliquity = 23.439 * toRad;
+  
+  // Convert ecliptic to equatorial
+  const x = Math.cos(eclLat) * Math.cos(eclLon);
+  const y = Math.cos(obliquity) * Math.cos(eclLat) * Math.sin(eclLon) - Math.sin(obliquity) * Math.sin(eclLat);
+  const z = Math.sin(obliquity) * Math.cos(eclLat) * Math.sin(eclLon) + Math.cos(obliquity) * Math.sin(eclLat);
+  
+  // Scene distance (proportional — real is 384,400 km, Earth radius 6,371 km)
+  const moonDistance = 60; // ~60 Earth radii in scene units
+  return new THREE.Vector3(x * moonDistance, z * moonDistance, -y * moonDistance);
+}
+
 export const SpaceView: React.FC<SpaceViewProps> = ({
   objects,
   conjunctions,
   selectedObject,
   selectedConjunction,
+  stats,
   onSelectObject,
   onSelectConjunction,
   onOpenConjunctionDetails
@@ -127,6 +169,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const earthMeshRef = useRef<THREE.Mesh | null>(null);
   const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
   const sunMeshRef = useRef<THREE.Mesh | null>(null);
+  const moonMeshRef = useRef<THREE.Mesh | null>(null);
 
   // Specialized LeoLabs 3D Instanced Meshes
   const debrisMeshRef = useRef<THREE.InstancedMesh | null>(null);
@@ -407,8 +450,9 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     const moonGeom = new THREE.SphereGeometry(1.737, 32, 32);
     const moonMat = new THREE.MeshStandardMaterial({ map: moonTexture, roughness: 0.9 });
     const moonMesh = new THREE.Mesh(moonGeom, moonMat);
-    moonMesh.position.set(45, 10, -25);
     scene.add(moonMesh);
+    // Moon position is updated in the animation loop via calculateMoonPosition()
+    if (moonMeshRef) moonMeshRef.current = moonMesh;
 
     // 11. Reference Equatorial & Altitude Orbital Rings (LeoLabs Style)
     const ringsGroup = new THREE.Group();
@@ -425,6 +469,24 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     });
     scene.add(ringsGroup);
     orbitRingsGroupRef.current = ringsGroup;
+
+    // Altitude Reference Rings (LEO, ISS, Sun-sync, GEO)
+    const altRingsGroup = new THREE.Group();
+    const ringDefs = [
+      { alt: 420, color: 0x00f0ff, label: 'ISS ~420km' },
+      { alt: 550, color: 0x8b5cf6, label: 'Starlink ~550km' },
+      { alt: 800, color: 0x38bdf8, label: 'Sun-sync ~800km' },
+      { alt: 20200, color: 0x3b82f6, label: 'MEO/GPS ~20,200km' },
+    ];
+    ringDefs.forEach(({ alt, color }) => {
+      const ringRadius = EARTH_RADIUS + alt / 1000;
+      const ringGeom = new THREE.RingGeometry(ringRadius - 0.01, ringRadius + 0.01, 128);
+      const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
+      const ring = new THREE.Mesh(ringGeom, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      altRingsGroup.add(ring);
+    });
+    scene.add(altRingsGroup);
 
     // 12. LEOLABS SPECIALIZED 3D INSTANCED MESHES:
     const maxInst = 2500;
@@ -813,13 +875,26 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   useEffect(() => {
     const sunDir = calculateSunDirection(simTime);
     if (sunLightRef.current) {
-      sunLightRef.current.position.copy(sunDir.clone().multiplyScalar(70));
+      sunLightRef.current.position.copy(sunDir.clone().multiplyScalar(150));
     }
     if (sunMeshRef.current) {
-      sunMeshRef.current.position.copy(sunDir.clone().multiplyScalar(70));
+      sunMeshRef.current.position.copy(sunDir.clone().multiplyScalar(150));
     }
-    if (earthMeshRef.current && (earthMeshRef.current.material as THREE.ShaderMaterial).uniforms) {
-      (earthMeshRef.current.material as THREE.ShaderMaterial).uniforms.sunDirection.value = sunDir;
+    if (earthMeshRef.current) {
+      // Earth rotation via GMST
+      const JD = 2440587.5 + simTime.getTime() / 86400000;
+      const T = (JD - 2451545.0) / 36525.0;
+      const gmst = (280.46061837 + 360.98564736629 * (JD - 2451545.0) + 0.000387933 * T * T) % 360;
+      earthMeshRef.current.rotation.y = gmst * (Math.PI / 180);
+      const mat = earthMeshRef.current.material as THREE.ShaderMaterial;
+      if (mat.uniforms?.sunDirection) {
+        mat.uniforms.sunDirection.value.copy(sunDir);
+      }
+    }
+    // Update Moon position
+    if (moonMeshRef.current) {
+      const moonPos = calculateMoonPosition(simTime);
+      moonMeshRef.current.position.copy(moonPos);
     }
   }, [simTime]);
 
@@ -994,7 +1069,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       {/* FLOATING HOVER TOOLTIP (LeoLabs Style) */}
       {hoveredObject && (
         <div 
-          className="fixed pointer-events-none z-50 bg-space-950/95 backdrop-blur-md border border-cyan-500/50 p-2.5 rounded-xl text-xs font-mono shadow-2xl text-white animate-fade-in -translate-x-1/2 -translate-y-full mb-3"
+          className="fixed pointer-events-none z-50 bg-slate-900/40 backdrop-blur-xl border border-white/10 p-2.5 rounded-xl text-xs font-mono shadow-2xl text-white animate-fade-in -translate-x-1/2 -translate-y-full mb-3"
           style={{ left: hoveredObject.screenX, top: hoveredObject.screenY }}
         >
           <div className="font-bold text-cyan-neon flex items-center gap-1.5">
@@ -1014,7 +1089,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
       {/* TOP LEFT: LeoLabs Style Multi-Fleet Filter & Search Dock */}
       <div className="absolute top-3 sm:top-4 left-3 sm:left-4 z-20 flex flex-col gap-2 max-w-[calc(100vw-24px)] sm:max-w-sm">
-        <div className="bg-space-900/90 backdrop-blur-md px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border border-space-700 font-mono text-xs text-white shadow-xl flex items-center justify-between">
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-mono text-xs text-white shadow-xl flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4 text-cyan-neon animate-pulse" />
             <span className="font-bold tracking-wider text-cyan-neon text-[11px] sm:text-xs">ORBITAL RADAR</span>
@@ -1029,7 +1104,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         </div>
 
         {isLeftPanelOpen && (
-          <div className="bg-space-900/95 backdrop-blur-md border border-space-700/80 rounded-xl p-3 sm:p-3.5 flex flex-col gap-2.5 sm:gap-3 font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-220px)] overflow-y-auto">
+          <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-3 sm:p-3.5 flex flex-col gap-2.5 sm:gap-3 font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-220px)] overflow-y-auto">
             {/* Search Input */}
             <form onSubmit={handleSearchSubmit} className="relative">
               <input
@@ -1049,7 +1124,9 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                   <Sliders className="w-3 h-3 text-cyan-400" />
                   Fleet & Constellations
                 </span>
-                <span className="text-[9px] text-cyan-400">19,578 Tracked</span>
+                <span className="text-[9px] text-cyan-400">
+                  {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (positions.length > 0 ? positions.length.toLocaleString() : objects.length.toLocaleString())} Tracked
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-1 text-[11px]">
                 {[
@@ -1137,13 +1214,13 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       {/* TOP RIGHT: Global View Toggles & Clock */}
       <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-20 flex items-center gap-1.5 sm:gap-2">
         {/* UTC Clock (hidden on very small screens) */}
-        <div className="hidden sm:flex bg-space-900/90 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-space-700 font-mono text-[11px] sm:text-xs text-cyan-400 shadow-xl items-center gap-1.5">
+        <div className="hidden sm:flex bg-slate-900/40 backdrop-blur-xl border border-white/10 px-2.5 py-1.5 rounded-xl font-mono text-[11px] sm:text-xs text-cyan-400 shadow-xl items-center gap-1.5">
           <Clock className="w-3.5 h-3.5 text-slate-400" />
           <span>UTC: {simTime.toISOString().replace('T', ' ').substring(11, 19)}</span>
         </div>
 
         {/* Camera Reset & Fullscreen */}
-        <div className="bg-space-900/90 backdrop-blur-md p-1 rounded-xl border border-space-700 flex items-center gap-1 shadow-xl">
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 p-1 rounded-xl flex items-center gap-1 shadow-xl">
           <button
             onClick={handleResetCamera}
             className="p-1 sm:p-1.5 hover:bg-space-800 rounded text-slate-300 hover:text-cyan-neon"
@@ -1163,7 +1240,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
       {/* RIGHT PANEL: Compact Non-Intrusive Telemetry Card */}
       {selectedObject && (
-        <div className="absolute top-14 sm:top-16 right-3 z-30 w-72 sm:w-80 max-w-[88vw] bg-space-950/95 backdrop-blur-md border border-cyan-500/40 p-3 rounded-xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-140px)] overflow-y-auto">
+        <div className="absolute top-14 sm:top-16 right-3 z-30 w-72 sm:w-80 max-w-[88vw] bg-slate-900/40 backdrop-blur-xl border border-white/10 p-3 rounded-xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-140px)] overflow-y-auto">
           {/* Header */}
           <div className="flex items-start justify-between border-b border-space-800 pb-2 mb-2">
             <div className="pr-2">
@@ -1275,7 +1352,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
       {/* Conjunction Encounter Overlay */}
       {selectedConjunction && (
-        <div className="absolute top-14 sm:top-16 right-3 z-30 w-72 sm:w-80 max-w-[88vw] bg-space-950/95 backdrop-blur-md border border-danger-500/50 p-3 rounded-xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in">
+        <div className="absolute top-14 sm:top-16 right-3 z-30 w-72 sm:w-80 max-w-[88vw] bg-slate-900/40 backdrop-blur-xl border border-white/10 p-3 rounded-xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in">
           <div className="flex items-center justify-between border-b border-danger-500/30 pb-1.5 mb-1.5">
             <div className="font-bold text-danger-neon flex items-center gap-1.5 text-xs">
               <Crosshair className="w-3.5 h-3.5 text-danger-neon" />
@@ -1315,7 +1392,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       )}
 
       {/* BOTTOM BAR: Astrodynamics Mission Control Dock */}
-      <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 z-20 bg-space-900/95 backdrop-blur-md p-2 sm:p-2.5 rounded-2xl border border-space-700 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-4 font-mono text-xs shadow-2xl">
+      <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 z-20 bg-slate-900/40 backdrop-blur-xl border border-white/10 p-2 sm:p-2.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-4 font-mono text-xs shadow-2xl">
         {/* Play/Pause & Speed Multipliers */}
         <div className="flex items-center justify-between sm:justify-start gap-2">
           <div className="flex items-center gap-1.5 sm:gap-2">
