@@ -1,32 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import {
-  OrbitalObject,
-  OrbitalPosition,
-  Conjunction,
-  TrajectoryResponse,
-  GroundTrackResponse
+import { 
+  Activity, 
+  Compass, 
+  Play, 
+  Pause, 
+  RotateCcw, 
+  Maximize2, 
+  Minimize2, 
+  Search, 
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Crosshair,
+  FastForward,
+  Sliders
+} from 'lucide-react';
+import { 
+  OrbitalObject, 
+  Conjunction, 
+  OrbitalPosition, 
+  TrajectoryResponse, 
+  GroundTrackResponse 
 } from '../types';
 import { api } from '../services/api';
-import {
-  Play,
-  Pause,
-  RotateCcw,
-  Maximize2,
-  Minimize2,
-  Crosshair,
-  Search,
-  FastForward,
-  Clock,
-  Radio,
-  Sliders,
-  ChevronRight,
-  ChevronLeft,
-  Activity,
-  Compass,
-  AlertTriangle
-} from 'lucide-react';
 
 interface SpaceViewProps {
   objects: OrbitalObject[];
@@ -38,62 +37,48 @@ interface SpaceViewProps {
   onOpenConjunctionDetails: (conj: Conjunction) => void;
 }
 
-const EARTH_RADIUS = 6.371; // Scale: 1 unit = 1000 km
+const EARTH_RADIUS = 6.371; // 1 unit = 1000 km in 3D scene
 
-// Astronomical Solar Direction calculation from UTC Date
-function calculateSunDirection(utcDate: Date): THREE.Vector3 {
-  const jd = utcDate.getTime() / 86400000.0 + 2440587.5;
-  const d = jd - 2451545.0; // Days since J2000.0
+// Astronomical Solar Declination & Right Ascension Calculator
+function calculateSunDirection(date: Date): THREE.Vector3 {
+  const dayOfYear = Math.floor(
+    (date.getTime() - new Date(date.getUTCFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  const hour = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+  const declination = -23.44 * Math.cos(((2 * Math.PI) / 365) * (dayOfYear + 10)) * (Math.PI / 180);
+  const hourAngle = (hour - 12) * 15 * (Math.PI / 180);
 
-  const g = (357.529 + 0.98560028 * d) * (Math.PI / 180.0);
-  const q = 280.459 + 0.98564736 * d;
-  const l = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2.0 * g)) * (Math.PI / 180.0);
-  const e = (23.439 - 0.00000036 * d) * (Math.PI / 180.0);
+  const x = -Math.cos(declination) * Math.sin(hourAngle);
+  const y = Math.sin(declination);
+  const z = Math.cos(declination) * Math.cos(hourAngle);
 
-  const x = Math.cos(l);
-  const y = Math.sin(l) * Math.cos(e);
-  const z = Math.sin(l) * Math.sin(e);
-
-  return new THREE.Vector3(x, z, -y).normalize();
+  return new THREE.Vector3(x, y, z).normalize();
 }
 
-// Procedural Real Earth Day Surface Canvas Texture
+// Procedural Real Earth Day Texture
 function createEarthDayTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 2048;
   canvas.height = 1024;
   const ctx = canvas.getContext('2d')!;
 
-  // Deep Blue Ocean
-  const oceanGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  oceanGrad.addColorStop(0, '#04132b');
-  oceanGrad.addColorStop(0.2, '#0a2e5c');
-  oceanGrad.addColorStop(0.5, '#0f488a');
-  oceanGrad.addColorStop(0.8, '#0a2e5c');
-  oceanGrad.addColorStop(1, '#04132b');
-  ctx.fillStyle = oceanGrad;
+  ctx.fillStyle = '#0a2342';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Continents Landmass Fill
-  ctx.fillStyle = '#1e3f20';
-  ctx.strokeStyle = '#2d5c31';
-  ctx.lineWidth = 3;
+  ctx.fillStyle = '#1c4424';
+  ctx.strokeStyle = '#2d6a36';
+  ctx.lineWidth = 4;
 
-  // North America
+  // Americas
   ctx.beginPath();
-  ctx.ellipse(420, 280, 240, 150, -0.15, 0, Math.PI * 2);
+  ctx.ellipse(520, 360, 190, 130, -0.3, 0, Math.PI * 2);
+  ctx.ellipse(640, 680, 120, 200, 0.2, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // South America
+  // Eurasia
   ctx.beginPath();
-  ctx.ellipse(620, 680, 150, 230, 0.15, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // Eurasia (Europe + Asia)
-  ctx.beginPath();
-  ctx.ellipse(1380, 290, 460, 180, 0.05, 0, Math.PI * 2);
+  ctx.ellipse(1380, 320, 380, 170, 0.05, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
@@ -136,7 +121,7 @@ function createEarthDayTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-// Procedural Real Earth Night-Lights Texture (City Lights)
+// Procedural Real Earth Night-Lights Texture
 function createEarthNightTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 2048;
@@ -158,13 +143,13 @@ function createEarthNightTexture(): THREE.CanvasTexture {
     }
   };
 
-  drawCityHub(380, 270, 70, 180);  // US East Coast
-  drawCityHub(270, 290, 50, 120);  // US West Coast
-  drawCityHub(630, 680, 60, 140);  // South America
-  drawCityHub(1080, 260, 80, 250); // Western Europe
-  drawCityHub(1430, 470, 90, 320); // India
-  drawCityHub(1620, 380, 90, 300); // East Asia
-  drawCityHub(1680, 730, 50, 90);  // Australia
+  drawCityHub(380, 270, 70, 180);
+  drawCityHub(270, 290, 50, 120);
+  drawCityHub(630, 680, 60, 140);
+  drawCityHub(1080, 260, 80, 250);
+  drawCityHub(1430, 470, 90, 320);
+  drawCityHub(1620, 380, 90, 300);
+  drawCityHub(1680, 730, 50, 90);
 
   ctx.globalAlpha = 1.0;
   const texture = new THREE.CanvasTexture(canvas);
@@ -180,14 +165,20 @@ function createEarthCloudsTexture(): THREE.CanvasTexture {
   canvas.height = 512;
   const ctx = canvas.getContext('2d')!;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  for (let i = 0; i < 45; i++) {
+  ctx.fillStyle = '#ffffff';
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height;
+    const rad = 25 + Math.random() * 65;
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+    ctx.fillStyle = grad;
     ctx.beginPath();
-    const cx = (i * 89) % canvas.width;
-    const cy = 80 + ((i * 53) % 360);
-    ctx.ellipse(cx, cy, 110, 28, (i * 0.3), 0, Math.PI * 2);
+    ctx.arc(x, y, rad, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -252,6 +243,16 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const [trajectoryData, setTrajectoryData] = useState<TrajectoryResponse | null>(null);
   const [_groundTrackData, setGroundTrackData] = useState<GroundTrackResponse | null>(null);
 
+  // Hover Tooltip / Floating Card State
+  const [hoveredObject, setHoveredObject] = useState<{ obj: OrbitalObject; pos: OrbitalPosition; screenX: number; screenY: number } | null>(null);
+
+  // Synchronized Mutable Refs for High-Speed Raycasting
+  const positionsRef = useRef<OrbitalPosition[]>([]);
+  const visiblePositionsRef = useRef<OrbitalPosition[]>([]);
+  const objectsRef = useRef<OrbitalObject[]>([]);
+  positionsRef.current = positions;
+  objectsRef.current = objects;
+
   // Three.js References
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -268,12 +269,17 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2());
 
+  // Set Raycaster Precision for Clicking Small Dots
+  useEffect(() => {
+    raycaster.current.params.Points = { threshold: 0.35 };
+  }, []);
+
   // Fetch Batch Ephemeris Positions
   useEffect(() => {
     let isMounted = true;
     const fetchPositions = async () => {
       try {
-        const batch = await api.getBatchPositions(simTime.toISOString(), 600);
+        const batch = await api.getBatchPositions(simTime.toISOString(), 1200);
         if (isMounted && batch.positions) {
           setPositions(batch.positions);
           if (selectedObject) {
@@ -303,118 +309,108 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     return () => clearInterval(timer);
   }, [isPlaying, simSpeed]);
 
-  // Fetch Trajectory & Ground Track for Selected Object
+  // Fetch Trajectory & Ground Track on Selected Object Change
   useEffect(() => {
+    if (!selectedObject) {
+      setTrajectoryData(null);
+      setGroundTrackData(null);
+      return;
+    }
+
     let isMounted = true;
-    const fetchTelemetry = async () => {
-      if (!selectedObject) {
-        setTrajectoryData(null);
-        setGroundTrackData(null);
-        setSelectedPos(null);
-        setIsFollowMode(false);
-        return;
-      }
+    const fetchEphemerisDetails = async () => {
       try {
-        const [traj, gTrack, pos] = await Promise.all([
-          api.getObjectTrajectory(selectedObject.norad_id, trajectoryHours, 5, simTime.toISOString()).catch(() => null),
-          showGroundTrack ? api.getObjectGroundTrack(selectedObject.norad_id, 180, 2, simTime.toISOString()).catch(() => null) : null,
-          api.getObjectPosition(selectedObject.norad_id, simTime.toISOString()).catch(() => null)
-        ]);
-        if (isMounted) {
-          if (traj) setTrajectoryData(traj);
-          if (gTrack) setGroundTrackData(gTrack);
-          if (pos) setSelectedPos(pos);
+        const traj = await api.getObjectTrajectory(selectedObject.norad_id, trajectoryHours, 5);
+        if (isMounted) setTrajectoryData(traj);
+
+        if (showGroundTrack) {
+          const track = await api.getObjectGroundTrack(selectedObject.norad_id, 180, 2);
+          if (isMounted) setGroundTrackData(track);
         }
       } catch (err) {
-        console.error('Failed to fetch telemetry:', err);
+        console.error('Failed to fetch detailed trajectory/ground track:', err);
       }
     };
-    fetchTelemetry();
+
+    fetchEphemerisDetails();
     return () => { isMounted = false; };
   }, [selectedObject, trajectoryHours, showGroundTrack]);
 
-  // Initialize Three.js Space Scene
+  // Initialize Three.js WebGL Scene
   useEffect(() => {
-    if (!mountRef.current) return;
     const container = mountRef.current;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    if (!container) return;
 
-    // 1. Scene & Camera
+    // 1. Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x020409);
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(18, 12, 22);
+    // 2. Camera
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      container.clientWidth / container.clientHeight,
+      0.1,
+      2000
+    );
+    camera.position.set(0, 8, 26);
     cameraRef.current = camera;
 
-    // 2. High-Performance Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-    renderer.setSize(width, height);
+    // 3. WebGL Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
-    container.innerHTML = '';
-    container.appendChild(renderer.domElement);
+    container.replaceChildren(renderer.domElement);
     rendererRef.current = renderer;
 
-    // 3. OrbitControls
+    // 4. Orbit Controls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = 7.2;
-    controls.maxDistance = 180;
+    controls.minDistance = EARTH_RADIUS + 0.5;
+    controls.maxDistance = 250;
+    controls.rotateSpeed = 0.7;
     controlsRef.current = controls;
 
-    // 4. Ambient & Directional Solar Illumination
-    const ambientLight = new THREE.AmbientLight(0x112233, 0.25);
-    scene.add(ambientLight);
+    // 5. Starfield & Deep Space Skybox
+    const starGeom = new THREE.BufferGeometry();
+    const starCount = 4500;
+    const starPositions = new Float32Array(starCount * 3);
+    const starColors = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i += 3) {
+      const radius = 600 + Math.random() * 300;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(Math.random() * 2 - 1);
+      starPositions[i] = radius * Math.sin(phi) * Math.cos(theta);
+      starPositions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
+      starPositions[i + 2] = radius * Math.cos(phi);
 
-    const sunDir = calculateSunDirection(new Date());
-    const sunLight = new THREE.DirectionalLight(0xffffff, 2.5);
-    sunLight.position.copy(sunDir.clone().multiplyScalar(70));
+      const tint = 0.8 + Math.random() * 0.2;
+      starColors[i] = tint;
+      starColors[i + 1] = tint * 0.95;
+      starColors[i + 2] = tint * 1.1;
+    }
+    starGeom.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    starGeom.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+    const starMat = new THREE.PointsMaterial({ size: 1.2, vertexColors: true, transparent: true, opacity: 0.9 });
+    scene.add(new THREE.Points(starGeom, starMat));
+
+    // 6. Real Sun Mesh & Solar Directional Light
+    const sunLight = new THREE.DirectionalLight(0xffffff, 2.4);
     scene.add(sunLight);
     sunLightRef.current = sunLight;
 
-    // Glowing Sun Corona Mesh
-    const sunGeom = new THREE.SphereGeometry(2.8, 32, 32);
-    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfffae0 });
+    const sunGeom = new THREE.SphereGeometry(2.5, 32, 32);
+    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfff4cc });
     const sunMesh = new THREE.Mesh(sunGeom, sunMat);
-    sunMesh.position.copy(sunLight.position);
     scene.add(sunMesh);
     sunMeshRef.current = sunMesh;
 
-    // 5. Starfield
-    const starCount = 4000;
-    const starGeom = new THREE.BufferGeometry();
-    const starPositions = new Float32Array(starCount * 3);
-    const starColors = new Float32Array(starCount * 3);
+    const ambLight = new THREE.AmbientLight(0x1a233a, 0.35);
+    scene.add(ambLight);
 
-    for (let i = 0; i < starCount; i++) {
-      const u = Math.random();
-      const v = Math.random();
-      const theta = u * 2.0 * Math.PI;
-      const phi = Math.acos(2.0 * v - 1.0);
-      const r = 250 + Math.random() * 100;
-
-      starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      starPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      starPositions[i * 3 + 2] = r * Math.cos(phi);
-
-      const brightness = 0.4 + Math.random() * 0.6;
-      starColors[i * 3] = brightness * 0.9;
-      starColors[i * 3 + 1] = brightness;
-      starColors[i * 3 + 2] = brightness * 1.1;
-    }
-
-    starGeom.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-    starGeom.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
-    const starMat = new THREE.PointsMaterial({ size: 1.2, vertexColors: true, transparent: true, opacity: 0.85 });
-    const starfield = new THREE.Points(starGeom, starMat);
-    scene.add(starfield);
-
-    // 6. Realistic Earth with Day/Night Terminator Shader
+    // 7. Earth Mesh with GLSL Day/Night Terminator Shader
     const dayTexture = createEarthDayTexture();
     const nightTexture = createEarthNightTexture();
 
@@ -422,15 +418,18 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       uniforms: {
         dayTexture: { value: dayTexture },
         nightTexture: { value: nightTexture },
-        sunDirection: { value: sunDir }
+        sunDirection: { value: new THREE.Vector3(1, 0, 0) }
       },
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vNormal;
+        varying vec3 vWorldPosition;
         void main() {
           vUv = uv;
           vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPos.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
         }
       `,
       fragmentShader: `
@@ -439,14 +438,20 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         uniform vec3 sunDirection;
         varying vec2 vUv;
         varying vec3 vNormal;
-
+        varying vec3 vWorldPosition;
         void main() {
-          vec3 dayColor = texture2D(dayTexture, vUv).rgb;
-          vec3 nightColor = texture2D(nightTexture, vUv).rgb;
+          vec3 worldNormal = normalize(vWorldPosition);
+          float cosine = dot(worldNormal, normalize(sunDirection));
+          float dayMix = smoothstep(-0.15, 0.25, cosine);
           
-          float intensity = dot(vNormal, normalize(sunDirection));
-          float blend = smoothstep(-0.15, 0.15, intensity);
-          vec3 finalColor = mix(nightColor * 1.4, dayColor * max(intensity, 0.12), blend);
+          vec4 dayColor = texture2D(dayTexture, vUv);
+          vec4 nightColor = texture2D(nightTexture, vUv);
+          
+          vec3 finalColor = mix(nightColor.rgb * 1.8, dayColor.rgb, dayMix);
+          
+          // Atmospheric edge glow
+          float rim = 1.0 - max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));
+          finalColor += vec3(0.0, 0.45, 0.9) * pow(rim, 3.5) * 0.45;
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
@@ -458,7 +463,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(earthMesh);
     earthMeshRef.current = earthMesh;
 
-    // 7. Rotating Cloud Layer
+    // 8. Rotating Cloud Layer
     const cloudsTexture = createEarthCloudsTexture();
     const cloudsGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.015, 64, 64);
     const cloudsMat = new THREE.MeshStandardMaterial({
@@ -471,7 +476,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(cloudMesh);
     cloudMeshRef.current = cloudMesh;
 
-    // 8. Atmospheric Rim Glow Layer
+    // 9. Atmospheric Rim Glow Layer
     const atmosGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.035, 64, 64);
     const atmosMat = new THREE.MeshBasicMaterial({
       color: 0x00d4ff,
@@ -479,10 +484,9 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       opacity: 0.14,
       side: THREE.BackSide,
     });
-    const atmosphereMesh = new THREE.Mesh(atmosGeom, atmosMat);
-    scene.add(atmosphereMesh);
+    scene.add(new THREE.Mesh(atmosGeom, atmosMat));
 
-    // 9. Realistic Moon
+    // 10. Realistic Moon
     const moonTexture = createMoonTexture();
     const moonGeom = new THREE.SphereGeometry(1.737, 32, 32);
     const moonMat = new THREE.MeshStandardMaterial({ map: moonTexture, roughness: 0.9 });
@@ -490,30 +494,61 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     moonMesh.position.set(45, 10, -25);
     scene.add(moonMesh);
 
-    // 10. GPU-Instanced Mesh for Orbital Objects
-    const maxObjects = 1200;
-    const instGeom = new THREE.SphereGeometry(0.12, 12, 12);
+    // 11. GPU-Instanced Mesh for Orbital Objects (Up to 3,000 instanced dots)
+    const maxObjects = 3000;
+    const instGeom = new THREE.SphereGeometry(0.14, 12, 12);
     const instMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const instMesh = new THREE.InstancedMesh(instGeom, instMat, maxObjects);
     instMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     scene.add(instMesh);
     instancedMeshRef.current = instMesh;
 
-    // Raycast Object Click
+    // Pointer Move for Interactive Hover Tooltip
+    const handlePointerMove = (e: MouseEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.current.setFromCamera(mouse.current, camera);
+      if (instancedMeshRef.current && visiblePositionsRef.current.length > 0) {
+        const intersects = raycaster.current.intersectObject(instancedMeshRef.current);
+        if (intersects.length > 0 && intersects[0].instanceId !== undefined) {
+          const hoveredPos = visiblePositionsRef.current[intersects[0].instanceId];
+          if (hoveredPos) {
+            const foundObj = objectsRef.current.find((o) => o.norad_id === hoveredPos.norad_id);
+            if (foundObj) {
+              setHoveredObject({
+                obj: foundObj,
+                pos: hoveredPos,
+                screenX: e.clientX,
+                screenY: e.clientY
+              });
+              renderer.domElement.style.cursor = 'pointer';
+              return;
+            }
+          }
+        }
+      }
+      setHoveredObject(null);
+      renderer.domElement.style.cursor = 'default';
+    };
+
+    // Instant Click Selection on Any Dot
     const handleCanvasClick = (e: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
       raycaster.current.setFromCamera(mouse.current, camera);
-      if (instancedMeshRef.current && positions.length > 0) {
+      if (instancedMeshRef.current && visiblePositionsRef.current.length > 0) {
         const intersects = raycaster.current.intersectObject(instancedMeshRef.current);
         if (intersects.length > 0 && intersects[0].instanceId !== undefined) {
-          const clickedPos = positions[intersects[0].instanceId];
+          const clickedPos = visiblePositionsRef.current[intersects[0].instanceId];
           if (clickedPos) {
-            const foundObj = objects.find((o) => o.norad_id === clickedPos.norad_id);
+            const foundObj = objectsRef.current.find((o) => o.norad_id === clickedPos.norad_id);
             if (foundObj) {
               onSelectObject(foundObj);
+              setSelectedPos(clickedPos);
               const targetVec = new THREE.Vector3(
                 clickedPos.x_km / 1000,
                 clickedPos.z_km / 1000,
@@ -526,6 +561,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       }
     };
 
+    renderer.domElement.addEventListener('mousemove', handlePointerMove);
     renderer.domElement.addEventListener('click', handleCanvasClick);
 
     // Animation Loop
@@ -537,7 +573,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       if (cloudMeshRef.current) cloudMeshRef.current.rotation.y += 0.0006;
 
       // Follow Camera Mode
-      if (isFollowMode && selectedPos && controlsRef.current && cameraRef.current) {
+      if (isFollowMode && selectedPos && controlsRef.current) {
         const targetPos = new THREE.Vector3(
           selectedPos.x_km / 1000,
           selectedPos.z_km / 1000,
@@ -563,6 +599,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     return () => {
       window.removeEventListener('resize', handleResize);
       if (renderer.domElement) {
+        renderer.domElement.removeEventListener('mousemove', handlePointerMove);
         renderer.domElement.removeEventListener('click', handleCanvasClick);
       }
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
@@ -584,16 +621,18 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     }
   }, [simTime]);
 
-  // Update Instanced Orbital Objects with Filters
+  // Update Instanced Orbital Objects & Maintain visiblePositionsRef Mapping
   useEffect(() => {
     if (!instancedMeshRef.current || positions.length === 0) return;
     const mesh = instancedMeshRef.current;
     const dummy = new THREE.Object3D();
     const color = new THREE.Color();
 
+    const currentVisible: OrbitalPosition[] = [];
     let visibleCount = 0;
+
     positions.forEach((pos) => {
-      // Apply Type & Altitude Filters
+      // Apply Filters
       if (isDebrisMode && pos.type !== 'DEBRIS') return;
       if (typeFilter !== 'ALL' && pos.type !== typeFilter) return;
       if (altitudeFilter === 'LEO' && pos.alt_km > 2000) return;
@@ -606,24 +645,27 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
       dummy.position.set(x, y, z);
       const isSelected = selectedObject?.norad_id === pos.norad_id;
-      const scale = isSelected ? 2.5 : 1.0;
+      const scale = isSelected ? 3.0 : 1.1;
       dummy.scale.set(scale, scale, scale);
       dummy.updateMatrix();
       mesh.setMatrixAt(visibleCount, dummy.matrix);
 
       if (isSelected) {
-        color.setHex(0xffffff);
+        color.setHex(0x00ffff); // Glowing Cyan for Selected Object
       } else if (pos.type === 'DEBRIS') {
-        color.setHex(0xff3344);
+        color.setHex(0xff3355); // Red/Crimson for Debris
       } else if (pos.type === 'ROCKET_BODY') {
-        color.setHex(0xffaa00);
+        color.setHex(0xffaa00); // Amber for Rocket Bodies
       } else {
-        color.setHex(0x00f0ff);
+        color.setHex(0x00f0ff); // Electric Cyan for Active Satellites
       }
       mesh.setColorAt(visibleCount, color);
+
+      currentVisible.push(pos);
       visibleCount++;
     });
 
+    visiblePositionsRef.current = currentVisible;
     mesh.count = visibleCount;
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -651,17 +693,18 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
       const lineMat = new THREE.LineBasicMaterial({
         color: lineColor,
-        linewidth: 2,
         transparent: true,
-        opacity: 0.85
+        opacity: 0.85,
+        linewidth: 2
       });
-      const trajLine = new THREE.Line(lineGeom, lineMat);
-      scene.add(trajLine);
-      trajectoryLineRef.current = trajLine;
+
+      const line = new THREE.Line(lineGeom, lineMat);
+      scene.add(line);
+      trajectoryLineRef.current = line;
     }
   }, [trajectoryData, selectedObject]);
 
-  // Conjunction Visual Encounter Line
+  // Update Visual Conjunction Vector Line
   useEffect(() => {
     if (!sceneRef.current) return;
     const scene = sceneRef.current;
@@ -672,18 +715,19 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       conjLineRef.current = null;
     }
 
-    if (selectedConjunction) {
-      const posA = positions.find((p) => p.id === selectedConjunction.object_a_id);
-      const posB = positions.find((p) => p.id === selectedConjunction.object_b_id);
+    if (selectedConjunction && positions.length > 0) {
+      const posA = positions.find((p) => p.norad_id === selectedConjunction.object_a?.norad_id);
+      const posB = positions.find((p) => p.norad_id === selectedConjunction.object_b?.norad_id);
 
       if (posA && posB) {
         const vA = new THREE.Vector3(posA.x_km / 1000, posA.z_km / 1000, -posA.y_km / 1000);
         const vB = new THREE.Vector3(posB.x_km / 1000, posB.z_km / 1000, -posB.y_km / 1000);
+
         const lineGeom = new THREE.BufferGeometry().setFromPoints([vA, vB]);
         const lineMat = new THREE.LineDashedMaterial({
-          color: 0xff3344,
-          dashSize: 0.5,
-          gapSize: 0.2,
+          color: 0xff0044,
+          dashSize: 0.3,
+          gapSize: 0.15,
           linewidth: 3
         });
         const line = new THREE.Line(lineGeom, lineMat);
@@ -694,58 +738,89 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     }
   }, [selectedConjunction, positions]);
 
+  // Camera Reset
   const handleResetCamera = () => {
-    if (cameraRef.current && controlsRef.current) {
-      cameraRef.current.position.set(18, 12, 22);
-      controlsRef.current.target.set(0, 0, 0);
-      controlsRef.current.update();
-      setIsFollowMode(false);
-    }
+    if (!cameraRef.current || !controlsRef.current) return;
+    setIsFollowMode(false);
+    cameraRef.current.position.set(0, 8, 26);
+    controlsRef.current.target.set(0, 0, 0);
+    controlsRef.current.update();
   };
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    const q = searchQuery.toLowerCase().trim();
-    const found = objects.find(
-      (o) => o.name.toLowerCase().includes(q) || o.norad_id.toString() === q
-    );
-    if (found) {
-      onSelectObject(found);
-      const p = positions.find((pos) => pos.norad_id === found.norad_id);
-      if (p && controlsRef.current) {
-        controlsRef.current.target.set(p.x_km / 1000, p.z_km / 1000, -p.y_km / 1000);
-      }
-    }
-  };
-
+  // Jump to TCA Action
   const handleJumpToTca = (conj: Conjunction) => {
     const tcaDate = new Date(conj.tca);
     setSimTime(tcaDate);
     setIsPlaying(false);
-    onSelectConjunction(conj);
+
+    if (conj.latitude_deg !== undefined && conj.longitude_deg !== undefined && controlsRef.current && cameraRef.current) {
+      const latRad = (conj.latitude_deg * Math.PI) / 180;
+      const lonRad = (conj.longitude_deg * Math.PI) / 180;
+      const r = (EARTH_RADIUS + (conj.altitude_km || 500) / 1000);
+
+      const targetX = r * Math.cos(latRad) * Math.cos(lonRad);
+      const targetY = r * Math.sin(latRad);
+      const targetZ = -r * Math.cos(latRad) * Math.sin(lonRad);
+
+      controlsRef.current.target.set(targetX, targetY, targetZ);
+      cameraRef.current.position.set(targetX * 1.6, targetY * 1.6, targetZ * 1.6);
+      controlsRef.current.update();
+    }
+  };
+
+  // Search Filter Handler
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    const query = searchQuery.trim().toUpperCase();
+    const found = objects.find(
+      (o) => o.name.toUpperCase().includes(query) || o.norad_id.toString() === query
+    );
+    if (found) {
+      onSelectObject(found);
+      const pos = positions.find((p) => p.norad_id === found.norad_id);
+      if (pos && controlsRef.current && cameraRef.current) {
+        const target = new THREE.Vector3(pos.x_km / 1000, pos.z_km / 1000, -pos.y_km / 1000);
+        controlsRef.current.target.copy(target);
+        cameraRef.current.position.copy(target.clone().add(new THREE.Vector3(0, 2, 5)));
+        controlsRef.current.update();
+      }
+    }
   };
 
   return (
-    <div
-      className={`relative w-full bg-space-950 rounded-2xl border border-space-800 overflow-hidden shadow-2xl flex flex-col ${
-        isFullscreen ? 'fixed inset-0 z-50 rounded-none h-screen' : 'h-[calc(100vh-140px)] min-h-[640px]'
-      }`}
-    >
-      {/* 3D WebGL Canvas Mount */}
-      <div ref={mountRef} className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing" />
+    <div className={`relative w-full h-[calc(100vh-140px)] min-h-[580px] bg-space-950 rounded-2xl overflow-hidden border border-space-800 shadow-2xl ${isFullscreen ? 'fixed inset-0 z-50 h-screen rounded-none border-none' : ''}`}>
+      {/* 3D WebGL Canvas Mounting Container */}
+      <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* LEFT PANEL: Collapsible Space Traffic HUD & Catalog Search */}
-      <div
-        className={`absolute top-4 left-4 z-20 flex flex-col gap-3 transition-all duration-300 ${
-          isLeftPanelOpen ? 'w-80' : 'w-12'
-        }`}
-      >
-        {/* Toggle Button */}
-        <div className="flex items-center justify-between bg-space-900/90 backdrop-blur-md px-3 py-2 rounded-xl border border-space-700 font-mono text-xs shadow-xl text-white">
+      {/* FLOATING HOVER TOOLTIP */}
+      {hoveredObject && (
+        <div 
+          className="fixed pointer-events-none z-50 bg-space-950/90 backdrop-blur-md border border-cyan-500/50 p-2.5 rounded-xl text-xs font-mono shadow-2xl text-white animate-fade-in -translate-x-1/2 -translate-y-full mb-3"
+          style={{ left: hoveredObject.screenX, top: hoveredObject.screenY }}
+        >
+          <div className="font-bold text-cyan-neon flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+            <span>{hoveredObject.obj.name}</span>
+          </div>
+          <div className="text-[10px] text-slate-400">
+            NORAD #{hoveredObject.obj.norad_id} • {hoveredObject.obj.object_type.replace('_', ' ')}
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-1 pt-1 border-t border-space-800 text-[10px]">
+            <div>Alt: <span className="text-white font-bold">{hoveredObject.pos.alt_km.toFixed(1)} km</span></div>
+            <div>Vel: <span className="text-cyan-400 font-bold">{hoveredObject.pos.velocity_km_s.toFixed(2)} km/s</span></div>
+          </div>
+          <div className="text-[9px] text-slate-500 mt-0.5 text-center">Click dot for full telemetry</div>
+        </div>
+      )}
+
+      {/* TOP LEFT: Space Situational Awareness HUD Overlay */}
+      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-xs">
+        <div className="bg-space-900/90 backdrop-blur-md px-3 py-2 rounded-xl border border-space-700 font-mono text-xs text-white shadow-xl flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4 text-cyan-neon animate-pulse" />
-            {isLeftPanelOpen && <span className="font-bold tracking-wider">SPACE CONTROL HUD</span>}
+            <span className="w-2 h-2 rounded-full bg-cyan-neon animate-pulse"></span>
+            <span className="font-bold tracking-wider text-cyan-neon">SPACE TRAFFIC RADAR</span>
           </div>
           <button
             onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
@@ -842,7 +917,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             {/* Active Telemetry Statistics */}
             <div className="pt-2 border-t border-space-800 text-[10px] text-slate-400 flex items-center justify-between">
               <span>ACTIVE EPHEMERIS:</span>
-              <span className="text-cyan-400 font-bold">{positions.length} Tracked</span>
+              <span className="text-cyan-400 font-bold">{positions.length} Live Tracked</span>
             </div>
           </div>
         )}
@@ -877,12 +952,12 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
       {/* RIGHT PANEL: Slide-out Telemetry Drawer */}
       {selectedObject && (
-        <div className="absolute top-16 right-4 z-20 w-84 bg-space-900/95 backdrop-blur-md border border-cyan-500/40 p-4 rounded-2xl font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-220px)] overflow-y-auto">
+        <div className="absolute top-16 right-4 z-20 w-88 bg-space-900/95 backdrop-blur-md border border-cyan-500/40 p-4 rounded-2xl font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-220px)] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-space-700 pb-2.5 mb-2.5">
             <div>
               <div className="font-bold text-cyan-neon text-sm">{selectedObject.name}</div>
-              <div className="text-[10px] text-slate-400">NORAD ID: {selectedObject.norad_id} • {selectedObject.object_type}</div>
+              <div className="text-[10px] text-slate-400">NORAD ID: {selectedObject.norad_id} • {selectedObject.object_type.replace('_', ' ')}</div>
             </div>
             <button
               onClick={() => onSelectObject(null)}
@@ -921,18 +996,21 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
           {/* Real Telemetry Table */}
           <div className="space-y-1.5 text-[11px] bg-space-950 p-2.5 rounded-xl border border-space-800">
-            <div className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider mb-1">Live SGP4 Telemetry</div>
+            <div className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+              <span>Live SGP4 Telemetry</span>
+              <span className="text-emerald-400 text-[9px]">● PROPAGATING</span>
+            </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Altitude:</span>
               <span className="text-white font-bold">{selectedPos ? `${selectedPos.alt_km.toFixed(1)} km` : 'N/A'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Velocity:</span>
+              <span className="text-slate-400">Orbital Velocity:</span>
               <span className="text-cyan-400 font-bold">{selectedPos ? `${selectedPos.velocity_km_s.toFixed(2)} km/s` : 'N/A'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Lat / Lon:</span>
-              <span>{selectedPos ? `${selectedPos.lat.toFixed(2)}°, ${selectedPos.lon.toFixed(2)}°` : 'N/A'}</span>
+              <span className="text-slate-400">Latitude / Longitude:</span>
+              <span className="text-slate-200">{selectedPos ? `${selectedPos.lat.toFixed(2)}°, ${selectedPos.lon.toFixed(2)}°` : 'N/A'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">TEME (X, Y, Z):</span>
@@ -962,7 +1040,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               <span>{selectedObject.perigee_km && selectedObject.apogee_km ? `${selectedObject.perigee_km.toFixed(0)} - ${selectedObject.apogee_km.toFixed(0)} km` : 'N/A'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Source:</span>
+              <span className="text-slate-400">Data Source:</span>
               <span className="text-emerald-400">{selectedObject.source}</span>
             </div>
           </div>
@@ -994,7 +1072,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
       {/* Conjunction Encounter Overlay */}
       {selectedConjunction && (
-        <div className="absolute top-16 right-4 z-20 w-84 bg-space-900/95 backdrop-blur-md border border-danger-500/50 p-4 rounded-2xl font-mono text-xs shadow-2xl text-slate-200 animate-pulse">
+        <div className="absolute top-16 right-4 z-20 w-88 bg-space-900/95 backdrop-blur-md border border-danger-500/50 p-4 rounded-2xl font-mono text-xs shadow-2xl text-slate-200 animate-pulse">
           <div className="flex items-center justify-between border-b border-danger-500/30 pb-2 mb-2">
             <div className="font-bold text-danger-neon flex items-center gap-1.5">
               <Crosshair className="w-4 h-4 text-danger-neon" />
@@ -1050,10 +1128,10 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               <button
                 key={spd}
                 onClick={() => setSimSpeed(spd)}
-                className={`px-2 py-0.5 rounded text-[11px] transition ${
+                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                   simSpeed === spd
-                    ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-cyan-500 text-space-950'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
                 {spd}X
@@ -1062,48 +1140,51 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           </div>
 
           <button
-            onClick={() => setSimTime(new Date())}
-            className="px-2.5 py-1 bg-space-950 hover:bg-space-800 text-slate-300 rounded-lg border border-space-800 text-[11px]"
-            title="Reset Simulation Time to Real Time"
+            onClick={() => { setSimTime(new Date()); setSimSpeed(1); }}
+            className="px-2.5 py-1 bg-space-950 hover:bg-space-800 text-cyan-400 border border-space-700 rounded-lg text-[10px] font-bold transition"
           >
             RESET TO NOW
           </button>
         </div>
 
-        {/* Quick Conjunction Events Indicator */}
-        <div className="flex items-center gap-2 text-slate-400">
-          <span className="text-[11px]">UPCOMING CONJUNCTIONS:</span>
-          {conjunctions.length === 0 ? (
-            <span className="text-emerald-400 font-bold text-[11px]">0 SCREENED EVENTS</span>
-          ) : (
-            conjunctions.slice(0, 2).map((c) => (
-              <button
-                key={c.id}
-                onClick={() => handleJumpToTca(c)}
-                className="px-2 py-0.5 bg-danger-500/20 text-danger-300 hover:bg-danger-500/30 border border-danger-500/40 rounded text-[10px] flex items-center gap-1 font-bold"
-              >
-                <Crosshair className="w-3 h-3 text-danger-400" />
-                <span>{c.object_a?.name || 'A'} ↔ {c.object_b?.name || 'B'} ({c.miss_distance_km}km)</span>
-              </button>
-            ))
-          )}
+        {/* Timeline Horizon Scrubber */}
+        <div className="flex items-center gap-2 flex-1 max-w-md">
+          <span className="text-[10px] text-slate-400">PROPAGATE:</span>
+          <input
+            type="range"
+            min="0"
+            max="86400"
+            step="300"
+            value={(simTime.getTime() - new Date().getTime()) / 1000}
+            onChange={(e) => {
+              const offsetSec = parseFloat(e.target.value);
+              setSimTime(new Date(Date.now() + offsetSec * 1000));
+            }}
+            className="w-full h-1.5 bg-space-950 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+          />
+          <span className="text-[10px] text-cyan-400 font-bold whitespace-nowrap">
+            {((simTime.getTime() - Date.now()) / 3600000).toFixed(1)}h
+          </span>
         </div>
 
-        {/* Legend */}
-        <div className="hidden lg:flex items-center gap-3 text-[11px] text-slate-400">
-          <div className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-            <span>Satellite</span>
+        {/* Quick Conjunction Encounter List */}
+        {conjunctions.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-danger-400 font-bold flex items-center gap-1">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              HOTSPOTS:
+            </span>
+            {conjunctions.slice(0, 2).map((c) => (
+              <button
+                key={c.id}
+                onClick={() => { onSelectConjunction(c); handleJumpToTca(c); }}
+                className="px-2 py-0.5 bg-danger-500/20 text-danger-300 border border-danger-500/40 rounded text-[10px] font-bold hover:bg-danger-500/30 transition"
+              >
+                {c.miss_distance_km} km ({new Date(c.tca).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+              </button>
+            ))}
           </div>
-          <div className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-danger-500"></span>
-            <span>Debris</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-warning-500"></span>
-            <span>Rocket</span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

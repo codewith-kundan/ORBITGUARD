@@ -134,6 +134,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="text-emerald-400 font-bold">CONNECTED</span>
         </div>
 
+        {/* Total Assets Counter */}
+        <div className="hidden sm:flex items-center gap-1.5 bg-space-900 px-2.5 py-1 rounded-lg border border-space-800 text-slate-400">
+          <Satellite className="w-3.5 h-3.5 text-cyan-400" />
+          <span>ASSETS:</span>
+          <span className="text-cyan-neon font-bold">
+            {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '19,578')}
+          </span>
+        </div>
+
         {/* Live / Demo Mode Badge */}
         <div className="flex items-center gap-2 bg-space-900 px-3 py-1 rounded-lg border border-space-800">
           <span className={`w-2 h-2 rounded-full ${
