@@ -275,7 +275,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     const ambLight = new THREE.AmbientLight(0x223355, 0.45);
     scene.add(ambLight);
 
-    // 7. Photorealistic NASA Blue Marble Earth Textures (STATIONARY / STILL)
+    // 7. Photorealistic NASA Blue Marble Live Globe Textures (Stationary Earth)
     const texLoader = new THREE.TextureLoader();
     const dayTexture = texLoader.load('/textures/earth_day.jpg');
     const nightTexture = texLoader.load('/textures/earth_night.jpg');
@@ -308,16 +308,18 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         void main() {
           vec3 worldNormal = normalize(vWorldPosition);
           float cosine = dot(worldNormal, normalize(sunDirection));
-          float dayMix = smoothstep(-0.15, 0.25, cosine);
+          float dayMix = smoothstep(-0.25, 0.35, cosine);
           
           vec4 dayColor = texture2D(dayTexture, vUv);
           vec4 nightColor = texture2D(nightTexture, vUv);
           
-          vec3 finalColor = mix(nightColor.rgb * 1.8, dayColor.rgb, dayMix);
+          // Realistic Night: city lights + ambient oceanic & land relief
+          vec3 nightAmbient = dayColor.rgb * 0.28 + nightColor.rgb * 1.7;
+          vec3 finalColor = mix(nightAmbient, dayColor.rgb * 1.2, dayMix);
           
-          // Atmospheric Rayleigh edge glow
+          // Atmospheric Rayleigh blue limb scattering
           float rim = 1.0 - max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));
-          finalColor += vec3(0.0, 0.45, 0.9) * pow(rim, 3.5) * 0.45;
+          finalColor += vec3(0.1, 0.6, 1.0) * pow(rim, 3.0) * 0.55;
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
@@ -326,29 +328,29 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
     const earthGeom = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
     const earthMesh = new THREE.Mesh(earthGeom, earthShaderMat);
-    earthMesh.rotation.y = -Math.PI / 2; // Precise WGS84 ECEF Prime Meridian alignment (Still)
+    earthMesh.rotation.y = -Math.PI / 2; // Precise WGS84 ECEF Prime Meridian alignment
     scene.add(earthMesh);
     earthMeshRef.current = earthMesh;
 
-    // 8. NASA Cloud Layer (Still)
+    // 8. NASA High-Altitude Cloud Layer
     const cloudsTexture = texLoader.load('/textures/earth_clouds.jpg');
     const cloudsGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.015, 64, 64);
     const cloudsMat = new THREE.MeshStandardMaterial({
       map: cloudsTexture,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.35,
       blending: THREE.AdditiveBlending
     });
     const cloudMesh = new THREE.Mesh(cloudsGeom, cloudsMat);
     cloudMesh.rotation.y = -Math.PI / 2;
     scene.add(cloudMesh);
 
-    // 9. Atmospheric Rim Glow Layer
-    const atmosGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.035, 64, 64);
+    // 9. Atmospheric Rayleigh Outer Glow Shell
+    const atmosGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.04, 64, 64);
     const atmosMat = new THREE.MeshBasicMaterial({
       color: 0x00d4ff,
       transparent: true,
-      opacity: 0.14,
+      opacity: 0.18,
       side: THREE.BackSide,
     });
     scene.add(new THREE.Mesh(atmosGeom, atmosMat));
