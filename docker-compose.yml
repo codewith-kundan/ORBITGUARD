@@ -5,8 +5,12 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    container_name: orbitguard_backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - API_HOST=0.0.0.0
       - API_PORT=8000
@@ -18,7 +22,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    container_name: orbitguard_frontend
+    restart: unless-stopped
     ports:
-      - "5173:5173"
+      - "3000:80"
     depends_on:
       - backend
