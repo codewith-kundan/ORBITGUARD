@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.config import settings
+from backend.app.api.objects import router as objects_router
+from backend.app.models.base import Base, engine
+
+# Ensure DB schema created
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="ORBITGUARD API",
@@ -15,6 +20,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(objects_router)
 
 @app.get("/api/health")
 async def health_check():
