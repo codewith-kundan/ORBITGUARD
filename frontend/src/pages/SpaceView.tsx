@@ -179,6 +179,21 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         if (isMounted && batch.positions && batch.positions.length > 0) {
           setPositions(batch.positions);
           livePositionsRef.current = batch.positions.map((p: OrbitalPosition) => ({ ...p }));
+          batch.positions.forEach((p: OrbitalPosition) => {
+            if (p.tle_line1 && p.tle_line2) {
+              try {
+                const satrec = satellite.twoline2satrec(p.tle_line1, p.tle_line2);
+                if (satrec && (satrec as any).error === 0) {
+                  satrecMapRef.current.set(p.norad_id, {
+                    satrec,
+                    name: p.name,
+                    type: p.type,
+                    norad_id: p.norad_id
+                  });
+                }
+              } catch (e) {}
+            }
+          });
           if (selectedObject) {
             const current = batch.positions.find((p: OrbitalPosition) => p.norad_id === selectedObject.norad_id);
             if (current) setSelectedPos(current);

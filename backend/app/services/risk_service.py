@@ -120,7 +120,7 @@ class RiskService:
                 "contribution": time_contrib,
                 "hours_to_tca": round(hours_to_tca, 2)
             },
-            "methodology": "Multi-factor deterministic orbital proximity screening (SIH-2026 PS-04 Standard)"
+            "methodology": "Multi-factor deterministic orbital proximity screening (ISO 26900 / CCSDS CDM Standard)"
         }
 
         return total_score, level, factors

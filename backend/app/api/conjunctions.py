@@ -33,8 +33,8 @@ def list_conjunctions(
     risk_level: Optional[RiskLevel] = None,
     min_risk_score: Optional[float] = None,
     max_miss_distance_km: Optional[float] = None,
-    limit: int = Query(100, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    limit: int = 100,
+    offset: int = 0,
     db: Session = Depends(get_db)
 ):
     """Retrieves all detected conjunctions sorted by risk score descending."""

@@ -69,6 +69,8 @@ class OrbitalPosition(BaseModel):
     lat: float = Field(..., description="Geodetic latitude in degrees [-90, 90]")
     lon: float = Field(..., description="Geodetic longitude in degrees [-180, 180]")
     alt_km: float = Field(..., description="Altitude above WGS84 ellipsoid in km")
+    tle_line1: Optional[str] = None
+    tle_line2: Optional[str] = None
 
 class PositionsBatchResponse(BaseModel):
     timestamp: datetime

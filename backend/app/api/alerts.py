@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/alerts", tags=["Alerts"])
 def list_alerts(
     status: Optional[AlertStatus] = None,
     severity: Optional[RiskLevel] = None,
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = 50,
     db: Session = Depends(get_db)
 ):
     """Lists system collision alerts with severity and status filters."""

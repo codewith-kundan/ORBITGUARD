@@ -57,7 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="font-bold text-sm sm:text-base tracking-wider text-white">ORBITGUARD</span>
               <span className="text-[9px] sm:text-[10px] uppercase font-mono px-1.5 sm:px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold">
-                SIH 2026
+                ENTERPRISE SSA
               </span>
             </div>
             <p className="text-[10px] sm:text-[11px] text-slate-400 font-mono hidden sm:block">Space Situational Awareness</p>

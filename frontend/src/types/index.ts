@@ -46,6 +46,8 @@ export interface OrbitalPosition {
   vy_km_s: number;
   vz_km_s: number;
   velocity_km_s: number;
+  tle_line1?: string;
+  tle_line2?: string;
 }
 
 export interface PositionsBatchResponse {

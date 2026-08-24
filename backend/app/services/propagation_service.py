@@ -109,7 +109,9 @@ class PropagationService:
                 vx_km_s=round(vx, 4),
                 vy_km_s=round(vy, 4),
                 vz_km_s=round(vz, 4),
-                velocity_km_s=round(speed, 4)
+                velocity_km_s=round(speed, 4),
+                tle_line1=line1,
+                tle_line2=line2
             )
         except Exception as e:
             logger.debug(f"Propagation exception: {e}")

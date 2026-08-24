@@ -119,21 +119,41 @@ def get_batch_positions(
     """
     target_time = to_utc(timestamp) if timestamp else datetime.now(timezone.utc)
     
-    sat_limit = int(limit * 0.50)
-    deb_limit = int(limit * 0.35)
-    rkt_limit = int(limit * 0.15)
+    # Comprehensive constellation sampling
+    starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(250).all()
+    oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(150).all()
+    gps = db.query(OrbitalObject).filter(
+        OrbitalObject.name.ilike("%GPS%") | 
+        OrbitalObject.name.ilike("%NAVSTAR%") | 
+        OrbitalObject.name.ilike("%BEIDOU%") | 
+        OrbitalObject.name.ilike("%GALILEO%") | 
+        OrbitalObject.name.ilike("%GLONASS%")
+    ).limit(100).all()
+    
+    stations = db.query(OrbitalObject).filter(
+        OrbitalObject.name.ilike("%ISS %") | 
+        OrbitalObject.name.ilike("%TIANGONG%") | 
+        OrbitalObject.name.ilike("%HUBBLE%")
+    ).limit(20).all()
 
-    satellites = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE).limit(sat_limit).all()
-    debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(deb_limit).all()
-    rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(rkt_limit).all()
+    other_sats = db.query(OrbitalObject).filter(
+        OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE
+    ).limit(200).all()
 
-    objects = list(satellites) + list(debris) + list(rockets)
+    debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(400).all()
+    rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(200).all()
+
+    selected_map = {}
+    for obj in list(starlink) + list(oneweb) + list(gps) + list(stations) + list(other_sats) + list(debris) + list(rockets):
+        selected_map[obj.id] = obj
+
+    objects = list(selected_map.values())
     if len(objects) < limit:
         remaining = db.query(OrbitalObject).limit(limit - len(objects)).all()
-        existing_ids = {o.id for o in objects}
         for o in remaining:
-            if o.id not in existing_ids:
+            if o.id not in selected_map:
                 objects.append(o)
+                selected_map[o.id] = o
 
     positions: List[OrbitalPosition] = []
     for obj in objects:

@@ -142,7 +142,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ stats }) => {
         <div className="bg-space-900/80 border border-space-800 rounded-xl p-5 shadow-xl flex flex-col justify-between">
           <div>
             <h3 className="text-xs font-bold font-mono uppercase text-slate-300 mb-3 flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-cyan-400" /> SIH 2026 Collision Screening Notes
+              <ShieldAlert className="w-4 h-4 text-cyan-400" /> Conjunction & Collision Screening Architecture
             </h3>
             <p className="text-xs font-mono text-slate-400 leading-relaxed space-y-2">
               ORBITGUARD uses a deterministic two-tiered screening algorithm. Broad-phase altitude filtering prunes un-intersecting orbital shells, while narrow-phase analytical time-stepping refines the exact Time of Closest Approach (TCA) and relative 3D velocity vectors.

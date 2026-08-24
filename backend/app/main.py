@@ -36,10 +36,13 @@ app.include_router(statistics_router)
 
 @app.on_event("startup")
 async def startup_event():
-    """Ensure database has live space catalog data on startup."""
+    """Ensure database has live space catalog data and active conjunction screening on startup."""
     import asyncio
     from backend.app.models.base import SessionLocal
+    from backend.app.models.orbital_object import OrbitalObject
+    from backend.app.models.conjunction import Conjunction
     from backend.app.services.tle_service import TLEService
+    from backend.app.services.conjunction_service import ConjunctionService
 
     def check_and_sync():
         db = SessionLocal()
@@ -48,6 +51,11 @@ async def startup_event():
             if count == 0:
                 print("Initial database is empty. Triggering automated space catalog sync...")
                 TLEService.sync_to_database(db, mode="LIVE")
+            
+            conj_count = db.query(Conjunction).count()
+            if conj_count == 0:
+                print("Running initial automated conjunction screening...")
+                ConjunctionService.run_full_conjunction_screening(db)
         except Exception as e:
             print(f"Startup sync check: {e}")
         finally:
