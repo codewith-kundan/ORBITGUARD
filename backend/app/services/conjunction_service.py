@@ -41,9 +41,26 @@ class ConjunctionService:
             a_min = obj_a.perigee_km - altitude_buffer_km
             a_max = obj_a.apogee_km + altitude_buffer_km
             a_mid = (obj_a.perigee_km + obj_a.apogee_km) / 2.0
+            name_a_upper = (obj_a.name or "").upper()
 
             for j in range(i + 1, min(i + 40, n)):
                 obj_b = valid_objects[j]
+                if obj_a.id == obj_b.id or obj_a.norad_id == obj_b.norad_id:
+                    continue
+
+                name_b_upper = (obj_b.name or "").upper()
+
+                # Filter out docked modules of the same space station
+                if ("ISS (" in name_a_upper or name_a_upper in ["POISK", "ZVEZDA", "ZARYA"]) and \
+                   ("ISS (" in name_b_upper or name_b_upper in ["POISK", "ZVEZDA", "ZARYA"]):
+                    continue
+                if "TIANGONG" in name_a_upper and "TIANGONG" in name_b_upper:
+                    continue
+
+                # Filter out identical duplicate named payloads
+                if name_a_upper == name_b_upper:
+                    continue
+
                 b_min = obj_b.perigee_km - altitude_buffer_km
                 b_max = obj_b.apogee_km + altitude_buffer_km
 
@@ -120,6 +137,11 @@ class ConjunctionService:
                     obj_b.tle_line1, obj_b.tle_line2,
                     target_time=refined_tca
                 )
+
+                # Ignore physically docked or co-located objects sharing identical orbits
+                if sep["miss_distance_km"] < 0.05 and sep["relative_velocity_km_s"] < 0.1:
+                    return []
+
                 refined_pos_a = PropagationService.propagate_satellite(obj_a.tle_line1, obj_a.tle_line2, refined_tca)
                 refined_pos_b = PropagationService.propagate_satellite(obj_b.tle_line1, obj_b.tle_line2, refined_tca)
 
