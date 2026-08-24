@@ -1,11 +1,11 @@
 import math
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 from sgp4.api import Satrec, jday
 
 from backend.app.utils.time_utils import to_utc, datetime_to_jd, gmst_from_jd
-from backend.app.schemas.orbital_object import OrbitalPosition
+from backend.app.schemas.orbital_object import OrbitalPosition, TrajectoryPoint, GroundTrackPoint, ObjectType
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +58,18 @@ def ecef_to_geodetic(x: float, y: float, z: float) -> Tuple[float, float, float]
 
 class PropagationService:
     @staticmethod
-    def propagate_satellite(line1: str, line2: str, target_time: datetime) -> Optional[OrbitalPosition]:
+    def propagate_satellite(
+        line1: str,
+        line2: str,
+        target_time: datetime,
+        norad_id: int = 0,
+        name: str = "",
+        object_type: ObjectType = ObjectType.UNKNOWN,
+        internal_id: Optional[int] = None
+    ) -> Optional[OrbitalPosition]:
         """
         Propagates satellite to target_time using analytical SGP4.
-        Returns position in TEME and geodetic coordinates.
+        Returns position in TEME Cartesian and WGS84 geodetic coordinates.
         """
         target_utc = to_utc(target_time)
         try:
@@ -73,10 +81,9 @@ class PropagationService:
             
             error_code, r, v = sat.sgp4(jd, fr)
             if error_code != 0:
-                logger.warning(f"SGP4 error code {error_code} at {target_utc.isoformat()}")
+                logger.debug(f"SGP4 error code {error_code} at {target_utc.isoformat()}")
                 return None
 
-            # Positions in km, velocities in km/s
             rx, ry, rz = r
             vx, vy, vz = v
             speed = math.sqrt(vx * vx + vy * vy + vz * vz)
@@ -89,6 +96,10 @@ class PropagationService:
 
             return OrbitalPosition(
                 timestamp=target_utc,
+                id=internal_id,
+                norad_id=norad_id,
+                name=name,
+                type=object_type,
                 lat=round(lat, 4),
                 lon=round(lon, 4),
                 alt_km=round(alt, 2),
@@ -101,7 +112,7 @@ class PropagationService:
                 velocity_km_s=round(speed, 4)
             )
         except Exception as e:
-            logger.error(f"Propagation exception: {e}")
+            logger.debug(f"Propagation exception: {e}")
             return None
 
     @staticmethod
@@ -111,9 +122,9 @@ class PropagationService:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         step_minutes: int = 5
-    ) -> List[OrbitalPosition]:
+    ) -> List[TrajectoryPoint]:
         """
-        Generates an array of future orbital positions over a time window.
+        Generates an array of future orbital positions (3D and geodetic) over a time window.
         """
         if start_time is None:
             start_time = datetime.now(timezone.utc)
@@ -126,13 +137,56 @@ class PropagationService:
             end_time = to_utc(end_time)
 
         step_delta = timedelta(minutes=max(1, step_minutes))
-        points: List[OrbitalPosition] = []
+        points: List[TrajectoryPoint] = []
 
         curr_time = start_time
         while curr_time <= end_time:
             pos = PropagationService.propagate_satellite(line1, line2, curr_time)
             if pos:
-                points.append(pos)
+                points.append(TrajectoryPoint(
+                    timestamp=pos.timestamp,
+                    lat=pos.lat,
+                    lon=pos.lon,
+                    alt_km=pos.alt_km,
+                    x_km=pos.x_km,
+                    y_km=pos.y_km,
+                    z_km=pos.z_km,
+                    velocity_km_s=pos.velocity_km_s
+                ))
             curr_time += step_delta
 
         return points
+
+    @staticmethod
+    def get_ground_track(
+        line1: str,
+        line2: str,
+        start_time: Optional[datetime] = None,
+        duration_minutes: int = 180,
+        step_minutes: int = 2
+    ) -> List[GroundTrackPoint]:
+        """
+        Generates projected sub-satellite ground track points (lat, lon, alt) over time.
+        """
+        if start_time is None:
+            start_time = datetime.now(timezone.utc)
+        else:
+            start_time = to_utc(start_time)
+
+        end_time = start_time + timedelta(minutes=duration_minutes)
+        step_delta = timedelta(minutes=max(1, step_minutes))
+        track_points: List[GroundTrackPoint] = []
+
+        curr_time = start_time
+        while curr_time <= end_time:
+            pos = PropagationService.propagate_satellite(line1, line2, curr_time)
+            if pos:
+                track_points.append(GroundTrackPoint(
+                    timestamp=pos.timestamp,
+                    lat=pos.lat,
+                    lon=pos.lon,
+                    alt_km=pos.alt_km
+                ))
+            curr_time += step_delta
+
+        return track_points

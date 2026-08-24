@@ -38,6 +38,9 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
 
   if (!object) return null;
 
+  const inclination = object.inclination ?? (object as any).inclination_deg;
+  const period = object.period_minutes ?? (object as any).period_min;
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-space-900 border border-cyan-500/40 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative font-mono text-slate-200">
@@ -54,7 +57,7 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
                   NORAD #{object.norad_id}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 capitalize">
+              <p className="text-xs text-slate-400">
                 Classification: <span className="text-slate-200 font-semibold">{object.object_type.replace('_', ' ')}</span> • Source: {object.source}
               </p>
             </div>
@@ -103,19 +106,19 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-space-950/60 p-3 rounded-lg border border-space-800">
             <div>
               <span className="text-slate-400">Perigee:</span>{' '}
-              <span className="text-white font-bold">{object.perigee_km?.toFixed(1)} km</span>
+              <span className="text-white font-bold">{object.perigee_km != null ? `${object.perigee_km.toFixed(1)} km` : 'N/A'}</span>
             </div>
             <div>
               <span className="text-slate-400">Apogee:</span>{' '}
-              <span className="text-white font-bold">{object.apogee_km?.toFixed(1)} km</span>
+              <span className="text-white font-bold">{object.apogee_km != null ? `${object.apogee_km.toFixed(1)} km` : 'N/A'}</span>
             </div>
             <div>
               <span className="text-slate-400">Inclination:</span>{' '}
-              <span className="text-white font-bold">{object.inclination_deg?.toFixed(2)}°</span>
+              <span className="text-white font-bold">{inclination != null ? `${inclination.toFixed(2)}°` : 'N/A'}</span>
             </div>
             <div>
               <span className="text-slate-400">Period:</span>{' '}
-              <span className="text-white font-bold">{object.period_min?.toFixed(1)} min</span>
+              <span className="text-white font-bold">{period != null ? `${period.toFixed(1)} min` : 'N/A'}</span>
             </div>
           </div>
         </div>

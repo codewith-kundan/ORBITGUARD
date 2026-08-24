@@ -1,4 +1,4 @@
-export type ObjectType = 'satellite' | 'debris' | 'rocket_body' | 'unknown';
+export type ObjectType = 'ACTIVE_SATELLITE' | 'DEBRIS' | 'ROCKET_BODY' | 'UNKNOWN';
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -9,22 +9,32 @@ export interface OrbitalObject {
   norad_id: number;
   name: string;
   object_type: ObjectType;
+  source: string;
+  source_group?: string;
+  country?: string;
+  launch_date?: string;
+  status?: string;
   tle_line1: string;
   tle_line2: string;
   tle_epoch?: string;
-  inclination_deg?: number;
+  inclination?: number;
   eccentricity?: number;
-  period_min?: number;
+  mean_motion?: number;
+  period_minutes?: number;
   semi_major_axis_km?: number;
   perigee_km?: number;
   apogee_km?: number;
-  source: string;
+  last_propagated_at?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface OrbitalPosition {
   timestamp: string;
+  id?: number;
+  norad_id: number;
+  name: string;
+  type: ObjectType;
   lat: number;
   lon: number;
   alt_km: number;
@@ -37,14 +47,54 @@ export interface OrbitalPosition {
   velocity_km_s: number;
 }
 
+export interface PositionsBatchResponse {
+  timestamp: string;
+  total_objects: number;
+  positions: OrbitalPosition[];
+}
+
+export interface TrajectoryPoint {
+  timestamp: string;
+  lat: number;
+  lon: number;
+  alt_km: number;
+  x_km: number;
+  y_km: number;
+  z_km: number;
+  velocity_km_s: number;
+}
+
 export interface TrajectoryResponse {
+  id: number;
   norad_id: number;
   name: string;
   object_type: ObjectType;
-  points: OrbitalPosition[];
   start_time: string;
   end_time: string;
   step_minutes: number;
+  points: TrajectoryPoint[];
+}
+
+export interface GroundTrackPoint {
+  timestamp: string;
+  lat: number;
+  lon: number;
+  alt_km: number;
+}
+
+export interface GroundTrackResponse {
+  id: number;
+  norad_id: number;
+  name: string;
+  points: GroundTrackPoint[];
+}
+
+export interface PaginatedObjectsResponse {
+  items: OrbitalObject[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export interface RiskFactors {
@@ -109,11 +159,27 @@ export interface Alert {
   conjunction?: Conjunction;
 }
 
+export interface DataStatus {
+  mode: string;
+  source: string;
+  database_connected: boolean;
+  last_sync?: string;
+  total_objects: number;
+  satellites: number;
+  debris: number;
+  rocket_bodies: number;
+  unknown: number;
+  data_age_minutes?: number;
+  sync_error?: string;
+  is_syncing: boolean;
+}
+
 export interface SystemStatistics {
   tracked_objects: number;
   active_satellites: number;
   space_debris: number;
   rocket_bodies: number;
+  unknown?: number;
   total_conjunctions: number;
   high_risk_events: number;
   active_alerts: number;
@@ -129,5 +195,7 @@ export interface SystemStatistics {
     geo: number;
   };
   data_source: string;
-  status_mode: 'LIVE' | 'DEMO MODE' | 'OFFLINE';
+  status_mode: string;
+  last_sync?: string;
+  data_age_minutes?: number;
 }

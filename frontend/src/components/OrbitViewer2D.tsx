@@ -61,7 +61,7 @@ export const OrbitViewer2D: React.FC<OrbitViewer2DProps> = ({
     };
 
     fetchPositions();
-    const interval = setInterval(fetchPositions, 15000); // 15s live refresh
+    const interval = setInterval(fetchPositions, 15000);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -169,7 +169,6 @@ export const OrbitViewer2D: React.FC<OrbitViewer2DProps> = ({
           }}
         >
           <defs>
-            {/* Equirectangular Grid Pattern */}
             <pattern id="grid" width="100" height="50" patternUnits="userSpaceOnUse">
               <path d="M 100 0 L 0 0 0 50" fill="none" stroke="rgba(34, 211, 238, 0.07)" strokeWidth="1" />
             </pattern>
@@ -183,19 +182,13 @@ export const OrbitViewer2D: React.FC<OrbitViewer2DProps> = ({
           <line x1="0" y1="250" x2="1000" y2="250" stroke="rgba(0, 240, 255, 0.2)" strokeWidth="1.5" strokeDasharray="6 4" />
           <line x1="500" y1="0" x2="500" y2="500" stroke="rgba(0, 240, 255, 0.2)" strokeWidth="1.5" strokeDasharray="6 4" />
 
-          {/* Simplified World Coastlines (Stylized Equirectangular landmasses) */}
+          {/* World Coastlines */}
           <g fill="none" stroke="rgba(148, 163, 184, 0.25)" strokeWidth="1.2">
-            {/* North America */}
             <path d="M 150 90 Q 200 80 250 110 T 260 170 T 220 220 T 180 240 T 160 180 T 130 140 Z" fill="rgba(30, 41, 59, 0.35)" />
-            {/* South America */}
             <path d="M 270 260 Q 320 280 340 330 T 320 420 T 280 460 T 260 380 T 250 300 Z" fill="rgba(30, 41, 59, 0.35)" />
-            {/* Eurasia */}
             <path d="M 450 70 Q 550 50 700 70 T 880 110 T 800 200 T 700 220 T 580 170 T 480 140 Z" fill="rgba(30, 41, 59, 0.35)" />
-            {/* Africa */}
             <path d="M 470 180 Q 550 180 570 240 T 580 350 T 520 400 T 470 320 T 450 220 Z" fill="rgba(30, 41, 59, 0.35)" />
-            {/* Australia */}
             <path d="M 750 320 Q 820 310 850 350 T 820 410 T 760 390 T 730 350 Z" fill="rgba(30, 41, 59, 0.35)" />
-            {/* Antarctica */}
             <path d="M 50 480 Q 500 470 950 480 L 950 500 L 50 500 Z" fill="rgba(30, 41, 59, 0.2)" />
           </g>
 
@@ -263,8 +256,8 @@ export const OrbitViewer2D: React.FC<OrbitViewer2DProps> = ({
           {positions.map((pt) => {
             const svgPos = lonLatToSVG(pt.position.lon, pt.position.lat);
             const isSelected = selectedObject?.norad_id === pt.object.norad_id;
-            const isDebris = pt.object.object_type === 'debris';
-            const isRocket = pt.object.object_type === 'rocket_body';
+            const isDebris = pt.object.object_type === 'DEBRIS';
+            const isRocket = pt.object.object_type === 'ROCKET_BODY';
 
             const markerColor = isDebris ? '#ff4d4f' : isRocket ? '#faad14' : '#00f0ff';
 
@@ -297,7 +290,6 @@ export const OrbitViewer2D: React.FC<OrbitViewer2DProps> = ({
                   stroke="#0b1021"
                   strokeWidth="1.5"
                 />
-                {/* Object Name Label */}
                 {(isSelected || zoom > 1.8) && (
                   <text
                     x={svgPos.x + 8}

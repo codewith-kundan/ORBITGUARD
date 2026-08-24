@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
+import { DataStatusBar } from './components/DataStatusBar';
 import { Dashboard } from './pages/Dashboard';
 import { ObjectTable } from './components/ObjectTable';
 import { ConjunctionTable } from './components/ConjunctionTable';
@@ -13,13 +14,15 @@ import {
   OrbitalObject, 
   Conjunction, 
   Alert, 
-  SystemStatistics 
+  SystemStatistics,
+  DataStatus 
 } from './types';
 import { Loader2 } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'objects' | 'conjunctions' | 'alerts' | 'analytics' | '3d'>('dashboard');
   const [stats, setStats] = useState<SystemStatistics | null>(null);
+  const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
   const [objects, setObjects] = useState<OrbitalObject[]>([]);
   const [conjunctions, setConjunctions] = useState<Conjunction[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -30,7 +33,7 @@ export default function App() {
   const [isConjunctionModalOpen, setIsConjunctionModalOpen] = useState<boolean>(false);
 
   const [loading, setLoading] = useState<boolean>(true);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [isScreening, setIsScreening] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,22 +43,23 @@ export default function App() {
       setLoading(true);
       setError(null);
 
-      // Fetch stats
-      const [statsData, objsData, conjsData, alertsData] = await Promise.all([
+      const [statusData, statsData, objsData, conjsData, alertsData] = await Promise.all([
+        api.getDataStatus().catch(() => null),
         api.getStatistics().catch(() => null),
-        api.getObjects({ limit: 100 }).catch(() => []),
-        api.getConjunctions({ limit: 50 }).catch(() => []),
+        api.getPaginatedObjects(1, 100).then(r => r.items).catch(() => []),
+        api.getConjunctions(50, 0).catch(() => []),
         api.getAlerts().catch(() => [])
       ]);
 
+      if (statusData) setDataStatus(statusData);
       if (statsData) setStats(statsData);
       setObjects(objsData);
       setConjunctions(conjsData);
       setAlerts(alertsData);
 
-      // If catalog is empty on first boot, trigger initial sync
+      // If database catalog is empty on first boot, trigger initial sync
       if (objsData.length === 0) {
-        await handleRefresh();
+        await handleSync('DEMO');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to communicate with ORBITGUARD API');
@@ -68,28 +72,30 @@ export default function App() {
     loadAllData();
   }, []);
 
-  // Handle TLE Refresh
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
+  // Handle TLE Synchronization (LIVE or DEMO)
+  const handleSync = async (mode: 'LIVE' | 'DEMO' = 'LIVE') => {
+    setIsSyncing(true);
     try {
-      await api.refreshData();
+      await api.syncData(mode);
       // Run screening on new data
-      await api.screenConjunctions(24, 60.0, 5);
+      await api.triggerConjunctionScreening(24, 50.0, 3);
       // Reload fresh data
-      const [statsData, objsData, conjsData, alertsData] = await Promise.all([
+      const [statusData, statsData, objsData, conjsData, alertsData] = await Promise.all([
+        api.getDataStatus(),
         api.getStatistics(),
-        api.getObjects({ limit: 100 }),
-        api.getConjunctions({ limit: 50 }),
+        api.getPaginatedObjects(1, 100).then(r => r.items),
+        api.getConjunctions(50, 0),
         api.getAlerts()
       ]);
+      setDataStatus(statusData);
       setStats(statsData);
       setObjects(objsData);
       setConjunctions(conjsData);
       setAlerts(alertsData);
     } catch (err: any) {
-      console.error('Refresh error:', err);
+      console.error('Sync error:', err);
     } finally {
-      setIsRefreshing(false);
+      setIsSyncing(false);
     }
   };
 
@@ -97,10 +103,10 @@ export default function App() {
   const handleScreenConjunctions = async () => {
     setIsScreening(true);
     try {
-      await api.screenConjunctions(24, 60.0, 5);
+      await api.triggerConjunctionScreening(24, 50.0, 3);
       const [statsData, conjsData, alertsData] = await Promise.all([
         api.getStatistics(),
-        api.getConjunctions({ limit: 50 }),
+        api.getConjunctions(50, 0),
         api.getAlerts()
       ]);
       setStats(statsData);
@@ -128,27 +134,20 @@ export default function App() {
     }
   };
 
-  const handleSelectObject = (obj: OrbitalObject) => {
+  const handleSelectObject = (obj: OrbitalObject | null) => {
     setSelectedObject(obj);
-    setIsObjectModalOpen(true);
+    if (obj) setIsObjectModalOpen(true);
   };
 
-  const handleSelectConjunction = (conj: Conjunction) => {
+  const handleSelectConjunction = (conj: Conjunction | null) => {
     setSelectedConjunction(conj);
-    setIsConjunctionModalOpen(true);
+    if (conj) setIsConjunctionModalOpen(true);
   };
 
   const handleInspectConjunctionFromAlert = async (conjId: number) => {
     const found = conjunctions.find((c) => c.id === conjId);
     if (found) {
       handleSelectConjunction(found);
-    } else {
-      try {
-        const conj = await api.getConjunctionById(conjId);
-        handleSelectConjunction(conj);
-      } catch (e) {
-        console.error(e);
-      }
     }
   };
 
@@ -159,8 +158,15 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         stats={stats}
-        onRefresh={handleRefresh}
-        isRefreshing={isRefreshing}
+        onRefresh={() => handleSync('LIVE')}
+        isRefreshing={isSyncing}
+      />
+
+      {/* Data Ingestion Status Banner */}
+      <DataStatusBar
+        dataStatus={dataStatus}
+        onSync={handleSync}
+        isSyncing={isSyncing}
       />
 
       {/* Main Container */}
@@ -199,7 +205,6 @@ export default function App() {
 
             {activeTab === 'objects' && (
               <ObjectTable
-                objects={objects}
                 selectedObject={selectedObject}
                 onSelectObject={handleSelectObject}
               />
@@ -235,7 +240,9 @@ export default function App() {
                 objects={objects}
                 conjunctions={conjunctions}
                 selectedObject={selectedObject}
+                selectedConjunction={selectedConjunction}
                 onSelectObject={handleSelectObject}
+                onSelectConjunction={handleSelectConjunction}
               />
             )}
           </>
@@ -243,14 +250,14 @@ export default function App() {
       </main>
 
       {/* Modals */}
-      {isObjectModalOpen && (
+      {isObjectModalOpen && selectedObject && (
         <ObjectDetailsModal
           object={selectedObject}
           onClose={() => setIsObjectModalOpen(false)}
         />
       )}
 
-      {isConjunctionModalOpen && (
+      {isConjunctionModalOpen && selectedConjunction && (
         <ConjunctionDetailsModal
           conjunction={selectedConjunction}
           onClose={() => setIsConjunctionModalOpen(false)}

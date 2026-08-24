@@ -27,14 +27,13 @@ def test_full_orbital_calculation_pipeline():
     8. Generates explainable Conjunction Risk Score (0-100).
     9. Produces a validated conjunction record.
     """
-    # 1. Instantiate orbital objects
     obj_a = OrbitalObject(
-        id=101, norad_id=44713, name="STARLINK-1007", object_type=ObjectType.SATELLITE,
+        id=101, norad_id=44713, name="STARLINK-1007", object_type=ObjectType.ACTIVE_SATELLITE,
         tle_line1=STARLINK_A_TLE1, tle_line2=STARLINK_A_TLE2,
         perigee_km=545.0, apogee_km=555.0
     )
     obj_b = OrbitalObject(
-        id=102, norad_id=44725, name="STARLINK-1019", object_type=ObjectType.SATELLITE,
+        id=102, norad_id=44725, name="STARLINK-1019", object_type=ObjectType.ACTIVE_SATELLITE,
         tle_line1=STARLINK_B_TLE1, tle_line2=STARLINK_B_TLE2,
         perigee_km=546.0, apogee_km=554.0
     )
@@ -48,12 +47,11 @@ def test_full_orbital_calculation_pipeline():
     
     assert pos_t0 is not None
     assert pos_t1 is not None
-    # Position must have moved significantly in 15 minutes (~7.6 km/s * 900s ~ 6840 km traveled)
     dist_traveled = euclidean_distance_3d(
         (pos_t0.x_km, pos_t0.y_km, pos_t0.z_km),
         (pos_t1.x_km, pos_t1.y_km, pos_t1.z_km)
     )
-    assert dist_traveled > 5000.0  # Verified physical orbital motion
+    assert dist_traveled > 5000.0
 
     # 3 & 4. Run Conjunction Screening Engine
     events = ConjunctionService.find_tca_between_objects(
@@ -61,7 +59,7 @@ def test_full_orbital_calculation_pipeline():
         start_time=start_time,
         end_time=end_time,
         coarse_step_minutes=3,
-        threshold_km=100.0
+        threshold_km=50.0
     )
 
     assert len(events) >= 1
@@ -69,7 +67,7 @@ def test_full_orbital_calculation_pipeline():
 
     # 5. Check Minimum Separation & TCA
     assert conj["miss_distance_km"] > 0.0
-    assert conj["miss_distance_km"] <= 100.0
+    assert conj["miss_distance_km"] <= 50.0
     assert start_time <= conj["tca"] <= end_time
 
     # 6. Check Relative Velocity
@@ -85,13 +83,3 @@ def test_full_orbital_calculation_pipeline():
     assert "miss_distance_factor" in conj["factors"]
     assert "relative_velocity_factor" in conj["factors"]
     assert "time_to_tca_factor" in conj["factors"]
-
-    print("\n--- PROVEN ORBITAL CONJUNCTION PIPELINE RESULT ---")
-    print(f"Object A: {obj_a.name} (NORAD #{obj_a.norad_id})")
-    print(f"Object B: {obj_b.name} (NORAD #{obj_b.norad_id})")
-    print(f"Time of Closest Approach (TCA): {conj['tca']}")
-    print(f"Miss Distance: {conj['miss_distance_km']:.4f} km")
-    print(f"Relative Velocity: {conj['relative_velocity_km_s']:.4f} km/s")
-    print(f"Sub-satellite TCA Location: Lat {conj['latitude_deg']:.2f}°, Lon {conj['longitude_deg']:.2f}°")
-    print(f"Conjunction Risk Score: {conj['risk_score']} / 100 ({conj['risk_level']})")
-    print("--------------------------------------------------")

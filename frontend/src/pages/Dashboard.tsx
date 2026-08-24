@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StatCard } from '../components/StatCard';
 import { OrbitViewer2D } from '../components/OrbitViewer2D';
+import { OrbitViewer3D } from '../components/OrbitViewer3D';
 import { RiskBadge } from '../components/RiskBadge';
 import { 
   OrbitalObject, 
@@ -14,7 +15,10 @@ import {
   ShieldAlert, 
   AlertTriangle, 
   Radio, 
-  ChevronRight
+  ChevronRight,
+  Globe,
+  Map as MapIcon,
+  Flame
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -24,8 +28,8 @@ interface DashboardProps {
   alerts: Alert[];
   selectedObject: OrbitalObject | null;
   selectedConjunction: Conjunction | null;
-  onSelectObject: (obj: OrbitalObject) => void;
-  onSelectConjunction: (conj: Conjunction) => void;
+  onSelectObject: (obj: OrbitalObject | null) => void;
+  onSelectConjunction: (conj: Conjunction | null) => void;
   onNavigateTab: (tab: any) => void;
 }
 
@@ -40,6 +44,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onSelectConjunction,
   onNavigateTab
 }) => {
+  const [viewMode, setViewMode] = useState<'2D' | '3D'>('3D');
+
   const highRiskConjunctions = conjunctions
     .filter((c) => c.risk_level === 'CRITICAL' || c.risk_level === 'HIGH')
     .slice(0, 5);
@@ -51,55 +57,101 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <StatCard
           title="Tracked Objects"
           value={stats?.tracked_objects ?? objects.length}
-          subtitle="Ingested from CelesTrak"
+          subtitle={stats ? stats.data_source : "Ingested Catalog"}
           icon={Radio}
           variant="cyan"
         />
         <StatCard
           title="Active Satellites"
-          value={stats?.active_satellites ?? objects.filter(o => o.object_type === 'satellite').length}
+          value={stats?.active_satellites ?? objects.filter(o => o.object_type === 'ACTIVE_SATELLITE').length}
           subtitle="Operational payloads"
           icon={Satellite}
           variant="default"
         />
         <StatCard
           title="Space Debris"
-          value={stats?.space_debris ?? objects.filter(o => o.object_type === 'debris').length}
-          subtitle="Tracked fragments & R/B"
+          value={stats?.space_debris ?? objects.filter(o => o.object_type === 'DEBRIS').length}
+          subtitle="Tracked fragments"
           icon={Trash2}
           variant="default"
         />
         <StatCard
-          title="Conjunctions"
-          value={stats?.total_conjunctions ?? conjunctions.length}
-          subtitle="Within 50km threshold"
-          icon={ShieldAlert}
+          title="Rocket Bodies"
+          value={stats?.rocket_bodies ?? objects.filter(o => o.object_type === 'ROCKET_BODY').length}
+          subtitle="Upper stages & boosters"
+          icon={Flame}
           variant="warning"
         />
         <StatCard
-          title="High-Risk Events"
+          title="High-Risk Conjunctions"
           value={stats?.high_risk_events ?? highRiskConjunctions.length}
-          subtitle="Urgent collision warnings"
+          subtitle="Urgent close encounters"
           icon={AlertTriangle}
           variant="danger"
         />
       </div>
 
-      {/* Main Grid: 2D Orbit Viewer (Left 2/3) + Upcoming Conjunctions & Alerts (Right 1/3) */}
+      {/* Main Grid: Orbit Viewer (Left 2/3) + Upcoming Conjunctions & Alerts (Right 1/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 2D Orbital Map */}
+        {/* Orbit Viewer with 2D / 3D Toggle */}
         <div className="lg:col-span-2 flex flex-col space-y-3">
-          <OrbitViewer2D
-            objects={objects}
-            conjunctions={conjunctions}
-            selectedObject={selectedObject}
-            selectedConjunction={selectedConjunction}
-            onSelectObject={onSelectObject}
-            onSelectConjunction={onSelectConjunction}
-          />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-mono text-xs text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-cyan-neon animate-pulse"></span>
+              <span className="font-bold text-white uppercase tracking-wider">
+                {viewMode === '3D' ? '3D Celestial Mission Control' : '2D WGS84 Ground Track Map'}
+              </span>
+            </div>
+
+            {/* 2D / 3D Mode Selector */}
+            <div className="flex items-center gap-1 bg-space-900 p-1 rounded-lg border border-space-700 font-mono text-xs">
+              <button
+                onClick={() => setViewMode('3D')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded transition ${
+                  viewMode === '3D'
+                    ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                3D Globe
+              </button>
+              <button
+                onClick={() => setViewMode('2D')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded transition ${
+                  viewMode === '2D'
+                    ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <MapIcon className="w-3.5 h-3.5" />
+                2D Map
+              </button>
+            </div>
+          </div>
+
+          {viewMode === '3D' ? (
+            <OrbitViewer3D
+              objects={objects}
+              conjunctions={conjunctions}
+              selectedObject={selectedObject}
+              selectedConjunction={selectedConjunction}
+              onSelectObject={onSelectObject}
+              onSelectConjunction={onSelectConjunction}
+            />
+          ) : (
+            <OrbitViewer2D
+              objects={objects}
+              conjunctions={conjunctions}
+              selectedObject={selectedObject}
+              selectedConjunction={selectedConjunction}
+              onSelectObject={onSelectObject}
+              onSelectConjunction={onSelectConjunction}
+            />
+          )}
         </div>
 
-        {/* Right Panel: Upcoming Close Conjunctions */}
+        {/* Right Panel: Upcoming Close Conjunctions & Alerts */}
         <div className="space-y-4 flex flex-col">
           {/* Conjunctions Card */}
           <div className="bg-space-900/80 border border-space-800 rounded-xl p-4 shadow-xl flex-1 flex flex-col">
@@ -175,15 +227,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             <div className="space-y-2 max-h-[160px] overflow-y-auto">
-              {alerts.slice(0, 3).map((a) => (
-                <div key={a.id} className="text-xs font-mono bg-space-950 p-2.5 rounded-lg border border-space-800">
-                  <div className="flex items-center gap-2 mb-1">
-                    <RiskBadge level={a.severity} size="sm" />
-                    <span className="text-[10px] text-slate-400">#{a.id}</span>
-                  </div>
-                  <p className="text-[11px] text-slate-200 truncate">{a.message}</p>
+              {alerts.length === 0 ? (
+                <div className="text-center py-4 text-xs font-mono text-slate-500">
+                  No active collision alerts.
                 </div>
-              ))}
+              ) : (
+                alerts.slice(0, 3).map((a) => (
+                  <div key={a.id} className="text-xs font-mono bg-space-950 p-2.5 rounded-lg border border-space-800">
+                    <div className="flex items-center gap-2 mb-1">
+                      <RiskBadge level={a.severity} size="sm" />
+                      <span className="text-[10px] text-slate-400">#{a.id}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-200 truncate">{a.message}</p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
