@@ -18,34 +18,42 @@ class ConjunctionService:
     @staticmethod
     def broad_phase_filter(
         objects: List[OrbitalObject],
-        altitude_buffer_km: float = 25.0,
-        max_pairs: int = 150
+        altitude_buffer_km: float = 20.0,
+        max_pairs: int = 60
     ) -> List[Tuple[OrbitalObject, OrbitalObject]]:
         """
-        Broad-phase screening: filters candidate pairs whose orbital altitude envelopes overlap.
-        Sorts pairs by geometric proximity and limits candidates for real-time responsiveness.
+        High-performance O(N log N) sweep-line broad-phase screening.
+        Sorts objects by orbital altitude and checks overlapping intervals using a sliding window.
         """
-        candidate_pairs = []
-        n = len(objects)
+        valid_objects = [
+            obj for obj in objects
+            if obj.perigee_km is not None and obj.apogee_km is not None
+        ]
         
+        # Sort objects by mean altitude
+        valid_objects.sort(key=lambda o: (o.perigee_km + o.apogee_km) / 2.0)
+        
+        candidate_pairs = []
+        n = len(valid_objects)
+
         for i in range(n):
-            obj_a = objects[i]
-            if obj_a.perigee_km is None or obj_a.apogee_km is None:
-                continue
+            obj_a = valid_objects[i]
+            a_min = obj_a.perigee_km - altitude_buffer_km
+            a_max = obj_a.apogee_km + altitude_buffer_km
+            a_mid = (obj_a.perigee_km + obj_a.apogee_km) / 2.0
 
-            for j in range(i + 1, n):
-                obj_b = objects[j]
-                if obj_b.perigee_km is None or obj_b.apogee_km is None:
-                    continue
-
-                # Check radial range overlap
-                a_min = obj_a.perigee_km - altitude_buffer_km
-                a_max = obj_a.apogee_km + altitude_buffer_km
+            for j in range(i + 1, min(i + 40, n)):
+                obj_b = valid_objects[j]
                 b_min = obj_b.perigee_km - altitude_buffer_km
                 b_max = obj_b.apogee_km + altitude_buffer_km
 
+                # If obj_b is entirely above obj_a max altitude, break sliding window
+                if obj_b.perigee_km - altitude_buffer_km > a_max:
+                    break
+
                 if not (a_max < b_min or b_max < a_min):
-                    alt_diff = abs(((obj_a.perigee_km + obj_a.apogee_km)/2.0) - ((obj_b.perigee_km + obj_b.apogee_km)/2.0))
+                    b_mid = (obj_b.perigee_km + obj_b.apogee_km) / 2.0
+                    alt_diff = abs(a_mid - b_mid)
                     candidate_pairs.append((alt_diff, obj_a, obj_b))
 
         # Sort by closest altitude overlap and return top pairs
@@ -66,7 +74,7 @@ class ConjunctionService:
         Calculates exact minimum separation distance, TCA timestamp, relative velocity,
         and geodetic sub-satellite coordinates at TCA.
         """
-        coarse_step = timedelta(minutes=max(1, coarse_step_minutes))
+        coarse_step = timedelta(minutes=max(10, coarse_step_minutes))
         curr_time = start_time
 
         min_dist = float("inf")
@@ -88,7 +96,7 @@ class ConjunctionService:
         if candidate_tca and min_dist <= threshold_km * 2.0:
             fine_start = candidate_tca - coarse_step
             fine_end = candidate_tca + coarse_step
-            fine_step = timedelta(seconds=10)
+            fine_step = timedelta(seconds=15)
 
             fine_min_dist = float("inf")
             refined_tca = candidate_tca

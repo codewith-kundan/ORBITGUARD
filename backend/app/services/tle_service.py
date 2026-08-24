@@ -298,10 +298,14 @@ class TLEService:
         updated = 0
         failed = 0
 
+        # Pre-load existing objects into a dictionary for O(1) in-memory lookup
+        existing_objs = {obj.norad_id: obj for obj in db.query(OrbitalObject).all()}
+
         for r in records:
             try:
-                obj = db.query(OrbitalObject).filter(OrbitalObject.norad_id == r["norad_id"]).first()
-                if obj:
+                norad_id = r["norad_id"]
+                if norad_id in existing_objs:
+                    obj = existing_objs[norad_id]
                     obj.name = r["name"]
                     obj.object_type = r["object_type"]
                     obj.source = source
@@ -320,7 +324,7 @@ class TLEService:
                     updated += 1
                 else:
                     obj = OrbitalObject(
-                        norad_id=r["norad_id"],
+                        norad_id=norad_id,
                         name=r["name"],
                         object_type=r["object_type"],
                         source=source,
@@ -339,11 +343,21 @@ class TLEService:
                         updated_at=datetime.utcnow()
                     )
                     db.add(obj)
-                    db.flush()
+                    existing_objs[norad_id] = obj
                     inserted += 1
+            except Exception:
+                failed += 1
 
-                # Archive TLE record
-                tle_rec = TLERecord(
+        # Flush once for inserted IDs
+        db.flush()
+
+        # Archive TLE records in bulk
+        tle_records = []
+        for r in records:
+            norad_id = r["norad_id"]
+            if norad_id in existing_objs:
+                obj = existing_objs[norad_id]
+                tle_records.append(TLERecord(
                     orbital_object_id=obj.id,
                     line1=r["tle_line1"],
                     line2=r["tle_line2"],
@@ -351,11 +365,9 @@ class TLEService:
                     source=source,
                     fetched_at=datetime.utcnow(),
                     is_current=True
-                )
-                db.add(tle_rec)
-
-            except Exception:
-                failed += 1
+                ))
+        if tle_records:
+            db.add_all(tle_records)
 
         # Record Sync Log & History
         log = SyncLog(
