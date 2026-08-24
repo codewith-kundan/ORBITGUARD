@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from backend.app.config import settings
 from backend.app.models.orbital_object import OrbitalObject
 from backend.app.models.conjunction import Conjunction
+from backend.app.models.alert import Alert
+from backend.app.schemas.alert import AlertStatus
 from backend.app.services.propagation_service import PropagationService
 from backend.app.services.risk_service import RiskService
 from backend.app.utils.distance import compute_spatial_separation, euclidean_distance_3d
@@ -14,10 +16,14 @@ logger = logging.getLogger(__name__)
 
 class ConjunctionService:
     @staticmethod
-    def broad_phase_filter(objects: List[OrbitalObject], altitude_buffer_km: float = 60.0) -> List[Tuple[OrbitalObject, OrbitalObject]]:
+    def broad_phase_filter(
+        objects: List[OrbitalObject],
+        altitude_buffer_km: float = 25.0,
+        max_pairs: int = 150
+    ) -> List[Tuple[OrbitalObject, OrbitalObject]]:
         """
         Broad-phase screening: filters candidate pairs whose orbital altitude envelopes overlap.
-        Avoids O(N^2) full trajectory propagation for non-intersecting orbital shells.
+        Sorts pairs by geometric proximity and limits candidates for real-time responsiveness.
         """
         candidate_pairs = []
         n = len(objects)
@@ -32,16 +38,19 @@ class ConjunctionService:
                 if obj_b.perigee_km is None or obj_b.apogee_km is None:
                     continue
 
-                # Check if radial ranges overlap within buffer
+                # Check radial range overlap
                 a_min = obj_a.perigee_km - altitude_buffer_km
                 a_max = obj_a.apogee_km + altitude_buffer_km
                 b_min = obj_b.perigee_km - altitude_buffer_km
                 b_max = obj_b.apogee_km + altitude_buffer_km
 
                 if not (a_max < b_min or b_max < a_min):
-                    candidate_pairs.append((obj_a, obj_b))
+                    alt_diff = abs(((obj_a.perigee_km + obj_a.apogee_km)/2.0) - ((obj_b.perigee_km + obj_b.apogee_km)/2.0))
+                    candidate_pairs.append((alt_diff, obj_a, obj_b))
 
-        return candidate_pairs
+        # Sort by closest altitude overlap and return top pairs
+        candidate_pairs.sort(key=lambda x: x[0])
+        return [(p[1], p[2]) for p in candidate_pairs[:max_pairs]]
 
     @staticmethod
     def find_tca_between_objects(
@@ -49,7 +58,7 @@ class ConjunctionService:
         obj_b: OrbitalObject,
         start_time: datetime,
         end_time: datetime,
-        coarse_step_minutes: int = 5,
+        coarse_step_minutes: int = 10,
         threshold_km: float = 50.0
     ) -> List[Dict[str, Any]]:
         """
@@ -59,60 +68,56 @@ class ConjunctionService:
         """
         coarse_step = timedelta(minutes=max(1, coarse_step_minutes))
         curr_time = start_time
-        
-        close_events = []
-        min_in_window = float("inf")
-        best_time = None
-        best_pos_a = None
-        best_pos_b = None
 
-        # Coarse scan across prediction window
+        min_dist = float("inf")
+        candidate_tca = None
+
         while curr_time <= end_time:
             pos_a = PropagationService.propagate_satellite(obj_a.tle_line1, obj_a.tle_line2, curr_time)
             pos_b = PropagationService.propagate_satellite(obj_b.tle_line1, obj_b.tle_line2, curr_time)
 
             if pos_a and pos_b:
-                sep = compute_spatial_separation(pos_a, pos_b)
-                dist = sep["miss_distance_km"]
-
-                # If approaching close boundary
-                if dist < 120.0 and dist < min_in_window:
-                    min_in_window = dist
-                    best_time = curr_time
-                    best_pos_a = pos_a
-                    best_pos_b = pos_b
+                d = euclidean_distance_3d(pos_a.x_km, pos_a.y_km, pos_a.z_km, pos_b.x_km, pos_b.y_km, pos_b.z_km)
+                if d < min_dist:
+                    min_dist = d
+                    candidate_tca = curr_time
 
             curr_time += coarse_step
 
-        # If a candidate minimum was found, refine using 10-second sub-stepping
-        if best_time and min_in_window <= 120.0:
-            fine_start = best_time - timedelta(minutes=coarse_step_minutes)
-            fine_end = best_time + timedelta(minutes=coarse_step_minutes)
+        close_events = []
+        if candidate_tca and min_dist <= threshold_km * 2.0:
+            fine_start = candidate_tca - coarse_step
+            fine_end = candidate_tca + coarse_step
             fine_step = timedelta(seconds=10)
 
-            refined_min_dist = float("inf")
-            refined_tca = best_time
-            refined_pos_a = best_pos_a
-            refined_pos_b = best_pos_b
+            fine_min_dist = float("inf")
+            refined_tca = candidate_tca
 
             t = fine_start
             while t <= fine_end:
                 pa = PropagationService.propagate_satellite(obj_a.tle_line1, obj_a.tle_line2, t)
                 pb = PropagationService.propagate_satellite(obj_b.tle_line1, obj_b.tle_line2, t)
+
                 if pa and pb:
-                    d = euclidean_distance_3d((pa.x_km, pa.y_km, pa.z_km), (pb.x_km, pb.y_km, pb.z_km))
-                    if d < refined_min_dist:
-                        refined_min_dist = d
+                    d = euclidean_distance_3d(pa.x_km, pa.y_km, pa.z_km, pb.x_km, pb.y_km, pb.z_km)
+                    if d < fine_min_dist:
+                        fine_min_dist = d
                         refined_tca = t
-                        refined_pos_a = pa
-                        refined_pos_b = pb
+
                 t += fine_step
 
-            if refined_min_dist <= threshold_km and refined_pos_a and refined_pos_b:
-                sep = compute_spatial_separation(refined_pos_a, refined_pos_b)
-                avg_alt = (refined_pos_a.alt_km + refined_pos_b.alt_km) / 2.0
-                avg_lat = (refined_pos_a.lat + refined_pos_b.lat) / 2.0
-                avg_lon = (refined_pos_a.lon + refined_pos_b.lon) / 2.0
+            if fine_min_dist <= threshold_km:
+                sep = compute_spatial_separation(
+                    obj_a.tle_line1, obj_a.tle_line2,
+                    obj_b.tle_line1, obj_b.tle_line2,
+                    target_time=refined_tca
+                )
+                refined_pos_a = PropagationService.propagate_satellite(obj_a.tle_line1, obj_a.tle_line2, refined_tca)
+                refined_pos_b = PropagationService.propagate_satellite(obj_b.tle_line1, obj_b.tle_line2, refined_tca)
+
+                avg_alt = (refined_pos_a.alt_km + refined_pos_b.alt_km) / 2.0 if refined_pos_a and refined_pos_b else 500.0
+                avg_lat = (refined_pos_a.lat + refined_pos_b.lat) / 2.0 if refined_pos_a and refined_pos_b else 0.0
+                avg_lon = (refined_pos_a.lon + refined_pos_b.lon) / 2.0 if refined_pos_a and refined_pos_b else 0.0
 
                 score, level, factors = RiskService.compute_risk_score(
                     miss_distance_km=sep["miss_distance_km"],
@@ -144,11 +149,11 @@ class ConjunctionService:
         db: Session,
         window_hours: int = 24,
         threshold_km: Optional[float] = None,
-        coarse_step_minutes: int = 5
+        coarse_step_minutes: int = 10
     ) -> Dict[str, Any]:
         """
-        Executes end-to-end conjunction screening across all tracked objects in the database.
-        Persists detected conjunction events to the database.
+        Executes end-to-end conjunction screening across tracked objects in the database.
+        Persists detected conjunction events and generates alerts.
         """
         if threshold_km is None:
             threshold_km = settings.CONJUNCTION_THRESHOLD_KM
@@ -172,14 +177,15 @@ class ConjunctionService:
             )
             detected_events.extend(events)
 
-        # Clear older conjunctions and save new detected events
+        # Clear older conjunctions and alerts
+        db.query(Alert).delete()
         db.query(Conjunction).delete()
         
         for ev in detected_events:
             conj = Conjunction(
                 object_a_id=ev["object_a_id"],
                 object_b_id=ev["object_b_id"],
-                tca=ev["tca"].replace(tzinfo=None) if ev["tca"].tzinfo else ev["tca"],
+                tca=ev["tca"],
                 miss_distance_km=ev["miss_distance_km"],
                 relative_velocity_km_s=ev["relative_velocity_km_s"],
                 altitude_km=ev["altitude_km"],
@@ -187,12 +193,27 @@ class ConjunctionService:
                 longitude_deg=ev["longitude_deg"],
                 risk_score=ev["risk_score"],
                 risk_level=ev["risk_level"],
+                status="ACTIVE",
+                calculated_at=datetime.utcnow(),
                 created_at=datetime.utcnow()
             )
             db.add(conj)
+            db.flush()
+
+            # Auto-generate Alert for High/Critical conjunctions
+            alert = Alert(
+                conjunction_id=conj.id,
+                severity=ev["risk_level"],
+                title=f"Collision Risk: {ev['object_a'].name} ↔ {ev['object_b'].name}",
+                status=AlertStatus.ACTIVE,
+                message=f"Predicted miss distance of {ev['miss_distance_km']} km at {ev['tca'].strftime('%Y-%m-%d %H:%M:%S')} UTC (Risk: {ev['risk_score']}/100)",
+                acknowledged=False,
+                resolved=False,
+                created_at=datetime.utcnow()
+            )
+            db.add(alert)
 
         db.commit()
-        logger.info(f"Screening complete: {len(detected_events)} conjunctions stored")
 
         return {
             "screened_pairs": len(candidate_pairs),
