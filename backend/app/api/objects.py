@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from backend.app.models.base import get_db, Base, engine
 from backend.app.models.orbital_object import OrbitalObject
 from backend.app.schemas.orbital_object import OrbitalObjectResponse, ObjectType, TrajectoryResponse, OrbitalPosition
@@ -14,9 +14,12 @@ Base.metadata.create_all(bind=engine)
 router = APIRouter(prefix="/api", tags=["Orbital Objects"])
 
 @router.post("/data/refresh")
-async def refresh_tle_data(db: Session = Depends(get_db)):
-    """Fetches TLE data from CelesTrak (or local demo cache if offline) and syncs to DB."""
-    records, source_name, status_mode = await TLEService.fetch_tle_data()
+async def refresh_tle_data(
+    mode: Optional[str] = Query("LIVE", description="Ingestion mode: 'LIVE' or 'DEMO'"),
+    db: Session = Depends(get_db)
+):
+    """Fetches TLE data from CelesTrak (or local demo cache if offline/requested) and syncs to DB."""
+    records, source_name, status_mode = await TLEService.fetch_tle_data(mode=mode)
     if not records:
         raise HTTPException(status_code=500, detail="Failed to fetch or parse TLE data from sources")
 
@@ -91,7 +94,6 @@ def get_object_trajectory(
         raise HTTPException(status_code=404, detail=f"Orbital object with ID or NORAD {id} not found")
 
     start_time = datetime.now(timezone.utc)
-    from datetime import timedelta
     end_time = start_time + timedelta(hours=hours)
 
     points = PropagationService.get_trajectory(

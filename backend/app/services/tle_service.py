@@ -41,13 +41,12 @@ def validate_tle(line1: str, line2: str) -> Tuple[bool, str]:
     expected_c1 = compute_tle_checksum(line1)
     actual_c1 = int(line1[68])
     if expected_c1 != actual_c1:
-        # Some TLE sources have minor checksum discrepancies; warn but tolerate if SGP4 can parse
-        logger.warning(f"TLE Line 1 checksum mismatch: calculated {expected_c1}, got {actual_c1}")
+        logger.debug(f"TLE Line 1 checksum mismatch: calculated {expected_c1}, got {actual_c1}")
 
     expected_c2 = compute_tle_checksum(line2)
     actual_c2 = int(line2[68])
     if expected_c2 != actual_c2:
-        logger.warning(f"TLE Line 2 checksum mismatch: calculated {expected_c2}, got {actual_c2}")
+        logger.debug(f"TLE Line 2 checksum mismatch: calculated {expected_c2}, got {actual_c2}")
 
     try:
         sat = Satrec.twoline2rv(line1, line2)
@@ -164,12 +163,24 @@ def parse_tle_text(tle_text: str, default_source: str = "CelesTrak") -> List[Dic
 
 class TLEService:
     @staticmethod
-    async def fetch_tle_data() -> Tuple[List[Dict[str, Any]], str, str]:
+    async def fetch_tle_data(mode: Optional[str] = None) -> Tuple[List[Dict[str, Any]], str, str]:
         """
-        Attempts to fetch live TLEs from CelesTrak.
-        Falls back to local verified cache if offline.
+        Fetches TLE records.
+        - If mode == 'DEMO': explicitly loads curated offline fallback dataset.
+        - If mode == 'LIVE' or None: attempts live CelesTrak HTTP fetch, falling back to cached demo if offline.
         Returns (records, source_name, status_mode).
         """
+        if mode and mode.upper() == "DEMO":
+            logger.info("Explicit DEMO mode requested: Loading verified local cached dataset")
+            try:
+                with open(settings.LOCAL_TLE_FALLBACK, "r") as f:
+                    cached_text = f.read()
+                records = parse_tle_text(cached_text, default_source="Local Cached Dataset (Demo)")
+                return records, "Local Cached Dataset", "DEMO MODE"
+            except Exception as e:
+                logger.error(f"Failed to read local fallback TLE cache: {e}")
+                return [], "None", "OFFLINE"
+
         urls = [
             settings.CELESTRAK_STATIONS_URL,
             settings.CELESTRAK_DEBRIS_URL,
@@ -179,7 +190,7 @@ class TLEService:
         fetch_success = False
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=6.0) as client:
                 for url in urls:
                     try:
                         res = await client.get(url)
@@ -196,8 +207,8 @@ class TLEService:
             if records:
                 return records, "CelesTrak", "LIVE"
 
-        # Fallback to local verified cache
-        logger.info(f"Using local cached dataset from {settings.LOCAL_TLE_FALLBACK}")
+        # Automatic fallback to local verified cache if network is unreachable
+        logger.info(f"Live network unavailable. Using local cached dataset from {settings.LOCAL_TLE_FALLBACK}")
         try:
             with open(settings.LOCAL_TLE_FALLBACK, "r") as f:
                 cached_text = f.read()

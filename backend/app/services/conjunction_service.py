@@ -9,7 +9,6 @@ from backend.app.models.conjunction import Conjunction
 from backend.app.services.propagation_service import PropagationService
 from backend.app.services.risk_service import RiskService
 from backend.app.utils.distance import compute_spatial_separation, euclidean_distance_3d
-from backend.app.utils.time_utils import to_utc
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +54,8 @@ class ConjunctionService:
     ) -> List[Dict[str, Any]]:
         """
         Narrow-phase propagation & fine TCA refinement for a candidate pair.
+        Calculates exact minimum separation distance, TCA timestamp, relative velocity,
+        and geodetic sub-satellite coordinates at TCA.
         """
         coarse_step = timedelta(minutes=max(1, coarse_step_minutes))
         curr_time = start_time
@@ -65,7 +66,7 @@ class ConjunctionService:
         best_pos_a = None
         best_pos_b = None
 
-        # Coarse scan
+        # Coarse scan across prediction window
         while curr_time <= end_time:
             pos_a = PropagationService.propagate_satellite(obj_a.tle_line1, obj_a.tle_line2, curr_time)
             pos_b = PropagationService.propagate_satellite(obj_b.tle_line1, obj_b.tle_line2, curr_time)
@@ -110,6 +111,9 @@ class ConjunctionService:
             if refined_min_dist <= threshold_km and refined_pos_a and refined_pos_b:
                 sep = compute_spatial_separation(refined_pos_a, refined_pos_b)
                 avg_alt = (refined_pos_a.alt_km + refined_pos_b.alt_km) / 2.0
+                avg_lat = (refined_pos_a.lat + refined_pos_b.lat) / 2.0
+                avg_lon = (refined_pos_a.lon + refined_pos_b.lon) / 2.0
+
                 score, level, factors = RiskService.compute_risk_score(
                     miss_distance_km=sep["miss_distance_km"],
                     relative_velocity_km_s=sep["relative_velocity_km_s"],
@@ -126,6 +130,8 @@ class ConjunctionService:
                     "miss_distance_km": sep["miss_distance_km"],
                     "relative_velocity_km_s": sep["relative_velocity_km_s"],
                     "altitude_km": round(avg_alt, 2),
+                    "latitude_deg": round(avg_lat, 4),
+                    "longitude_deg": round(avg_lon, 4),
                     "risk_score": score,
                     "risk_level": level,
                     "factors": factors
@@ -137,13 +143,16 @@ class ConjunctionService:
     def run_full_conjunction_screening(
         db: Session,
         window_hours: int = 24,
-        threshold_km: float = 50.0,
+        threshold_km: Optional[float] = None,
         coarse_step_minutes: int = 5
     ) -> Dict[str, Any]:
         """
         Executes end-to-end conjunction screening across all tracked objects in the database.
         Persists detected conjunction events to the database.
         """
+        if threshold_km is None:
+            threshold_km = settings.CONJUNCTION_THRESHOLD_KM
+
         objects = db.query(OrbitalObject).all()
         if len(objects) < 2:
             return {"screened_pairs": 0, "conjunctions_found": 0, "conjunctions": []}
@@ -174,6 +183,8 @@ class ConjunctionService:
                 miss_distance_km=ev["miss_distance_km"],
                 relative_velocity_km_s=ev["relative_velocity_km_s"],
                 altitude_km=ev["altitude_km"],
+                latitude_deg=ev["latitude_deg"],
+                longitude_deg=ev["longitude_deg"],
                 risk_score=ev["risk_score"],
                 risk_level=ev["risk_level"],
                 created_at=datetime.utcnow()

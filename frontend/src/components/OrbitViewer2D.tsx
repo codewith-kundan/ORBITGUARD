@@ -226,11 +226,11 @@ export const OrbitViewer2D: React.FC<OrbitViewer2DProps> = ({
             </g>
           )}
 
-          {/* Render Conjunction Hotspots */}
+          {/* Render Real Conjunction Hotspots from SGP4 TCA Coordinates */}
           {conjunctions.map((conj) => {
-            const mockLon = ((conj.id * 73) % 360) - 180;
-            const mockLat = ((conj.id * 37) % 120) - 60;
-            const pt = lonLatToSVG(mockLon, mockLat);
+            const lon = conj.longitude_deg ?? 0;
+            const lat = conj.latitude_deg ?? 0;
+            const pt = lonLatToSVG(lon, lat);
             const isSelected = selectedConjunction?.id === conj.id;
 
             return (

@@ -17,6 +17,8 @@ class ConjunctionBase(BaseModel):
     miss_distance_km: float = Field(..., description="Minimum 3D separation at TCA in km")
     relative_velocity_km_s: float = Field(..., description="Relative velocity at TCA in km/s")
     altitude_km: Optional[float] = Field(None, description="Average orbital altitude at TCA in km")
+    latitude_deg: Optional[float] = Field(None, description="Sub-satellite latitude at TCA in deg [-90, 90]")
+    longitude_deg: Optional[float] = Field(None, description="Sub-satellite longitude at TCA in deg [-180, 180]")
     risk_score: float = Field(..., ge=0.0, le=100.0, description="Screening Conjunction Risk Score (0-100)")
     risk_level: RiskLevel
 

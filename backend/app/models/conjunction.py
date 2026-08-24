@@ -14,6 +14,8 @@ class Conjunction(Base):
     miss_distance_km = Column(Float, nullable=False, index=True)
     relative_velocity_km_s = Column(Float, nullable=False)
     altitude_km = Column(Float, nullable=True)
+    latitude_deg = Column(Float, nullable=True)
+    longitude_deg = Column(Float, nullable=True)
     risk_score = Column(Float, nullable=False, index=True)
     risk_level = Column(SQLEnum(RiskLevel), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -77,6 +77,8 @@ export interface Conjunction {
   miss_distance_km: number;
   relative_velocity_km_s: number;
   altitude_km?: number;
+  latitude_deg?: number;
+  longitude_deg?: number;
   risk_score: number;
   risk_level: RiskLevel;
   object_a?: OrbitalObject;
