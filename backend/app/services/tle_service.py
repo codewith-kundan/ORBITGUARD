@@ -43,7 +43,7 @@ def classify_object_type(name: str, norad_id: Optional[int] = None) -> ObjectTyp
         return ObjectType.DEBRIS
     elif "R/B" in name_upper or "ROCKET" in name_upper or "CENTAUR" in name_upper or "DELTA" in name_upper or "FALCON" in name_upper:
         return ObjectType.ROCKET_BODY
-    elif "ISS" in name_upper or "STARLINK" in name_upper or "TIANGONG" in name_upper or "ONEWEB" in name_upper:
+    elif "ISS" in name_upper or "STARLINK" in name_upper or "TIANGONG" in name_upper or "ONEWEB" in name_upper or "VANGUARD" in name_upper:
         return ObjectType.ACTIVE_SATELLITE
     elif norad_id and norad_id > 90000:
         return ObjectType.UNKNOWN
@@ -54,13 +54,13 @@ def parse_tle_orbital_elements(line1: str, line2: str) -> Dict[str, Any]:
     norad_id = int(line1[2:7].strip()) if len(line1) >= 7 and line1[2:7].strip().isdigit() else 0
     return {"norad_id": norad_id, **keplerian}
 
-def parse_tle_text(text: str, default_source: str = "CelesTrak") -> List[Dict[str, Any]]:
+def parse_tle_text(text: str, default_source: str = "Space-Track.org") -> List[Dict[str, Any]]:
     return TLEService.parse_tle_text(text)
 
 class TLEService:
     """
     Multi-Provider Live Ephemeris Ingestion Engine.
-    Integrates SatNOGS Live Space-Track Mirror (1,600+ objects), CelesTrak, and Space-Track.org.
+    Integrates Official Space-Track.org REST API (18th Space Defense Squadron), SatNOGS, and CelesTrak.
     """
 
     SATNOGS_URL = "https://db.satnogs.org/api/tle/"
@@ -68,19 +68,26 @@ class TLEService:
     CELESTRAK_GROUPS = [
         ("stations", "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle", ObjectType.ACTIVE_SATELLITE),
         ("active", "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle", ObjectType.ACTIVE_SATELLITE),
-        ("starlink", "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle", ObjectType.ACTIVE_SATELLITE),
     ]
 
     @classmethod
     async def fetch_tle_data(cls, mode: str = "LIVE") -> Tuple[List[Dict[str, Any]], str, str, Optional[str]]:
         """
-        Fetches live TLE orbital datasets across SatNOGS / CelesTrak / Space-Track providers.
+        Fetches live TLE orbital datasets across Space-Track / SatNOGS / CelesTrak providers.
         """
         if mode.upper() == "DEMO":
             records = cls._load_local_fallback()
             return records, "Local Cached Dataset", "DEMO", None
 
-        # 1. Try Live SatNOGS Global Satellite Mirror (1,600+ Live Satellites from Space-Track)
+        # 1. Primary: Official Space-Track.org REST API Session (US Space Force)
+        spacetrack_user = settings.SPACETRACK_USER or os.environ.get("SPACETRACK_USER")
+        spacetrack_pass = settings.SPACETRACK_PASSWORD or os.environ.get("SPACETRACK_PASSWORD")
+        if spacetrack_user and spacetrack_pass:
+            st_records, st_err = await cls._fetch_spacetrack(spacetrack_user, spacetrack_pass)
+            if st_records and len(st_records) > 0:
+                return st_records, "Space-Track.org (18th Space Defense Squadron)", "LIVE", None
+
+        # 2. Secondary: SatNOGS Global Satellite Mirror (1,600+ Live Objects from Space-Track)
         try:
             req = urllib.request.Request(cls.SATNOGS_URL, headers={"User-Agent": "ORBITGUARD-SSA/1.0 (Mozilla/5.0)"})
             with urllib.request.urlopen(req, timeout=12) as resp:
@@ -89,10 +96,10 @@ class TLEService:
                     records = cls._parse_satnogs_json(raw_data)
                     if records and len(records) > 0:
                         return records, "SatNOGS Live Space-Track Mirror", "LIVE", None
-        except Exception as e:
+        except Exception:
             pass
 
-        # 2. Try Live CelesTrak Groups
+        # 3. Tertiary: CelesTrak Public Groups
         all_records: List[Dict[str, Any]] = []
         seen_norad = set()
 
@@ -119,6 +126,27 @@ class TLEService:
         return [], "Orbital Data Providers", "LIVE ERROR", "Could not establish network connection to live providers"
 
     @classmethod
+    async def _fetch_spacetrack(cls, username: str, password: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """Fetches bulk 3LE data directly from Space-Track.org via authenticated session."""
+        login_url = "https://www.space-track.org/ajaxauth/login"
+        # Query up to 15,000 live objects with official names (format=3le)
+        query_url = "https://www.space-track.org/basicspacedata/query/class/gp/decay_date/null-val/orderby/norad_cat_id/limit/15000/format/3le"
+
+        try:
+            async with httpx.AsyncClient(timeout=45.0) as client:
+                login_res = await client.post(login_url, data={"identity": username, "password": password})
+                if login_res.status_code != 200:
+                    return [], f"Space-Track login error: HTTP {login_res.status_code}"
+
+                query_res = await client.get(query_url)
+                if query_res.status_code == 200:
+                    records = cls.parse_tle_text(query_res.text, source_group="spacetrack_live")
+                    return records, None
+                return [], f"Space-Track query error: HTTP {query_res.status_code}"
+        except Exception as e:
+            return [], str(e)
+
+    @classmethod
     def _parse_satnogs_json(cls, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Parses live SatNOGS / Space-Track API JSON objects."""
         records = []
@@ -131,7 +159,6 @@ class TLEService:
                 if not line1 or not line2:
                     continue
                 
-                # Extract clean name
                 name = tle0[2:].strip() if tle0.startswith("0 ") else (tle0 or f"NORAD-{item.get('norad_cat_id', 'UNKNOWN')}")
                 norad_id = int(item.get("norad_cat_id") or line1[2:7].strip())
 
@@ -177,15 +204,11 @@ class TLEService:
 
         while i < len(lines):
             # Check 3-line format (Name, Line 1, Line 2)
-            if lines[i].startswith("1 ") and i > 0 and not lines[i-1].startswith("1 ") and not lines[i-1].startswith("2 "):
-                name = lines[i-1].strip()
-                line1 = lines[i]
-                if i + 1 < len(lines) and lines[i+1].startswith("2 "):
-                    line2 = lines[i+1]
-                    i += 2
-                else:
-                    i += 1
-                    continue
+            if (lines[i].startswith("0 ") or not lines[i].startswith("1 ")) and i + 2 < len(lines) and lines[i+1].startswith("1 ") and lines[i+2].startswith("2 "):
+                name = lines[i][2:].strip() if lines[i].startswith("0 ") else lines[i].strip()
+                line1 = lines[i+1]
+                line2 = lines[i+2]
+                i += 3
             # Check 2-line format
             elif lines[i].startswith("1 ") and i + 1 < len(lines) and lines[i+1].startswith("2 "):
                 line1 = lines[i]
@@ -290,7 +313,7 @@ class TLEService:
         db: Session,
         records: List[Dict[str, Any]],
         mode: str = "LIVE",
-        source: str = "Live Feed"
+        source: str = "Space-Track.org"
     ) -> Dict[str, int]:
         """Inserts and updates catalog records and records sync history."""
         started_at = datetime.utcnow()
@@ -405,7 +428,7 @@ class TLEService:
         unknown = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.UNKNOWN).count()
 
         mode = last_log.mode if last_log else "LIVE"
-        source = last_log.source if last_log else "SatNOGS / Space-Track"
+        source = last_log.source if last_log else "Space-Track.org"
         last_sync = last_log.created_at if last_log else None
         sync_error = last_log.error_message if last_log and last_log.status == "FAILED" else None
 

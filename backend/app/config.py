@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: Optional[str] = None
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
 
+    SPACETRACK_USER: Optional[str] = None
+    SPACETRACK_PASSWORD: Optional[str] = None
+
     ORBITAL_DATA_PROVIDER: str = "CelesTrak"
     DEFAULT_PREDICTION_WINDOW_HOURS: int = 24
     PROPAGATION_STEP_MINUTES: int = 5
