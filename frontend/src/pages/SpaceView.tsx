@@ -250,8 +250,13 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const positionsRef = useRef<OrbitalPosition[]>([]);
   const visiblePositionsRef = useRef<OrbitalPosition[]>([]);
   const objectsRef = useRef<OrbitalObject[]>([]);
+  const isFollowModeRef = useRef<boolean>(false);
+  const selectedPosRef = useRef<OrbitalPosition | null>(null);
+  
   positionsRef.current = positions;
   objectsRef.current = objects;
+  isFollowModeRef.current = isFollowMode;
+  selectedPosRef.current = selectedPos;
 
   // Three.js References
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -267,7 +272,6 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const conjLineRef = useRef<THREE.Line | null>(null);
   const animationFrameId = useRef<number | null>(null);
   const raycaster = useRef(new THREE.Raycaster());
-  const mouse = useRef(new THREE.Vector2());
 
   // Set Raycaster Precision for Clicking Small Dots
   useEffect(() => {
@@ -503,61 +507,76 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(instMesh);
     instancedMeshRef.current = instMesh;
 
-    // Pointer Move for Interactive Hover Tooltip
-    const handlePointerMove = (e: MouseEvent) => {
+    // Screen-Space Distance Hit Tester (Works reliably on all devices & screen sizes)
+    const findClosestDot = (clientX: number, clientY: number, maxScreenDistPx: number = 24) => {
+      if (!camera || !renderer || visiblePositionsRef.current.length === 0) return null;
       const rect = renderer.domElement.getBoundingClientRect();
-      mouse.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      const mouseX = clientX - rect.left;
+      const mouseY = clientY - rect.top;
+      const w = rect.width;
+      const h = rect.height;
 
-      raycaster.current.setFromCamera(mouse.current, camera);
-      if (instancedMeshRef.current && visiblePositionsRef.current.length > 0) {
-        const intersects = raycaster.current.intersectObject(instancedMeshRef.current);
-        if (intersects.length > 0 && intersects[0].instanceId !== undefined) {
-          const hoveredPos = visiblePositionsRef.current[intersects[0].instanceId];
-          if (hoveredPos) {
-            const foundObj = objectsRef.current.find((o) => o.norad_id === hoveredPos.norad_id);
-            if (foundObj) {
-              setHoveredObject({
-                obj: foundObj,
-                pos: hoveredPos,
-                screenX: e.clientX,
-                screenY: e.clientY
-              });
-              renderer.domElement.style.cursor = 'pointer';
-              return;
+      let closest: { pos: OrbitalPosition; obj: OrbitalObject; dist: number } | null = null;
+      const tempVec = new THREE.Vector3();
+
+      for (const pos of visiblePositionsRef.current) {
+        tempVec.set(pos.x_km / 1000, pos.z_km / 1000, -pos.y_km / 1000);
+        tempVec.project(camera);
+
+        // Discard points behind camera
+        if (tempVec.z > 1.0) continue;
+
+        const sx = (tempVec.x * 0.5 + 0.5) * w;
+        const sy = (-(tempVec.y * 0.5) + 0.5) * h;
+
+        const dx = mouseX - sx;
+        const dy = mouseY - sy;
+        const dPx = Math.sqrt(dx * dx + dy * dy);
+
+        if (dPx <= maxScreenDistPx) {
+          if (!closest || dPx < closest.dist) {
+            const found = objectsRef.current.find((o) => o.norad_id === pos.norad_id);
+            if (found) {
+              closest = { pos, obj: found, dist: dPx };
             }
           }
         }
       }
-      setHoveredObject(null);
-      renderer.domElement.style.cursor = 'default';
+
+      return closest;
+    };
+
+    // Pointer Move for Interactive Hover Tooltip
+    const handlePointerMove = (e: MouseEvent) => {
+      const match = findClosestDot(e.clientX, e.clientY, 20);
+      if (match) {
+        setHoveredObject({
+          obj: match.obj,
+          pos: match.pos,
+          screenX: e.clientX,
+          screenY: e.clientY
+        });
+        renderer.domElement.style.cursor = 'pointer';
+      } else {
+        setHoveredObject(null);
+        renderer.domElement.style.cursor = 'default';
+      }
     };
 
     // Instant Click Selection on Any Dot
     const handleCanvasClick = (e: MouseEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.current.setFromCamera(mouse.current, camera);
-      if (instancedMeshRef.current && visiblePositionsRef.current.length > 0) {
-        const intersects = raycaster.current.intersectObject(instancedMeshRef.current);
-        if (intersects.length > 0 && intersects[0].instanceId !== undefined) {
-          const clickedPos = visiblePositionsRef.current[intersects[0].instanceId];
-          if (clickedPos) {
-            const foundObj = objectsRef.current.find((o) => o.norad_id === clickedPos.norad_id);
-            if (foundObj) {
-              onSelectObject(foundObj);
-              setSelectedPos(clickedPos);
-              const targetVec = new THREE.Vector3(
-                clickedPos.x_km / 1000,
-                clickedPos.z_km / 1000,
-                -clickedPos.y_km / 1000
-              );
-              controls.target.copy(targetVec);
-            }
-          }
-        }
+      const match = findClosestDot(e.clientX, e.clientY, 26);
+      if (match) {
+        onSelectObject(match.obj);
+        setSelectedPos(match.pos);
+        const targetVec = new THREE.Vector3(
+          match.pos.x_km / 1000,
+          match.pos.z_km / 1000,
+          -match.pos.y_km / 1000
+        );
+        controls.target.copy(targetVec);
+        camera.position.copy(targetVec.clone().add(new THREE.Vector3(0, 3, 7)));
+        controls.update();
       }
     };
 
@@ -573,13 +592,17 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       if (cloudMeshRef.current) cloudMeshRef.current.rotation.y += 0.0006;
 
       // Follow Camera Mode
-      if (isFollowMode && selectedPos && controlsRef.current) {
+      if (isFollowModeRef.current && selectedPosRef.current && controlsRef.current && cameraRef.current) {
+        const sp = selectedPosRef.current;
         const targetPos = new THREE.Vector3(
-          selectedPos.x_km / 1000,
-          selectedPos.z_km / 1000,
-          -selectedPos.y_km / 1000
+          sp.x_km / 1000,
+          sp.z_km / 1000,
+          -sp.y_km / 1000
         );
+        const currentTarget = controlsRef.current.target.clone();
+        const offset = cameraRef.current.position.clone().sub(currentTarget);
         controlsRef.current.target.copy(targetPos);
+        cameraRef.current.position.copy(targetPos.clone().add(offset));
       }
 
       renderer.render(scene, camera);
