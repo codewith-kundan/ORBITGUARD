@@ -55,161 +55,6 @@ function calculateSunDirection(date: Date): THREE.Vector3 {
   return new THREE.Vector3(x, y, z).normalize();
 }
 
-// Procedural Real Earth Day Texture
-function createEarthDayTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 2048;
-  canvas.height = 1024;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = '#0a2342';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = '#1c4424';
-  ctx.strokeStyle = '#2d6a36';
-  ctx.lineWidth = 4;
-
-  // Americas
-  ctx.beginPath();
-  ctx.ellipse(520, 360, 190, 130, -0.3, 0, Math.PI * 2);
-  ctx.ellipse(640, 680, 120, 200, 0.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // Eurasia
-  ctx.beginPath();
-  ctx.ellipse(1380, 320, 380, 170, 0.05, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // Africa
-  ctx.beginPath();
-  ctx.ellipse(1120, 560, 180, 230, -0.05, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // Sahara Desert / Middle East
-  ctx.fillStyle = '#6e5d2b';
-  ctx.beginPath();
-  ctx.ellipse(1130, 430, 130, 70, 0, 0, Math.PI * 2);
-  ctx.ellipse(1320, 420, 90, 50, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // India
-  ctx.fillStyle = '#234a26';
-  ctx.beginPath();
-  ctx.moveTo(1420, 400);
-  ctx.lineTo(1470, 560);
-  ctx.lineTo(1370, 450);
-  ctx.closePath();
-  ctx.fill();
-
-  // Australia
-  ctx.fillStyle = '#5c4322';
-  ctx.beginPath();
-  ctx.ellipse(1680, 720, 130, 95, 0.1, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Polar Ice Caps
-  ctx.fillStyle = '#e8f4f8';
-  ctx.fillRect(0, 0, canvas.width, 75);
-  ctx.fillRect(0, canvas.height - 75, canvas.width, 75);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  return texture;
-}
-
-// Procedural Real Earth Night-Lights Texture
-function createEarthNightTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 2048;
-  canvas.height = 1024;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = '#020308';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = '#ffcc66';
-  const drawCityHub = (x: number, y: number, radius: number, density: number) => {
-    for (let i = 0; i < density; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const r = Math.pow(Math.random(), 1.8) * radius;
-      const px = x + Math.cos(angle) * r;
-      const py = y + Math.sin(angle) * r;
-      ctx.globalAlpha = 0.3 + Math.random() * 0.7;
-      ctx.fillRect(px, py, 1.5, 1.5);
-    }
-  };
-
-  drawCityHub(380, 270, 70, 180);
-  drawCityHub(270, 290, 50, 120);
-  drawCityHub(630, 680, 60, 140);
-  drawCityHub(1080, 260, 80, 250);
-  drawCityHub(1430, 470, 90, 320);
-  drawCityHub(1620, 380, 90, 300);
-  drawCityHub(1680, 730, 50, 90);
-
-  ctx.globalAlpha = 1.0;
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  return texture;
-}
-
-// Cloud Texture
-function createEarthCloudsTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = '#ffffff';
-  for (let i = 0; i < 90; i++) {
-    const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height;
-    const rad = 25 + Math.random() * 65;
-    const grad = ctx.createRadialGradient(x, y, 0, x, y, rad);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
-    grad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(x, y, rad, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  return texture;
-}
-
-// Moon Texture
-function createMoonTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = '#8e9094';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = '#55585e';
-  for (let i = 0; i < 35; i++) {
-    ctx.beginPath();
-    const cx = (i * 47) % canvas.width;
-    const cy = (i * 31) % canvas.height;
-    ctx.arc(cx, cy, 8 + (i % 20), 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  return new THREE.CanvasTexture(canvas);
-}
-
 export const SpaceView: React.FC<SpaceViewProps> = ({
   objects,
   conjunctions,
@@ -422,9 +267,10 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     const ambLight = new THREE.AmbientLight(0x1a233a, 0.35);
     scene.add(ambLight);
 
-    // 7. Earth Mesh with GLSL Day/Night Terminator Shader
-    const dayTexture = createEarthDayTexture();
-    const nightTexture = createEarthNightTexture();
+    // 7. Photorealistic NASA Blue Marble Earth Textures
+    const texLoader = new THREE.TextureLoader();
+    const dayTexture = texLoader.load('/textures/earth_day.jpg');
+    const nightTexture = texLoader.load('/textures/earth_night.jpg');
 
     const earthShaderMat = new THREE.ShaderMaterial({
       uniforms: {
@@ -461,7 +307,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           
           vec3 finalColor = mix(nightColor.rgb * 1.8, dayColor.rgb, dayMix);
           
-          // Atmospheric edge glow
+          // Atmospheric Rayleigh edge glow
           float rim = 1.0 - max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));
           finalColor += vec3(0.0, 0.45, 0.9) * pow(rim, 3.5) * 0.45;
           
@@ -470,21 +316,24 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       `
     });
 
+    // Earth Mesh - Kept STILL / Stationary
     const earthGeom = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
     const earthMesh = new THREE.Mesh(earthGeom, earthShaderMat);
+    earthMesh.rotation.y = -Math.PI / 2; // Precise WGS84 ECEF Prime Meridian alignment
     scene.add(earthMesh);
     earthMeshRef.current = earthMesh;
 
-    // 8. Rotating Cloud Layer
-    const cloudsTexture = createEarthCloudsTexture();
+    // 8. NASA Cloud Layer - Still
+    const cloudsTexture = texLoader.load('/textures/earth_clouds.jpg');
     const cloudsGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.015, 64, 64);
     const cloudsMat = new THREE.MeshStandardMaterial({
       map: cloudsTexture,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.4,
       blending: THREE.AdditiveBlending
     });
     const cloudMesh = new THREE.Mesh(cloudsGeom, cloudsMat);
+    cloudMesh.rotation.y = -Math.PI / 2;
     scene.add(cloudMesh);
     cloudMeshRef.current = cloudMesh;
 
@@ -499,7 +348,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(new THREE.Mesh(atmosGeom, atmosMat));
 
     // 10. Realistic Moon
-    const moonTexture = createMoonTexture();
+    const moonTexture = texLoader.load('/textures/moon.jpg');
     const moonGeom = new THREE.SphereGeometry(1.737, 32, 32);
     const moonMat = new THREE.MeshStandardMaterial({ map: moonTexture, roughness: 0.9 });
     const moonMesh = new THREE.Mesh(moonGeom, moonMat);
@@ -621,9 +470,6 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     const animate = () => {
       animationFrameId.current = requestAnimationFrame(animate);
       controls.update();
-
-      if (earthMeshRef.current) earthMeshRef.current.rotation.y += 0.0004;
-      if (cloudMeshRef.current) cloudMeshRef.current.rotation.y += 0.0006;
 
       // Follow Camera Mode
       if (isFollowModeRef.current && selectedPosRef.current && controlsRef.current && cameraRef.current) {
