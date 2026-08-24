@@ -16,10 +16,8 @@ import {
   Clock,
   Crosshair,
   FastForward,
-  Sliders,
-  Flame,
-  Radio,
-  Trash2
+  Globe,
+  Sliders
 } from 'lucide-react';
 import { 
   OrbitalObject, 
@@ -69,17 +67,18 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   
-  // UI State
+  // UI State (LeoLabs Style Multi-Filter & Search Dock)
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(true);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [typeFilter, setTypeFilter] = useState<string>('ALL');
+  const [activeFleetFilter, setActiveFleetFilter] = useState<string>('ALL');
   const [altitudeFilter, setAltitudeFilter] = useState<string>('ALL');
   const [isDebrisMode, setIsDebrisMode] = useState<boolean>(false);
   const [isFollowMode, setIsFollowMode] = useState<boolean>(false);
-  const [showGroundTrack, setShowGroundTrack] = useState<boolean>(false);
+  const [showGroundTrack, setShowGroundTrack] = useState<boolean>(true);
+  const [showOrbitRings, setShowOrbitRings] = useState<boolean>(true);
 
-  // Time Engine State (Default to 50X for noticeable real-time orbital motion)
+  // Time Engine State (Default 50X for noticeable real-time orbital revolution)
   const [simTime, setSimTime] = useState<Date>(new Date());
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [simSpeed, setSimSpeed] = useState<number>(50);
@@ -128,13 +127,16 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
   const sunMeshRef = useRef<THREE.Mesh | null>(null);
 
-  // Distinct Specialized 3D Instanced Meshes
+  // Specialized LeoLabs 3D Instanced Meshes
   const debrisMeshRef = useRef<THREE.InstancedMesh | null>(null);
   const satMeshRef = useRef<THREE.InstancedMesh | null>(null);
+  const starlinkMeshRef = useRef<THREE.InstancedMesh | null>(null);
   const rocketMeshRef = useRef<THREE.InstancedMesh | null>(null);
   
   const trajectoryLineRef = useRef<THREE.Line | null>(null);
+  const groundTrackLineRef = useRef<THREE.Line | null>(null);
   const conjLineRef = useRef<THREE.Line | null>(null);
+  const orbitRingsGroupRef = useRef<THREE.Group | null>(null);
   const animationFrameId = useRef<number | null>(null);
 
   // Fetch Batch Ephemeris Positions from Backend API
@@ -142,7 +144,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     let isMounted = true;
     const fetchPositions = async () => {
       try {
-        const batch = await api.getBatchPositions(simTime.toISOString(), 1200);
+        const batch = await api.getBatchPositions(simTime.toISOString(), 1500);
         if (isMounted && batch.positions) {
           setPositions(batch.positions);
           // Clone for real-time GPU/CPU propagation
@@ -201,7 +203,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     return () => { isMounted = false; };
   }, [selectedObject, trajectoryHours, showGroundTrack]);
 
-  // Initialize Three.js WebGL Scene
+  // Initialize Three.js WebGL Scene (LeoLabs Aesthetics)
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
@@ -215,17 +217,17 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       45,
       container.clientWidth / container.clientHeight,
       0.1,
-      2000
+      2500
     );
-    camera.position.set(0, 10, 28);
+    camera.position.set(0, 11, 27);
     cameraRef.current = camera;
 
-    // 3. WebGL Renderer
+    // 3. WebGL Renderer with ACES Tone Mapping
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMappingExposure = 1.25;
     container.replaceChildren(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -233,49 +235,49 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = EARTH_RADIUS + 0.5;
-    controls.maxDistance = 250;
+    controls.minDistance = EARTH_RADIUS + 0.3;
+    controls.maxDistance = 300;
     controls.rotateSpeed = 0.7;
     controlsRef.current = controls;
 
-    // 5. Starfield & Deep Space Skybox
+    // 5. Deep Space High-Density Starfield
     const starGeom = new THREE.BufferGeometry();
-    const starCount = 4500;
+    const starCount = 5000;
     const starPositions = new Float32Array(starCount * 3);
     const starColors = new Float32Array(starCount * 3);
     for (let i = 0; i < starCount * 3; i += 3) {
-      const radius = 600 + Math.random() * 300;
+      const radius = 700 + Math.random() * 350;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(Math.random() * 2 - 1);
       starPositions[i] = radius * Math.sin(phi) * Math.cos(theta);
       starPositions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
       starPositions[i + 2] = radius * Math.cos(phi);
 
-      const tint = 0.8 + Math.random() * 0.2;
+      const tint = 0.85 + Math.random() * 0.15;
       starColors[i] = tint;
       starColors[i + 1] = tint * 0.95;
-      starColors[i + 2] = tint * 1.1;
+      starColors[i + 2] = tint * 1.15;
     }
     starGeom.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
     starGeom.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
-    const starMat = new THREE.PointsMaterial({ size: 1.2, vertexColors: true, transparent: true, opacity: 0.9 });
+    const starMat = new THREE.PointsMaterial({ size: 1.2, vertexColors: true, transparent: true, opacity: 0.85 });
     scene.add(new THREE.Points(starGeom, starMat));
 
-    // 6. Real Sun Mesh & Solar Directional Light
-    const sunLight = new THREE.DirectionalLight(0xffffff, 2.5);
+    // 6. Real Sun Mesh & Directional Light
+    const sunLight = new THREE.DirectionalLight(0xffffff, 2.6);
     scene.add(sunLight);
     sunLightRef.current = sunLight;
 
     const sunGeom = new THREE.SphereGeometry(2.5, 32, 32);
-    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfff4cc });
+    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfff6d6 });
     const sunMesh = new THREE.Mesh(sunGeom, sunMat);
     scene.add(sunMesh);
     sunMeshRef.current = sunMesh;
 
-    const ambLight = new THREE.AmbientLight(0x223355, 0.45);
+    const ambLight = new THREE.AmbientLight(0x283b5e, 0.48);
     scene.add(ambLight);
 
-    // 7. Photorealistic NASA Blue Marble Live Globe Textures (Stationary Earth)
+    // 7. LeoLabs Photorealistic Live Earth Textures (STATIONARY GLOBE)
     const texLoader = new THREE.TextureLoader();
     const dayTexture = texLoader.load('/textures/earth_day.jpg');
     const nightTexture = texLoader.load('/textures/earth_night.jpg');
@@ -314,12 +316,12 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           vec4 nightColor = texture2D(nightTexture, vUv);
           
           // Realistic Night: city lights + ambient oceanic & land relief
-          vec3 nightAmbient = dayColor.rgb * 0.28 + nightColor.rgb * 1.7;
-          vec3 finalColor = mix(nightAmbient, dayColor.rgb * 1.2, dayMix);
+          vec3 nightAmbient = dayColor.rgb * 0.30 + nightColor.rgb * 1.8;
+          vec3 finalColor = mix(nightAmbient, dayColor.rgb * 1.25, dayMix);
           
           // Atmospheric Rayleigh blue limb scattering
           float rim = 1.0 - max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));
-          finalColor += vec3(0.1, 0.6, 1.0) * pow(rim, 3.0) * 0.55;
+          finalColor += vec3(0.08, 0.65, 1.0) * pow(rim, 3.0) * 0.6;
           
           gl_FragColor = vec4(finalColor, 1.0);
         }
@@ -332,7 +334,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(earthMesh);
     earthMeshRef.current = earthMesh;
 
-    // 8. NASA High-Altitude Cloud Layer
+    // 8. High-Altitude Atmospheric Cloud Layer
     const cloudsTexture = texLoader.load('/textures/earth_clouds.jpg');
     const cloudsGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.015, 64, 64);
     const cloudsMat = new THREE.MeshStandardMaterial({
@@ -348,14 +350,14 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     // 9. Atmospheric Rayleigh Outer Glow Shell
     const atmosGeom = new THREE.SphereGeometry(EARTH_RADIUS * 1.04, 64, 64);
     const atmosMat = new THREE.MeshBasicMaterial({
-      color: 0x00d4ff,
+      color: 0x00e5ff,
       transparent: true,
       opacity: 0.18,
       side: THREE.BackSide,
     });
     scene.add(new THREE.Mesh(atmosGeom, atmosMat));
 
-    // 10. Realistic Moon
+    // 10. Lunar Satellite Body
     const moonTexture = texLoader.load('/textures/moon.jpg');
     const moonGeom = new THREE.SphereGeometry(1.737, 32, 32);
     const moonMat = new THREE.MeshStandardMaterial({ map: moonTexture, roughness: 0.9 });
@@ -363,22 +365,26 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     moonMesh.position.set(45, 10, -25);
     scene.add(moonMesh);
 
-    // 11. DISTINCT 3D OBJECT INSTANCED MESHES:
-    // A) Debris / Shattered Destroyed Satellite Fragments (Jagged Faceted Dodecahedron)
-    const maxInst = 2500;
-    const debrisGeom = new THREE.DodecahedronGeometry(0.18, 0);
-    const debrisMat = new THREE.MeshStandardMaterial({
-      color: 0xff3355,
-      emissive: 0x550011,
-      roughness: 0.35,
-      metalness: 0.8
+    // 11. Reference Equatorial & Altitude Orbital Rings (LeoLabs Style)
+    const ringsGroup = new THREE.Group();
+    const ringRadii = [EARTH_RADIUS + 0.5, EARTH_RADIUS + 1.2, EARTH_RADIUS + 2.0, EARTH_RADIUS + 10.0, EARTH_RADIUS + 35.786];
+    ringRadii.forEach((rad) => {
+      const ringGeom = new THREE.BufferGeometry();
+      const ringPts: THREE.Vector3[] = [];
+      for (let a = 0; a <= Math.PI * 2; a += 0.05) {
+        ringPts.push(new THREE.Vector3(rad * Math.cos(a), 0, rad * Math.sin(a)));
+      }
+      ringGeom.setFromPoints(ringPts);
+      const ringMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.12 });
+      ringsGroup.add(new THREE.Line(ringGeom, ringMat));
     });
-    const debrisMesh = new THREE.InstancedMesh(debrisGeom, debrisMat, maxInst);
-    debrisMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    scene.add(debrisMesh);
-    debrisMeshRef.current = debrisMesh;
+    scene.add(ringsGroup);
+    orbitRingsGroupRef.current = ringsGroup;
 
-    // B) Active Operational Satellites (Sleek Diamond/Octahedron with Cyan Telemetry Beacon)
+    // 12. LEOLABS SPECIALIZED 3D INSTANCED MESHES:
+    const maxInst = 2500;
+
+    // A) Operational Payloads & Active Satellites (Cyan/Electric Blue Octahedron Diamond)
     const satGeom = new THREE.OctahedronGeometry(0.20, 0);
     const satMat = new THREE.MeshStandardMaterial({
       color: 0x00f0ff,
@@ -391,7 +397,33 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(satMesh);
     satMeshRef.current = satMesh;
 
-    // C) Rocket Bodies / Booster Upper Stages (Cylindrical Fuselage)
+    // B) Megaconstellations (e.g. Starlink, OneWeb - Violet/Purple Diamond)
+    const starlinkGeom = new THREE.OctahedronGeometry(0.18, 0);
+    const starlinkMat = new THREE.MeshStandardMaterial({
+      color: 0xaa55ff,
+      emissive: 0x331166,
+      roughness: 0.2,
+      metalness: 0.9
+    });
+    const starlinkMesh = new THREE.InstancedMesh(starlinkGeom, starlinkMat, maxInst);
+    starlinkMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(starlinkMesh);
+    starlinkMeshRef.current = starlinkMesh;
+
+    // C) Debris / Shattered Destroyed Satellite Fragments (Jagged Faceted Dodecahedron)
+    const debrisGeom = new THREE.DodecahedronGeometry(0.18, 0);
+    const debrisMat = new THREE.MeshStandardMaterial({
+      color: 0xff3355,
+      emissive: 0x550011,
+      roughness: 0.35,
+      metalness: 0.8
+    });
+    const debrisMesh = new THREE.InstancedMesh(debrisGeom, debrisMat, maxInst);
+    debrisMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(debrisMesh);
+    debrisMeshRef.current = debrisMesh;
+
+    // D) Rocket Bodies & Booster Upper Stages (Cylindrical Fuselage)
     const rocketGeom = new THREE.CylinderGeometry(0.08, 0.12, 0.38, 8);
     const rocketMat = new THREE.MeshStandardMaterial({
       color: 0xffaa00,
@@ -525,8 +557,9 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         const dummy = new THREE.Object3D();
         const currentVisible: OrbitalPosition[] = [];
 
-        let debrisIdx = 0;
         let satIdx = 0;
+        let starlinkIdx = 0;
+        let debrisIdx = 0;
         let rocketIdx = 0;
 
         const mu = 398600.4418; // Earth gravitational parameter km^3/s^2
@@ -546,7 +579,6 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           const vMag = Math.sqrt(vx * vx + vy * vy + vz * vz);
           if (vMag < 1.0) {
             const vOrb = Math.sqrt(mu / r);
-            // Derive unique orbital inclination based on NORAD ID hash
             const incRad = (((pos.norad_id * 17) % 95) + 15) * (Math.PI / 180);
             vx = -vOrb * Math.sin(incRad) * (ry / r);
             vy = vOrb * Math.cos(incRad) * (rx / r);
@@ -583,9 +615,20 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           pos.alt_km = rNew - 6371;
           pos.velocity_km_s = Math.sqrt(vx * vx + vy * vy + vz * vz);
 
-          // Apply UI Filters
+          // Apply Fleet & Altitude Filters
+          const nameUpper = (pos.name || '').toUpperCase();
+          const isStarlink = nameUpper.includes('STARLINK');
+          const isOneWeb = nameUpper.includes('ONEWEB');
+          const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO');
+
           if (isDebrisMode && pos.type !== 'DEBRIS') return;
-          if (typeFilter !== 'ALL' && pos.type !== typeFilter) return;
+          if (activeFleetFilter === 'STARLINK' && !isStarlink) return;
+          if (activeFleetFilter === 'ONEWEB' && !isOneWeb) return;
+          if (activeFleetFilter === 'GPS' && !isGps) return;
+          if (activeFleetFilter === 'DEBRIS' && pos.type !== 'DEBRIS') return;
+          if (activeFleetFilter === 'PAYLOAD' && pos.type !== 'ACTIVE_SATELLITE') return;
+          if (activeFleetFilter === 'ROCKET' && pos.type !== 'ROCKET_BODY') return;
+
           if (altitudeFilter === 'LEO' && pos.alt_km > 2000) return;
           if (altitudeFilter === 'MEO' && (pos.alt_km <= 2000 || pos.alt_km > 20000)) return;
           if (altitudeFilter === 'GEO' && pos.alt_km <= 20000) return;
@@ -598,12 +641,11 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
           dummy.position.set(x3d, y3d, z3d);
           const isSelected = selectedObject?.norad_id === pos.norad_id;
-          const scale = isSelected ? 3.2 : 1.15;
+          const scale = isSelected ? 3.4 : 1.15;
           dummy.scale.set(scale, scale, scale);
 
           if (pos.type === 'DEBRIS') {
             if (debrisMeshRef.current && debrisIdx < maxInst) {
-              // Tumbling rotation for broken space debris fragments
               dummy.rotation.set(tumbleAngle * 0.8 + pos.norad_id, tumbleAngle * 1.2, tumbleAngle * 0.5);
               dummy.updateMatrix();
               debrisMeshRef.current.setMatrixAt(debrisIdx, dummy.matrix);
@@ -615,6 +657,13 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               dummy.updateMatrix();
               rocketMeshRef.current.setMatrixAt(rocketIdx, dummy.matrix);
               rocketIdx++;
+            }
+          } else if (isStarlink || isOneWeb) {
+            if (starlinkMeshRef.current && starlinkIdx < maxInst) {
+              dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
+              dummy.updateMatrix();
+              starlinkMeshRef.current.setMatrixAt(starlinkIdx, dummy.matrix);
+              starlinkIdx++;
             }
           } else {
             if (satMeshRef.current && satIdx < maxInst) {
@@ -628,13 +677,17 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
         visiblePositionsRef.current = currentVisible;
 
-        if (debrisMeshRef.current) {
-          debrisMeshRef.current.count = debrisIdx;
-          debrisMeshRef.current.instanceMatrix.needsUpdate = true;
-        }
         if (satMeshRef.current) {
           satMeshRef.current.count = satIdx;
           satMeshRef.current.instanceMatrix.needsUpdate = true;
+        }
+        if (starlinkMeshRef.current) {
+          starlinkMeshRef.current.count = starlinkIdx;
+          starlinkMeshRef.current.instanceMatrix.needsUpdate = true;
+        }
+        if (debrisMeshRef.current) {
+          debrisMeshRef.current.count = debrisIdx;
+          debrisMeshRef.current.instanceMatrix.needsUpdate = true;
         }
         if (rocketMeshRef.current) {
           rocketMeshRef.current.count = rocketIdx;
@@ -679,7 +732,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
       renderer.dispose();
     };
-  }, [typeFilter, altitudeFilter, isDebrisMode, selectedObject]);
+  }, [activeFleetFilter, altitudeFilter, isDebrisMode, selectedObject]);
 
   // Update Solar Illumination Vector with Simulation Time
   useEffect(() => {
@@ -695,7 +748,14 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     }
   }, [simTime]);
 
-  // Update Trajectory Line for Selected Object
+  // Toggle Orbit Reference Rings
+  useEffect(() => {
+    if (orbitRingsGroupRef.current) {
+      orbitRingsGroupRef.current.visible = showOrbitRings;
+    }
+  }, [showOrbitRings]);
+
+  // Update Trajectory Ribbon for Selected Object (LeoLabs Glowing Track)
   useEffect(() => {
     if (!sceneRef.current) return;
     const scene = sceneRef.current;
@@ -718,7 +778,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       const lineMat = new THREE.LineBasicMaterial({
         color: lineColor,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.9,
         linewidth: 2
       });
 
@@ -727,6 +787,44 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       trajectoryLineRef.current = line;
     }
   }, [trajectoryData, selectedObject]);
+
+  // Update Ground Track Ribbon on Earth Surface
+  useEffect(() => {
+    if (!sceneRef.current) return;
+    const scene = sceneRef.current;
+
+    if (groundTrackLineRef.current) {
+      scene.remove(groundTrackLineRef.current);
+      groundTrackLineRef.current.geometry.dispose();
+      groundTrackLineRef.current = null;
+    }
+
+    if (_groundTrackData && _groundTrackData.points.length > 1 && showGroundTrack) {
+      const pts = _groundTrackData.points.map((pt) => {
+        const latRad = (pt.lat * Math.PI) / 180;
+        const lonRad = (pt.lon * Math.PI) / 180;
+        const r = EARTH_RADIUS * 1.002;
+        return new THREE.Vector3(
+          r * Math.cos(latRad) * Math.cos(lonRad),
+          r * Math.sin(latRad),
+          -r * Math.cos(latRad) * Math.sin(lonRad)
+        );
+      });
+
+      const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
+      const lineMat = new THREE.LineDashedMaterial({
+        color: 0x00ffff,
+        dashSize: 0.2,
+        gapSize: 0.1,
+        transparent: true,
+        opacity: 0.7
+      });
+      const line = new THREE.Line(lineGeom, lineMat);
+      line.computeLineDistances();
+      scene.add(line);
+      groundTrackLineRef.current = line;
+    }
+  }, [_groundTrackData, showGroundTrack]);
 
   // Update Visual Conjunction Vector Line
   useEffect(() => {
@@ -766,7 +864,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const handleResetCamera = () => {
     if (!cameraRef.current || !controlsRef.current) return;
     setIsFollowMode(false);
-    cameraRef.current.position.set(0, 10, 28);
+    cameraRef.current.position.set(0, 11, 27);
     controlsRef.current.target.set(0, 0, 0);
     controlsRef.current.update();
   };
@@ -818,7 +916,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       {/* 3D WebGL Canvas Mounting Container */}
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* FLOATING HOVER TOOLTIP */}
+      {/* FLOATING HOVER TOOLTIP (LeoLabs Style) */}
       {hoveredObject && (
         <div 
           className="fixed pointer-events-none z-50 bg-space-950/95 backdrop-blur-md border border-cyan-500/50 p-2.5 rounded-xl text-xs font-mono shadow-2xl text-white animate-fade-in -translate-x-1/2 -translate-y-full mb-3"
@@ -839,12 +937,12 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         </div>
       )}
 
-      {/* TOP LEFT: Space Situational Awareness HUD Overlay */}
-      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-xs">
-        <div className="bg-space-900/90 backdrop-blur-md px-3 py-2 rounded-xl border border-space-700 font-mono text-xs text-white shadow-xl flex items-center justify-between">
+      {/* TOP LEFT: LeoLabs Style Multi-Fleet Filter & Search Dock */}
+      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-sm">
+        <div className="bg-space-900/90 backdrop-blur-md px-3.5 py-2 rounded-xl border border-space-700 font-mono text-xs text-white shadow-xl flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-cyan-neon animate-pulse"></span>
-            <span className="font-bold tracking-wider text-cyan-neon">SPACE TRAFFIC RADAR</span>
+            <Globe className="w-4 h-4 text-cyan-neon animate-pulse" />
+            <span className="font-bold tracking-wider text-cyan-neon">ORBITAL TRAFFIC RADAR</span>
           </div>
           <button
             onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
@@ -856,12 +954,12 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         </div>
 
         {isLeftPanelOpen && (
-          <div className="bg-space-900/90 backdrop-blur-md border border-space-700/80 rounded-xl p-3.5 flex flex-col gap-3 font-mono text-xs shadow-2xl text-slate-200 animate-fade-in">
+          <div className="bg-space-900/90 backdrop-blur-md border border-space-700/80 rounded-xl p-3.5 flex flex-col gap-3 font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-250px)] overflow-y-auto">
             {/* Search Input */}
             <form onSubmit={handleSearchSubmit} className="relative">
               <input
                 type="text"
-                placeholder="Search Satellite / NORAD (e.g. ISS, 25544)..."
+                placeholder="Search Satellite, Starlink, Debris, NORAD..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-space-950 border border-space-700 rounded-lg px-3 py-1.5 pl-8 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 shadow-inner"
@@ -869,29 +967,35 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
             </form>
 
-            {/* 3D Visual Mesh Legend & Category Filter */}
+            {/* LeoLabs Fleet & Constellation Filters */}
             <div>
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <Sliders className="w-3 h-3 text-cyan-400" />
-                <span>Object 3D Geometry</span>
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Sliders className="w-3 h-3 text-cyan-400" />
+                  Fleet & Constellations
+                </span>
+                <span className="text-[9px] text-cyan-400">19,578 Tracked</span>
               </div>
               <div className="grid grid-cols-2 gap-1 text-[11px]">
                 {[
-                  { key: 'ALL', label: 'All Tracked', icon: Radio, color: 'text-white' },
-                  { key: 'ACTIVE_SATELLITE', label: '◆ Satellites', icon: Activity, color: 'text-cyan-400' },
-                  { key: 'DEBRIS', label: '⬟ Wreckage', icon: Trash2, color: 'text-danger-400' },
-                  { key: 'ROCKET_BODY', label: '❚ Boosters', icon: Flame, color: 'text-warning-400' }
-                ].map((t) => (
+                  { key: 'ALL', label: 'All Objects', color: 'text-white' },
+                  { key: 'PAYLOAD', label: '◆ Operational', color: 'text-cyan-400' },
+                  { key: 'STARLINK', label: '◆ Starlink Fleet', color: 'text-purple-400' },
+                  { key: 'ONEWEB', label: '◆ OneWeb', color: 'text-purple-400' },
+                  { key: 'GPS', label: '◆ GPS / GNSS', color: 'text-emerald-400' },
+                  { key: 'DEBRIS', label: '⬟ Debris Clouds', color: 'text-danger-400' },
+                  { key: 'ROCKET', label: '❚ Rocket Bodies', color: 'text-warning-400' }
+                ].map((f) => (
                   <button
-                    key={t.key}
-                    onClick={() => { setTypeFilter(t.key); setIsDebrisMode(false); }}
-                    className={`px-2 py-1 rounded transition text-left flex items-center gap-1.5 ${
-                      typeFilter === t.key && !isDebrisMode
+                    key={f.key}
+                    onClick={() => { setActiveFleetFilter(f.key); setIsDebrisMode(false); }}
+                    className={`px-2 py-1 rounded transition text-left ${
+                      activeFleetFilter === f.key && !isDebrisMode
                         ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
                         : 'bg-space-950 text-slate-400 hover:text-slate-200 border border-space-800'
                     }`}
                   >
-                    <span className={t.color}>{t.label}</span>
+                    <span className={f.color}>{f.label}</span>
                   </button>
                 ))}
               </div>
@@ -901,47 +1005,55 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             <div>
               <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                 <Compass className="w-3 h-3 text-cyan-400" />
-                <span>Orbital Shells</span>
+                <span>Orbital Regime</span>
               </div>
               <div className="grid grid-cols-4 gap-1 text-[10px]">
-                {['ALL', 'LEO', 'MEO', 'GEO'].map((alt) => (
+                {[
+                  { key: 'ALL', label: 'ALL' },
+                  { key: 'LEO', label: 'LEO' },
+                  { key: 'MEO', label: 'MEO' },
+                  { key: 'GEO', label: 'GEO' }
+                ].map((alt) => (
                   <button
-                    key={alt}
-                    onClick={() => setAltitudeFilter(alt)}
+                    key={alt.key}
+                    onClick={() => setAltitudeFilter(alt.key)}
                     className={`py-1 rounded text-center ${
-                      altitudeFilter === alt
+                      altitudeFilter === alt.key
                         ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
                         : 'bg-space-950 text-slate-400 hover:text-slate-200 border border-space-800'
                     }`}
                   >
-                    {alt}
+                    {alt.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Debris Mode Toggle */}
+            {/* Visual Overlays: Orbit Rings & Debris Mode */}
             <div className="pt-2 border-t border-space-800 flex items-center justify-between">
-              <span className="text-[11px] text-danger-300 font-semibold flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-danger-400" />
-                DEBRIS ISOLATION
-              </span>
               <button
-                onClick={() => setIsDebrisMode(!isDebrisMode)}
-                className={`px-2.5 py-0.5 rounded text-[10px] font-bold transition ${
-                  isDebrisMode
-                    ? 'bg-danger-600 text-white shadow-lg'
-                    : 'bg-space-950 text-slate-400 border border-space-700'
+                onClick={() => setShowOrbitRings(!showOrbitRings)}
+                className={`px-2 py-1 rounded text-[10px] font-bold border transition flex items-center gap-1 ${
+                  showOrbitRings
+                    ? 'bg-cyan-500/20 text-cyan-neon border-cyan-500/40'
+                    : 'bg-space-950 text-slate-500 border-space-800'
                 }`}
               >
-                {isDebrisMode ? 'ACTIVE' : 'OFF'}
+                <Compass className="w-3 h-3" />
+                ORBIT RINGS
               </button>
-            </div>
 
-            {/* Active Telemetry Statistics */}
-            <div className="pt-2 border-t border-space-800 text-[10px] text-slate-400 flex items-center justify-between">
-              <span>LIVE TRAJECTORY ASSETS:</span>
-              <span className="text-cyan-400 font-bold">{positions.length} In Orbit</span>
+              <button
+                onClick={() => setIsDebrisMode(!isDebrisMode)}
+                className={`px-2 py-1 rounded text-[10px] font-bold border transition flex items-center gap-1 ${
+                  isDebrisMode
+                    ? 'bg-danger-600 text-white border-danger-400 shadow-md'
+                    : 'bg-space-950 text-danger-400 border-space-800'
+                }`}
+              >
+                <AlertTriangle className="w-3 h-3" />
+                DEBRIS ISOLATE
+              </button>
             </div>
           </div>
         )}
@@ -974,7 +1086,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         </div>
       </div>
 
-      {/* RIGHT PANEL: Slide-out Telemetry Drawer */}
+      {/* RIGHT PANEL: LeoLabs Style Mission Diagnostics & Telemetry Drawer */}
       {selectedObject && (
         <div className="absolute top-16 right-4 z-20 w-88 bg-space-900/95 backdrop-blur-md border border-cyan-500/40 p-4 rounded-2xl font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-220px)] overflow-y-auto">
           {/* Header */}
@@ -991,7 +1103,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             </button>
           </div>
 
-          {/* Action Toolbar: Follow, Trajectory, Ground Track */}
+          {/* Action Toolbar: Follow, Ground Track */}
           <div className="grid grid-cols-2 gap-1.5 mb-3">
             <button
               onClick={() => setIsFollowMode(!isFollowMode)}
@@ -1002,7 +1114,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               }`}
             >
               <Activity className="w-3.5 h-3.5" />
-              {isFollowMode ? 'FOLLOWING' : 'FOLLOW ORBIT'}
+              {isFollowMode ? 'LOCKED ON' : 'LOCK ORBIT'}
             </button>
 
             <button
@@ -1021,7 +1133,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           {/* Real Telemetry Table */}
           <div className="space-y-1.5 text-[11px] bg-space-950 p-2.5 rounded-xl border border-space-800">
             <div className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider mb-1 flex items-center justify-between">
-              <span>Live SGP4 Telemetry</span>
+              <span>Live SGP4 Ephemeris</span>
               <span className="text-emerald-400 text-[9px]">● PROPAGATING</span>
             </div>
             <div className="flex justify-between">
@@ -1029,11 +1141,11 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               <span className="text-white font-bold">{selectedPos ? `${selectedPos.alt_km.toFixed(1)} km` : 'N/A'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Orbital Velocity:</span>
+              <span className="text-slate-400">Orbital Speed:</span>
               <span className="text-cyan-400 font-bold">{selectedPos ? `${selectedPos.velocity_km_s.toFixed(2)} km/s` : 'N/A'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Latitude / Longitude:</span>
+              <span className="text-slate-400">Lat / Lon:</span>
               <span className="text-slate-200">{selectedPos ? `${selectedPos.lat.toFixed(2)}°, ${selectedPos.lon.toFixed(2)}°` : 'N/A'}</span>
             </div>
             <div className="flex justify-between">
@@ -1072,7 +1184,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           {/* Trajectory Prediction Window Controls */}
           <div className="mt-2.5 pt-2 border-t border-space-800">
             <div className="text-[10px] text-slate-400 mb-1 flex items-center justify-between">
-              <span>SGP4 TRAJECTORY HORIZON:</span>
+              <span>SGP4 TRAJECTORY RIBBON:</span>
               <span className="text-cyan-400 font-bold">{trajectoryHours}H</span>
             </div>
             <div className="grid grid-cols-4 gap-1">
@@ -1135,7 +1247,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         </div>
       )}
 
-      {/* BOTTOM BAR: Simulation Time Controller & Timeline */}
+      {/* BOTTOM BAR: Astrodynamics Mission Control Dock */}
       <div className="absolute bottom-4 left-4 right-4 z-20 bg-space-900/90 backdrop-blur-md p-2.5 rounded-2xl border border-space-700 flex flex-wrap items-center justify-between gap-4 font-mono text-xs shadow-2xl">
         {/* Play/Pause & Speed Multipliers */}
         <div className="flex items-center gap-2">
