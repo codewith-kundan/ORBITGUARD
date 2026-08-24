@@ -244,7 +244,15 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const [_groundTrackData, setGroundTrackData] = useState<GroundTrackResponse | null>(null);
 
   // Hover Tooltip / Floating Card State
-  const [hoveredObject, setHoveredObject] = useState<{ obj: OrbitalObject; pos: OrbitalPosition; screenX: number; screenY: number } | null>(null);
+  const [hoveredObject, setHoveredObject] = useState<{
+    name: string;
+    norad_id: number;
+    type: string;
+    alt_km: number;
+    velocity_km_s: number;
+    screenX: number;
+    screenY: number;
+  } | null>(null);
 
   // Synchronized Mutable Refs for High-Speed Raycasting
   const positionsRef = useRef<OrbitalPosition[]>([]);
@@ -508,7 +516,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     instancedMeshRef.current = instMesh;
 
     // Screen-Space Distance Hit Tester (Works reliably on all devices & screen sizes)
-    const findClosestDot = (clientX: number, clientY: number, maxScreenDistPx: number = 24) => {
+    const findClosestDot = (clientX: number, clientY: number, maxScreenDistPx: number = 28) => {
       if (!camera || !renderer || visiblePositionsRef.current.length === 0) return null;
       const rect = renderer.domElement.getBoundingClientRect();
       const mouseX = clientX - rect.left;
@@ -516,7 +524,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       const w = rect.width;
       const h = rect.height;
 
-      let closest: { pos: OrbitalPosition; obj: OrbitalObject; dist: number } | null = null;
+      let closest: { pos: OrbitalPosition; dist: number } | null = null;
       const tempVec = new THREE.Vector3();
 
       for (const pos of visiblePositionsRef.current) {
@@ -535,10 +543,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
         if (dPx <= maxScreenDistPx) {
           if (!closest || dPx < closest.dist) {
-            const found = objectsRef.current.find((o) => o.norad_id === pos.norad_id);
-            if (found) {
-              closest = { pos, obj: found, dist: dPx };
-            }
+            closest = { pos, dist: dPx };
           }
         }
       }
@@ -548,11 +553,14 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
     // Pointer Move for Interactive Hover Tooltip
     const handlePointerMove = (e: MouseEvent) => {
-      const match = findClosestDot(e.clientX, e.clientY, 20);
+      const match = findClosestDot(e.clientX, e.clientY, 24);
       if (match) {
         setHoveredObject({
-          obj: match.obj,
-          pos: match.pos,
+          name: match.pos.name || `NORAD #${match.pos.norad_id}`,
+          norad_id: match.pos.norad_id,
+          type: (match.pos.type || 'ACTIVE_SATELLITE').replace('_', ' '),
+          alt_km: match.pos.alt_km,
+          velocity_km_s: match.pos.velocity_km_s,
           screenX: e.clientX,
           screenY: e.clientY
         });
@@ -564,15 +572,41 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     };
 
     // Instant Click Selection on Any Dot
-    const handleCanvasClick = (e: MouseEvent) => {
-      const match = findClosestDot(e.clientX, e.clientY, 26);
+    const handleCanvasClick = async (e: MouseEvent) => {
+      const match = findClosestDot(e.clientX, e.clientY, 32);
       if (match) {
-        onSelectObject(match.obj);
-        setSelectedPos(match.pos);
+        const p = match.pos;
+        const found = objectsRef.current.find((o) => o.norad_id === p.norad_id);
+        const fallbackObj: OrbitalObject = found || {
+          id: p.norad_id,
+          norad_id: p.norad_id,
+          name: p.name || `NORAD #${p.norad_id}`,
+          object_type: (p.type as any) || 'ACTIVE_SATELLITE',
+          source: 'Space-Track.org (US Space Force)',
+          source_group: 'live_ephemeris',
+          tle_line1: '',
+          tle_line2: '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        onSelectObject(fallbackObj);
+        setSelectedPos(p);
+
+        // Fetch full Keplerian details & TLE lines from backend
+        try {
+          const fullDetails = await api.getObjectDetails(p.norad_id);
+          if (fullDetails) {
+            onSelectObject(fullDetails);
+          }
+        } catch (err) {
+          // Keep using fallback
+        }
+
         const targetVec = new THREE.Vector3(
-          match.pos.x_km / 1000,
-          match.pos.z_km / 1000,
-          -match.pos.y_km / 1000
+          p.x_km / 1000,
+          p.z_km / 1000,
+          -p.y_km / 1000
         );
         controls.target.copy(targetVec);
         camera.position.copy(targetVec.clone().add(new THREE.Vector3(0, 3, 7)));
@@ -820,19 +854,19 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       {/* FLOATING HOVER TOOLTIP */}
       {hoveredObject && (
         <div 
-          className="fixed pointer-events-none z-50 bg-space-950/90 backdrop-blur-md border border-cyan-500/50 p-2.5 rounded-xl text-xs font-mono shadow-2xl text-white animate-fade-in -translate-x-1/2 -translate-y-full mb-3"
+          className="fixed pointer-events-none z-50 bg-space-950/95 backdrop-blur-md border border-cyan-500/50 p-2.5 rounded-xl text-xs font-mono shadow-2xl text-white animate-fade-in -translate-x-1/2 -translate-y-full mb-3"
           style={{ left: hoveredObject.screenX, top: hoveredObject.screenY }}
         >
           <div className="font-bold text-cyan-neon flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-            <span>{hoveredObject.obj.name}</span>
+            <span>{hoveredObject.name}</span>
           </div>
           <div className="text-[10px] text-slate-400">
-            NORAD #{hoveredObject.obj.norad_id} • {hoveredObject.obj.object_type.replace('_', ' ')}
+            NORAD #{hoveredObject.norad_id} • {hoveredObject.type}
           </div>
           <div className="grid grid-cols-2 gap-2 mt-1 pt-1 border-t border-space-800 text-[10px]">
-            <div>Alt: <span className="text-white font-bold">{hoveredObject.pos.alt_km.toFixed(1)} km</span></div>
-            <div>Vel: <span className="text-cyan-400 font-bold">{hoveredObject.pos.velocity_km_s.toFixed(2)} km/s</span></div>
+            <div>Alt: <span className="text-white font-bold">{hoveredObject.alt_km.toFixed(1)} km</span></div>
+            <div>Vel: <span className="text-cyan-400 font-bold">{hoveredObject.velocity_km_s.toFixed(2)} km/s</span></div>
           </div>
           <div className="text-[9px] text-slate-500 mt-0.5 text-center">Click dot for full telemetry</div>
         </div>
