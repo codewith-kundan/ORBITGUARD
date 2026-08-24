@@ -116,7 +116,9 @@ export default function App() {
     setIsConjunctionModalOpen(true);
   };
 
-  const alertCount = alerts.filter(a => a.status === 'ACTIVE').length;
+  const alertCount = alerts.filter(
+    (a) => a.status === 'ACTIVE' && (a.severity === 'HIGH' || a.severity === 'CRITICAL')
+  ).length;
 
   return (
     <div className="min-h-screen bg-space-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-space-950">

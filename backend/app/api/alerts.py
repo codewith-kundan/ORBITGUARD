@@ -22,6 +22,8 @@ def list_alerts(
         query = query.filter(Alert.status == status)
     if severity:
         query = query.filter(Alert.severity == severity)
+    else:
+        query = query.filter(Alert.severity.in_([RiskLevel.HIGH, RiskLevel.CRITICAL]))
     return query.order_by(Alert.created_at.desc()).limit(limit).all()
 
 @router.post("/{id}/acknowledge", response_model=AlertResponse)

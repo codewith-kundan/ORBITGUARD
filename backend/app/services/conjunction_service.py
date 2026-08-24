@@ -9,6 +9,7 @@ from backend.app.models.orbital_object import OrbitalObject
 from backend.app.models.conjunction import Conjunction
 from backend.app.models.alert import Alert
 from backend.app.schemas.alert import AlertStatus
+from backend.app.schemas.conjunction import RiskLevel
 from backend.app.services.propagation_service import PropagationService
 from backend.app.services.risk_service import RiskService
 from backend.app.utils.distance import compute_spatial_separation, euclidean_distance_3d
@@ -319,18 +320,19 @@ class ConjunctionService:
             db.add(conj)
             db.flush()
 
-            # Auto-generate Alert for all conjunction events
-            alert = Alert(
-                conjunction_id=conj.id,
-                severity=ev["risk_level"],
-                title=f"Collision Risk: {ev['object_a'].name} ↔ {ev['object_b'].name}",
-                status=AlertStatus.ACTIVE,
-                message=f"Predicted miss distance of {ev['miss_distance_km']} km at {ev['tca'].strftime('%Y-%m-%d %H:%M:%S')} UTC (Risk: {ev['risk_score']}/100)",
-                acknowledged=False,
-                resolved=False,
-                created_at=datetime.utcnow()
-            )
-            db.add(alert)
+            # Auto-generate Alert ONLY for HIGH and CRITICAL severity conjunction events
+            if ev["risk_level"] in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+                alert = Alert(
+                    conjunction_id=conj.id,
+                    severity=ev["risk_level"],
+                    title=f"Collision Risk: {ev['object_a'].name} ↔ {ev['object_b'].name}",
+                    status=AlertStatus.ACTIVE,
+                    message=f"Predicted miss distance of {ev['miss_distance_km']} km at {ev['tca'].strftime('%Y-%m-%d %H:%M:%S')} UTC (Risk: {ev['risk_score']}/100)",
+                    acknowledged=False,
+                    resolved=False,
+                    created_at=datetime.utcnow()
+                )
+                db.add(alert)
 
         db.commit()
 

@@ -26,7 +26,10 @@ def get_system_statistics(db: Session = Depends(get_db)):
     medium_conjunctions = db.query(Conjunction).filter(Conjunction.risk_level == RiskLevel.MEDIUM).count()
     low_conjunctions = db.query(Conjunction).filter(Conjunction.risk_level == RiskLevel.LOW).count()
 
-    active_alerts = db.query(Alert).filter(Alert.status == AlertStatus.ACTIVE).count()
+    active_alerts = db.query(Alert).filter(
+        Alert.status == AlertStatus.ACTIVE,
+        Alert.severity.in_([RiskLevel.HIGH, RiskLevel.CRITICAL])
+    ).count()
 
     # Altitude distribution: LEO (<2000 km), MEO (2000-35000 km), GEO (>35000 km)
     objects = db.query(OrbitalObject.perigee_km, OrbitalObject.apogee_km).all()
