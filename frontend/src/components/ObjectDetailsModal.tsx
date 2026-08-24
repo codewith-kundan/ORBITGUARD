@@ -42,17 +42,17 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
   const period = object.period_minutes ?? (object as any).period_min;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-space-900 border border-cyan-500/40 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative font-mono text-slate-200">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-space-900 border border-cyan-500/40 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-2xl relative font-mono text-slate-200">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-space-800 pb-4 mb-4">
+        <div className="flex items-start justify-between border-b border-space-800 pb-3 sm:pb-4 mb-4 gap-2">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-neon glow-cyan">
-              <Satellite className="w-6 h-6" />
+            <div className="p-2 sm:p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-neon glow-cyan">
+              <Satellite className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-white tracking-wide">{object.name}</h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">{object.name}</h3>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-space-800 text-cyan-400 border border-space-700">
                   NORAD #{object.norad_id}
                 </span>
@@ -77,22 +77,22 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
             <Activity className="w-3.5 h-3.5 animate-pulse" />
             Real-Time SGP4 Analytical Telemetry {loading && <span className="text-[10px] text-slate-400">(Updating...)</span>}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-space-950 p-3 rounded-lg border border-space-800">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+            <div className="bg-space-950 p-2.5 sm:p-3 rounded-lg border border-space-800">
               <div className="text-[10px] text-slate-400">LATITUDE</div>
-              <div className="text-sm font-bold text-white">{livePos ? `${livePos.lat.toFixed(4)}°` : '—'}</div>
+              <div className="text-xs sm:text-sm font-bold text-white">{livePos ? `${livePos.lat.toFixed(4)}°` : '—'}</div>
             </div>
-            <div className="bg-space-950 p-3 rounded-lg border border-space-800">
+            <div className="bg-space-950 p-2.5 sm:p-3 rounded-lg border border-space-800">
               <div className="text-[10px] text-slate-400">LONGITUDE</div>
-              <div className="text-sm font-bold text-white">{livePos ? `${livePos.lon.toFixed(4)}°` : '—'}</div>
+              <div className="text-xs sm:text-sm font-bold text-white">{livePos ? `${livePos.lon.toFixed(4)}°` : '—'}</div>
             </div>
-            <div className="bg-space-950 p-3 rounded-lg border border-space-800">
+            <div className="bg-space-950 p-2.5 sm:p-3 rounded-lg border border-space-800">
               <div className="text-[10px] text-slate-400">ALTITUDE</div>
-              <div className="text-sm font-bold text-cyan-neon">{livePos ? `${livePos.alt_km.toFixed(1)} km` : '—'}</div>
+              <div className="text-xs sm:text-sm font-bold text-cyan-neon">{livePos ? `${livePos.alt_km.toFixed(1)} km` : '—'}</div>
             </div>
-            <div className="bg-space-950 p-3 rounded-lg border border-space-800">
+            <div className="bg-space-950 p-2.5 sm:p-3 rounded-lg border border-space-800">
               <div className="text-[10px] text-slate-400">ORBITAL SPEED</div>
-              <div className="text-sm font-bold text-cyan-neon">{livePos ? `${livePos.velocity_km_s.toFixed(3)} km/s` : '—'}</div>
+              <div className="text-xs sm:text-sm font-bold text-cyan-neon">{livePos ? `${livePos.velocity_km_s.toFixed(3)} km/s` : '—'}</div>
             </div>
           </div>
         </div>
@@ -103,7 +103,7 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
             <Compass className="w-3.5 h-3.5 text-cyan-400" />
             Keplerian Orbital Elements
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-space-950/60 p-3 rounded-lg border border-space-800">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-xs bg-space-950/60 p-2.5 sm:p-3 rounded-lg border border-space-800">
             <div>
               <span className="text-slate-400">Perigee:</span>{' '}
               <span className="text-white font-bold">{object.perigee_km != null ? `${object.perigee_km.toFixed(1)} km` : 'N/A'}</span>
@@ -129,7 +129,7 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
             <Terminal className="w-3.5 h-3.5" />
             Raw Two-Line Element (TLE) Record
           </div>
-          <div className="bg-space-950 p-3 rounded-lg border border-space-800 font-mono text-[11px] text-slate-300 overflow-x-auto select-all">
+          <div className="bg-space-950 p-2.5 sm:p-3 rounded-lg border border-space-800 font-mono text-[10px] sm:text-[11px] text-slate-300 overflow-x-auto select-all">
             <div className="text-cyan-400">{object.name}</div>
             <div>{object.tle_line1}</div>
             <div>{object.tle_line2}</div>

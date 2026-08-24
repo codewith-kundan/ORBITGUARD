@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { 
-  Activity, 
   Compass, 
   Play, 
   Pause, 
@@ -982,11 +981,11 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       )}
 
       {/* TOP LEFT: LeoLabs Style Multi-Fleet Filter & Search Dock */}
-      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-sm">
-        <div className="bg-space-900/90 backdrop-blur-md px-3.5 py-2 rounded-xl border border-space-700 font-mono text-xs text-white shadow-xl flex items-center justify-between">
+      <div className="absolute top-3 sm:top-4 left-3 sm:left-4 z-20 flex flex-col gap-2 max-w-[calc(100vw-24px)] sm:max-w-sm">
+        <div className="bg-space-900/90 backdrop-blur-md px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border border-space-700 font-mono text-xs text-white shadow-xl flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4 text-cyan-neon animate-pulse" />
-            <span className="font-bold tracking-wider text-cyan-neon">ORBITAL TRAFFIC RADAR</span>
+            <span className="font-bold tracking-wider text-cyan-neon text-[11px] sm:text-xs">ORBITAL RADAR</span>
           </div>
           <button
             onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
@@ -998,7 +997,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         </div>
 
         {isLeftPanelOpen && (
-          <div className="bg-space-900/90 backdrop-blur-md border border-space-700/80 rounded-xl p-3.5 flex flex-col gap-3 font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-250px)] overflow-y-auto">
+          <div className="bg-space-900/95 backdrop-blur-md border border-space-700/80 rounded-xl p-3 sm:p-3.5 flex flex-col gap-2.5 sm:gap-3 font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-220px)] overflow-y-auto">
             {/* Search Input */}
             <form onSubmit={handleSearchSubmit} className="relative">
               <input
@@ -1104,35 +1103,35 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       </div>
 
       {/* TOP RIGHT: Global View Toggles & Clock */}
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-        {/* UTC Clock */}
-        <div className="bg-space-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-space-700 font-mono text-xs text-cyan-400 shadow-xl flex items-center gap-2">
+      <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-20 flex items-center gap-1.5 sm:gap-2">
+        {/* UTC Clock (hidden on very small screens) */}
+        <div className="hidden sm:flex bg-space-900/90 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-space-700 font-mono text-[11px] sm:text-xs text-cyan-400 shadow-xl items-center gap-1.5">
           <Clock className="w-3.5 h-3.5 text-slate-400" />
-          <span>UTC: {simTime.toISOString().replace('T', ' ').substring(0, 19)}</span>
+          <span>UTC: {simTime.toISOString().replace('T', ' ').substring(11, 19)}</span>
         </div>
 
         {/* Camera Reset & Fullscreen */}
         <div className="bg-space-900/90 backdrop-blur-md p-1 rounded-xl border border-space-700 flex items-center gap-1 shadow-xl">
           <button
             onClick={handleResetCamera}
-            className="p-1.5 hover:bg-space-800 rounded text-slate-300 hover:text-cyan-neon"
+            className="p-1 sm:p-1.5 hover:bg-space-800 rounded text-slate-300 hover:text-cyan-neon"
             title="Reset Camera View"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 hover:bg-space-800 rounded text-slate-300 hover:text-cyan-neon"
+            className="p-1 sm:p-1.5 hover:bg-space-800 rounded text-slate-300 hover:text-cyan-neon"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
           </button>
         </div>
       </div>
 
       {/* RIGHT PANEL: LeoLabs Style Mission Diagnostics & Telemetry Drawer */}
       {selectedObject && (
-        <div className="absolute top-16 right-4 z-20 w-88 bg-space-900/95 backdrop-blur-md border border-cyan-500/40 p-4 rounded-2xl font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-220px)] overflow-y-auto">
+        <div className="absolute top-14 sm:top-16 right-2 sm:right-4 z-20 w-[calc(100vw-16px)] sm:w-88 bg-space-900/95 backdrop-blur-md border border-cyan-500/40 p-3 sm:p-4 rounded-2xl font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-190px)] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-space-700 pb-2.5 mb-2.5">
             <div>
@@ -1151,22 +1150,22 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           <div className="grid grid-cols-2 gap-1.5 mb-3">
             <button
               onClick={() => setIsFollowMode(!isFollowMode)}
-              className={`py-1 px-2 rounded text-[11px] font-bold border transition flex items-center justify-center gap-1 ${
+              className={`py-1.5 px-2 rounded-lg font-bold text-[11px] border transition flex items-center justify-center gap-1 ${
                 isFollowMode
-                  ? 'bg-cyan-500 text-space-950 border-cyan-400 shadow-md'
-                  : 'bg-space-950 text-cyan-400 border-space-700 hover:bg-space-800'
+                  ? 'bg-cyan-500 text-space-950 border-cyan-400 shadow-lg'
+                  : 'bg-space-950 text-cyan-400 border-cyan-500/30 hover:bg-space-800'
               }`}
             >
-              <Activity className="w-3.5 h-3.5" />
-              {isFollowMode ? 'LOCKED ON' : 'LOCK ORBIT'}
+              <Crosshair className="w-3.5 h-3.5" />
+              {isFollowMode ? 'TRACKING ON' : 'LOCK ORBIT'}
             </button>
 
             <button
               onClick={() => setShowGroundTrack(!showGroundTrack)}
-              className={`py-1 px-2 rounded text-[11px] font-bold border transition flex items-center justify-center gap-1 ${
+              className={`py-1.5 px-2 rounded-lg font-bold text-[11px] border transition flex items-center justify-center gap-1 ${
                 showGroundTrack
-                  ? 'bg-cyan-500/20 text-cyan-neon border-cyan-500/50'
-                  : 'bg-space-950 text-slate-300 border-space-700 hover:bg-space-800'
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                  : 'bg-space-950 text-slate-400 border-space-800 hover:text-slate-200'
               }`}
             >
               <Compass className="w-3.5 h-3.5" />
@@ -1292,44 +1291,46 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       )}
 
       {/* BOTTOM BAR: Astrodynamics Mission Control Dock */}
-      <div className="absolute bottom-4 left-4 right-4 z-20 bg-space-900/90 backdrop-blur-md p-2.5 rounded-2xl border border-space-700 flex flex-wrap items-center justify-between gap-4 font-mono text-xs shadow-2xl">
+      <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 right-2 sm:right-4 z-20 bg-space-900/95 backdrop-blur-md p-2 sm:p-2.5 rounded-2xl border border-space-700 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-4 font-mono text-xs shadow-2xl">
         {/* Play/Pause & Speed Multipliers */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="p-1.5 bg-cyan-500 text-space-950 font-bold rounded-lg hover:bg-cyan-400 transition"
-            title={isPlaying ? 'Pause Simulation' : 'Play Simulation'}
-          >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          </button>
+        <div className="flex items-center justify-between sm:justify-start gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              onClick={() => setIsPlaying(!isPlaying)}
+              className="p-1 sm:p-1.5 bg-cyan-500 text-space-950 font-bold rounded-lg hover:bg-cyan-400 transition"
+              title={isPlaying ? 'Pause Simulation' : 'Play Simulation'}
+            >
+              {isPlaying ? <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+            </button>
 
-          <div className="flex items-center gap-1 bg-space-950 p-1 rounded-lg border border-space-800">
-            {[1, 10, 50, 200, 1000].map((spd) => (
-              <button
-                key={spd}
-                onClick={() => setSimSpeed(spd)}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  simSpeed === spd
-                    ? 'bg-cyan-500 text-space-950'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                {spd}X
-              </button>
-            ))}
+            <div className="flex items-center gap-0.5 sm:gap-1 bg-space-950 p-1 rounded-lg border border-space-800">
+              {[1, 10, 50, 200, 1000].map((spd) => (
+                <button
+                  key={spd}
+                  onClick={() => setSimSpeed(spd)}
+                  className={`px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold ${
+                    simSpeed === spd
+                      ? 'bg-cyan-500 text-space-950'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {spd}X
+                </button>
+              ))}
+            </div>
           </div>
 
           <button
             onClick={() => { setSimTime(new Date()); setSimSpeed(50); }}
-            className="px-2.5 py-1 bg-space-950 hover:bg-space-800 text-cyan-400 border border-space-700 rounded-lg text-[10px] font-bold transition"
+            className="px-2 sm:px-2.5 py-1 bg-space-950 hover:bg-space-800 text-cyan-400 border border-space-700 rounded-lg text-[9px] sm:text-[10px] font-bold transition"
           >
-            RESET TO NOW
+            NOW
           </button>
         </div>
 
         {/* Timeline Horizon Scrubber */}
-        <div className="flex items-center gap-2 flex-1 max-w-md">
-          <span className="text-[10px] text-slate-400">PROPAGATE:</span>
+        <div className="flex items-center gap-2 flex-1 max-w-full md:max-w-md">
+          <span className="text-[9px] sm:text-[10px] text-slate-400">PROPAGATE:</span>
           <input
             type="range"
             min="0"
@@ -1349,7 +1350,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
         {/* Quick Conjunction Encounter List */}
         {conjunctions.length > 0 && (
-          <div className="flex items-center gap-1.5">
+          <div className="hidden sm:flex items-center gap-1.5">
             <span className="text-[10px] text-danger-400 font-bold flex items-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5" />
               HOTSPOTS:
@@ -1360,7 +1361,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                 onClick={() => { onSelectConjunction(c); handleJumpToTca(c); }}
                 className="px-2 py-0.5 bg-danger-500/20 text-danger-300 border border-danger-500/40 rounded text-[10px] font-bold hover:bg-danger-500/30 transition"
               >
-                {c.miss_distance_km} km ({new Date(c.tca).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                {c.miss_distance_km.toFixed(1)} km ({new Date(c.tca).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
               </button>
             ))}
           </div>
