@@ -3,20 +3,14 @@ import {
   RefreshCw, 
   Satellite, 
   ShieldAlert, 
-  AlertTriangle, 
-  BarChart3, 
   Globe, 
   Menu, 
   X, 
-  LucideIcon,
-  Compass,
-  Radio,
-  Layers,
-  Server
+  LucideIcon
 } from 'lucide-react';
 import { SystemStatistics, DataStatus } from '../types';
 
-export type NavTabKey = 'space' | 'catalog' | 'conjunctions' | 'alerts' | 'analytics' | 'ground-track' | 'passes' | 'simulations' | 'data-health';
+export type NavTabKey = 'space' | 'catalog' | 'conjunctions';
 
 interface NavbarProps {
   activeTab: NavTabKey;
@@ -48,15 +42,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isLiveError = dataStatus?.mode === 'LIVE ERROR';
 
   const navItems: NavItemConfig[] = [
-    { key: 'space', label: 'COMMAND CENTER', icon: Globe, count: null },
-    { key: 'catalog', label: 'CATALOG', icon: Satellite, count: null },
-    { key: 'conjunctions', label: 'CONJUNCTIONS', icon: ShieldAlert, count: (stats?.total_conjunctions ?? 0) > 0 ? stats?.total_conjunctions ?? null : null },
-    { key: 'alerts', label: 'ALERTS', icon: AlertTriangle, count: (stats?.active_alerts ?? 0) > 0 ? stats?.active_alerts ?? null : null, isAlert: true },
-    { key: 'analytics', label: 'ANALYTICS', icon: BarChart3, count: null },
-    { key: 'ground-track', label: 'GROUND TRACKS', icon: Compass, count: null },
-    { key: 'passes', label: 'PASS PREDICTOR', icon: Radio, count: null },
-    { key: 'simulations', label: 'SIMULATIONS', icon: Layers, count: null },
-    { key: 'data-health', label: 'DATA HEALTH', icon: Server, count: null },
+    { key: 'space', label: '3D ORBIT TRACKER', icon: Globe, count: null },
+    { key: 'catalog', label: 'OBJECTS CATALOG', icon: Satellite, count: null },
+    { key: 'conjunctions', label: 'CONJUNCTIONS', icon: ShieldAlert, count: (stats?.total_conjunctions ?? 0) > 0 ? stats?.total_conjunctions ?? null : null, isAlert: (stats?.critical_conjunctions ?? 0) > 0 },
   ];
 
   const handleSelectTab = (tab: NavTabKey) => {
@@ -77,13 +65,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="font-bold text-sm sm:text-base tracking-wider text-white">SPACE SENTINEL</span>
             </div>
             <p className="text-[10px] sm:text-[11px] text-slate-400 font-mono hidden sm:block">
-              Debris Tracking & Collision Risk Engine
+              Real-Time Orbital Tracking & Conjunction Screening
             </p>
           </div>
         </div>
 
         {/* Desktop Navigation Tabs */}
-        <nav className="hidden xl:flex items-center gap-1 bg-space-900/80 p-1 rounded-xl border border-space-800 font-mono text-xs shadow-inner">
+        <nav className="hidden md:flex items-center gap-1 bg-space-900/80 p-1 rounded-xl border border-space-800 font-mono text-xs shadow-inner">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.key;
@@ -91,7 +79,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={item.key}
                 onClick={() => handleSelectTab(item.key)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition font-medium text-xs ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition font-medium text-xs ${
                   isActive
                     ? 'bg-cyan-500/20 text-cyan-neon border border-cyan-500/40 shadow-sm font-bold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-space-800'
@@ -114,7 +102,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Header Right Actions */}
         <div className="flex items-center gap-2 sm:gap-3 font-mono text-xs">
           {/* Total Assets Counter */}
-          <div className="hidden lg:flex items-center gap-1.5 bg-space-900 px-2.5 py-1 rounded-lg border border-space-800 text-slate-400">
+          <div className="hidden sm:flex items-center gap-1.5 bg-space-900 px-2.5 py-1 rounded-lg border border-space-800 text-slate-400">
             <Satellite className="w-3.5 h-3.5 text-cyan-400" />
             <span>TRACKED:</span>
             <span className="text-cyan-neon font-bold">
@@ -139,7 +127,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ? 'text-emerald-400'
                 : 'text-warning-neon'
             }`}>
-              {isLiveError ? 'FAILOVER' : isLive ? 'LIVE' : 'DEMO'}
+              {isLiveError ? 'FAILOVER' : isLive ? 'LIVE' : 'CACHED'}
             </span>
           </div>
 
@@ -156,7 +144,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Mobile Menu Trigger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="xl:hidden p-1.5 sm:p-2 bg-space-900 text-slate-300 hover:text-white rounded-lg border border-space-800"
+            className="md:hidden p-1.5 sm:p-2 bg-space-900 text-slate-300 hover:text-white rounded-lg border border-space-800"
             aria-label="Toggle Navigation Menu"
           >
             {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -166,8 +154,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="xl:hidden border-t border-space-800 mt-2.5 pt-2 pb-1 font-mono animate-fade-in">
-          <div className="grid grid-cols-2 gap-1.5 text-xs">
+        <div className="md:hidden border-t border-space-800 mt-2.5 pt-2 pb-1 font-mono animate-fade-in">
+          <div className="flex flex-col gap-1 text-xs">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.key;
@@ -186,7 +174,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>{item.label}</span>
                   </div>
                   {item.count != null && (
-                    <span className="bg-danger-500 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-bold">
+                    <span className="bg-cyan-500/20 text-cyan-400 w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold">
                       {item.count}
                     </span>
                   )}

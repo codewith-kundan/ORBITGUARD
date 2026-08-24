@@ -1323,6 +1323,18 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               <span className="text-slate-400">Period:</span>
               <span className="text-slate-200">{selectedObject.period_minutes ? `${selectedObject.period_minutes.toFixed(1)} min` : '—'}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Epoch:</span>
+              <span className="text-slate-200">{selectedObject.tle_epoch ? selectedObject.tle_epoch.replace('T', ' ').substring(0, 16) + ' UTC' : 'Recent'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Data Source:</span>
+              <span className="text-cyan-400 font-bold">{selectedObject.source || 'CelesTrak'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Last Update:</span>
+              <span className="text-slate-200">{selectedObject.updated_at ? selectedObject.updated_at.replace('T', ' ').substring(0, 16) + ' UTC' : '—'}</span>
+            </div>
           </div>
 
           {/* Trajectory Prediction Horizon */}

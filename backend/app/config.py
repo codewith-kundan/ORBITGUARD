@@ -7,7 +7,7 @@ BASE_DIR_PATH = str(Path(__file__).resolve().parent.parent.parent)
 
 class Settings(BaseSettings):
     BASE_DIR: str = BASE_DIR_PATH
-    APP_NAME: str = "ORBITGUARD"
+    APP_NAME: str = "SPACE SENTINEL"
     APP_ENV: str = "production"
     API_PORT: int = 8000
     API_HOST: str = "0.0.0.0"
@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     SPACETRACK_PASSWORD: Optional[str] = None
 
     ORBITAL_DATA_PROVIDER: str = "CelesTrak"
+    SYNC_INTERVAL_MINUTES: int = 30
     DEFAULT_PREDICTION_WINDOW_HOURS: int = 24
     PROPAGATION_STEP_MINUTES: int = 5
     CONJUNCTION_SCREENING_DISTANCE_KM: float = 50.0

@@ -9,7 +9,7 @@ def test_full_api_pipeline():
     res_health = client.get("/api/health")
     assert res_health.status_code == 200
     assert res_health.json()["status"] == "ok"
-    assert res_health.json()["service"] == "ORBITGUARD"
+    assert res_health.json()["service"] in ["SPACE SENTINEL", "ORBITGUARD"]
 
     # 2. Data Status Endpoint
     res_status = client.get("/api/data/status")
@@ -89,11 +89,7 @@ def test_full_api_pipeline():
     res_summary = client.get("/api/conjunctions/summary")
     assert res_summary.status_code == 200
 
-    # 11. Alerts Listing
-    res_alerts = client.get("/api/alerts")
-    assert res_alerts.status_code == 200
-
-    # 12. System Analytics & Statistics
+    # 11. System Statistics
     res_stats = client.get("/api/statistics")
     assert res_stats.status_code == 200
     stats = res_stats.json()

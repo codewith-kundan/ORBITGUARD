@@ -4,19 +4,12 @@ import { DataStatusBar } from './components/DataStatusBar';
 import { SpaceView } from './pages/SpaceView';
 import { ObjectTable } from './components/ObjectTable';
 import { ConjunctionTable } from './components/ConjunctionTable';
-import { AlertPanel } from './components/AlertPanel';
-import { Analytics } from './pages/Analytics';
-import { GroundTrackView } from './pages/GroundTrackView';
-import { PassPredictor } from './pages/PassPredictor';
-import { SimulationCenter } from './pages/SimulationCenter';
-import { DataHealthView } from './pages/DataHealthView';
 import { ObjectDetailsModal } from './components/ObjectDetailsModal';
 import { ConjunctionDetailsModal } from './components/ConjunctionDetailsModal';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
   Conjunction, 
-  Alert, 
   SystemStatistics, 
   DataStatus 
 } from './types';
@@ -28,7 +21,6 @@ export default function App() {
   const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
   const [objects, setObjects] = useState<OrbitalObject[]>([]);
   const [conjunctions, setConjunctions] = useState<Conjunction[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
   
   const [selectedObject, setSelectedObject] = useState<OrbitalObject | null>(null);
   const [selectedConjunction, setSelectedConjunction] = useState<Conjunction | null>(null);
@@ -46,19 +38,17 @@ export default function App() {
       setLoading(true);
       setError(null);
 
-      const [statusData, statsData, objsData, conjsData, alertsData] = await Promise.all([
+      const [statusData, statsData, objsData, conjsData] = await Promise.all([
         api.getDataStatus().catch(() => null),
         api.getStatistics().catch(() => null),
         api.getPaginatedObjects(1, 500).then(r => r.items).catch(() => []),
-        api.getConjunctions(100, 0).catch(() => []),
-        api.getAlerts().catch(() => [])
+        api.getConjunctions(100, 0).catch(() => [])
       ]);
 
       if (statusData) setDataStatus(statusData);
       if (statsData) setStats(statsData);
       setObjects(objsData);
       setConjunctions(conjsData);
-      setAlerts(alertsData);
 
       // If catalog is empty on initial boot, trigger initial sync
       if (objsData.length === 0) {
@@ -90,28 +80,17 @@ export default function App() {
   const handleScreenConjunctions = async () => {
     try {
       setIsScreening(true);
-      await api.triggerConjunctionScreening(72, 150.0, 3);
-      const [newConjs, newAlerts, newStats] = await Promise.all([
+      await api.triggerConjunctionScreening(24, 500.0, 3);
+      const [newConjs, newStats] = await Promise.all([
         api.getConjunctions(100, 0),
-        api.getAlerts(),
         api.getStatistics()
       ]);
       setConjunctions(newConjs);
-      setAlerts(newAlerts);
       setStats(newStats);
     } catch (err: any) {
       setError(err.message || 'Conjunction screening error');
     } finally {
       setIsScreening(false);
-    }
-  };
-
-  const handleAcknowledgeAlert = async (id: number) => {
-    try {
-      await api.acknowledgeAlert(id);
-      setAlerts(prev => prev.map(a => a.id === id ? { ...a, acknowledged: true } : a));
-    } catch (err) {
-      console.error(err);
     }
   };
 
@@ -129,11 +108,6 @@ export default function App() {
   };
 
   const handleOpenConjunctionModal = (conj: Conjunction) => {
-    setSelectedConjunction(conj);
-    setIsConjunctionModalOpen(true);
-  };
-
-  const handleInspectConjunctionFromAlert = (conj: Conjunction) => {
     setSelectedConjunction(conj);
     setIsConjunctionModalOpen(true);
   };
@@ -168,7 +142,7 @@ export default function App() {
           </div>
         ) : error ? (
           <div className="bg-danger-500/10 border border-danger-500/30 rounded-2xl p-6 text-center font-mono text-danger-neon max-w-lg mx-auto mt-12 shadow-2xl">
-            <p className="font-bold text-base mb-2">Cloud Backend Connecting</p>
+            <p className="font-bold text-base mb-2">Backend Connection Issue</p>
             <p className="text-xs text-slate-300 mb-4">{error}</p>
             <div className="flex gap-2 justify-center">
               <button
@@ -187,7 +161,7 @@ export default function App() {
           </div>
         ) : (
           <>
-            {/* HERO DEFAULT: Space Traffic Control Center 3D Globe */}
+            {/* 1. 3D ORBIT TRACKER (Space View) */}
             {activeTab === 'space' && (
               <SpaceView
                 objects={objects}
@@ -201,7 +175,7 @@ export default function App() {
               />
             )}
 
-            {/* CATALOG: Paginated, searchable object catalog */}
+            {/* 2. OBJECTS CATALOG */}
             {activeTab === 'catalog' && (
               <ObjectTable
                 selectedObject={selectedObject}
@@ -210,7 +184,7 @@ export default function App() {
               />
             )}
 
-            {/* CONJUNCTIONS: Screening & Encounter Analyzer */}
+            {/* 3. CONJUNCTION ASSESSMENT */}
             {activeTab === 'conjunctions' && (
               <ConjunctionTable
                 conjunctions={conjunctions}
@@ -219,50 +193,6 @@ export default function App() {
                 onScreenNew={handleScreenConjunctions}
                 isScreening={isScreening}
               />
-            )}
-
-            {/* ALERTS: Active Collision Warnings */}
-            {activeTab === 'alerts' && (
-              <AlertPanel
-                alerts={alerts}
-                onAcknowledge={handleAcknowledgeAlert}
-                onSelectConjunction={(conjId: number) => {
-                  const c = conjunctions.find(x => x.id === conjId);
-                  if (c) handleInspectConjunctionFromAlert(c);
-                }}
-              />
-            )}
-
-            {/* ANALYTICS: Spatial & Altitude Distributions */}
-            {activeTab === 'analytics' && (
-              <Analytics
-                stats={stats}
-                conjunctions={conjunctions}
-              />
-            )}
-
-            {/* GROUND TRACKS: 2D Mercator World Projection */}
-            {activeTab === 'ground-track' && (
-              <GroundTrackView
-                objects={objects}
-                selectedObject={selectedObject}
-                onSelectObject={handleSelectObject}
-              />
-            )}
-
-            {/* PASS PREDICTOR: Look-Angle & Visibility Windows */}
-            {activeTab === 'passes' && (
-              <PassPredictor />
-            )}
-
-            {/* SIMULATIONS: What-If, Kessler Cascade & ADR */}
-            {activeTab === 'simulations' && (
-              <SimulationCenter />
-            )}
-
-            {/* DATA HEALTH: Source Status & Quality */}
-            {activeTab === 'data-health' && (
-              <DataHealthView />
             )}
           </>
         )}
