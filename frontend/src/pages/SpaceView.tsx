@@ -139,13 +139,56 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const orbitRingsGroupRef = useRef<THREE.Group | null>(null);
   const animationFrameId = useRef<number | null>(null);
 
+  // Fallback initial positions from objects prop if API batch is pending
+  useEffect(() => {
+    if (objects.length > 0 && livePositionsRef.current.length === 0) {
+      const initial: OrbitalPosition[] = objects.map((obj, i) => {
+        const alt = obj.perigee_km || 550 + (i % 800);
+        const r = 6371 + alt;
+        const inc = ((obj.inclination || 45 + (i % 60)) * Math.PI) / 180;
+        const raan = ((i * 137.5) * Math.PI) / 180;
+        const trueAnomaly = ((i * 45) * Math.PI) / 180;
+
+        const x = r * (Math.cos(raan) * Math.cos(trueAnomaly) - Math.sin(raan) * Math.sin(trueAnomaly) * Math.cos(inc));
+        const y = r * (Math.sin(raan) * Math.cos(trueAnomaly) + Math.cos(raan) * Math.sin(trueAnomaly) * Math.cos(inc));
+        const z = r * (Math.sin(trueAnomaly) * Math.sin(inc));
+
+        const vOrb = Math.sqrt(398600.4418 / r);
+        const vx = -vOrb * Math.sin(trueAnomaly);
+        const vy = vOrb * Math.cos(trueAnomaly);
+        const vz = vOrb * Math.sin(inc) * 0.5;
+
+        return {
+          timestamp: new Date().toISOString(),
+          norad_id: obj.norad_id,
+          name: obj.name,
+          type: obj.object_type,
+          x_km: x,
+          y_km: y,
+          z_km: z,
+          vx_km_s: vx,
+          vy_km_s: vy,
+          vz_km_s: vz,
+          alt_km: alt,
+          velocity_km_s: vOrb,
+          lat: 0,
+          lon: 0,
+          lat_deg: 0,
+          lon_deg: 0
+        };
+      });
+      setPositions(initial);
+      livePositionsRef.current = initial;
+    }
+  }, [objects]);
+
   // Fetch Batch Ephemeris Positions from Backend API
   useEffect(() => {
     let isMounted = true;
     const fetchPositions = async () => {
       try {
         const batch = await api.getBatchPositions(simTime.toISOString(), 1500);
-        if (isMounted && batch.positions) {
+        if (isMounted && batch.positions && batch.positions.length > 0) {
           setPositions(batch.positions);
           // Clone for real-time GPU/CPU propagation
           livePositionsRef.current = batch.positions.map((p) => ({ ...p }));
@@ -552,7 +595,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       tumbleAngle += delta * 2.5;
 
       // CONTINUOUS ORBITAL PROPAGATION AT 60 FPS
-      if (speed > 0 && livePositionsRef.current.length > 0) {
+      if (livePositionsRef.current.length > 0) {
         const dt = delta * speed;
         const dummy = new THREE.Object3D();
         const currentVisible: OrbitalPosition[] = [];
@@ -588,32 +631,33 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             pos.vz_km_s = vz;
           }
 
-          // True Newtonian Orbital Propagation (Symplectic Verlet Integrator)
-          const ax = -(mu / (r * r * r)) * rx;
-          const ay = -(mu / (r * r * r)) * ry;
-          const az = -(mu / (r * r * r)) * rz;
+          if (dt > 0) {
+            // True Newtonian Orbital Propagation (Symplectic Verlet Integrator)
+            const ax = -(mu / (r * r * r)) * rx;
+            const ay = -(mu / (r * r * r)) * ry;
+            const az = -(mu / (r * r * r)) * rz;
 
-          rx += vx * dt + 0.5 * ax * dt * dt;
-          ry += vy * dt + 0.5 * ay * dt * dt;
-          rz += vz * dt + 0.5 * az * dt * dt;
+            rx += vx * dt + 0.5 * ax * dt * dt;
+            ry += vy * dt + 0.5 * ay * dt * dt;
+            rz += vz * dt + 0.5 * az * dt * dt;
 
-          const rNew = Math.sqrt(rx * rx + ry * ry + rz * rz);
-          const axNew = -(mu / (rNew * rNew * rNew)) * rx;
-          const ayNew = -(mu / (rNew * rNew * rNew)) * ry;
-          const azNew = -(mu / (rNew * rNew * rNew)) * rz;
+            const rNew = Math.sqrt(rx * rx + ry * ry + rz * rz);
+            const axNew = -(mu / (rNew * rNew * rNew)) * rx;
+            const ayNew = -(mu / (rNew * rNew * rNew)) * ry;
+            const azNew = -(mu / (rNew * rNew * rNew)) * rz;
 
-          vx += 0.5 * (ax + axNew) * dt;
-          vy += 0.5 * (ay + ayNew) * dt;
-          vz += 0.5 * (az + azNew) * dt;
+            vx += 0.5 * (ax + axNew) * dt;
+            vy += 0.5 * (ay + ayNew) * dt;
+            vz += 0.5 * (az + azNew) * dt;
 
-          pos.x_km = rx;
-          pos.y_km = ry;
-          pos.z_km = rz;
-          pos.vx_km_s = vx;
-          pos.vy_km_s = vy;
-          pos.vz_km_s = vz;
-          pos.alt_km = rNew - 6371;
-          pos.velocity_km_s = Math.sqrt(vx * vx + vy * vy + vz * vz);
+            pos.x_km = rx;
+            pos.y_km = ry;
+            pos.z_km = rz;
+            pos.vx_km_s = vx;
+            pos.vy_km_s = vy;
+            pos.vz_km_s = vz;
+            pos.alt_km = rNew - 6371;
+          }
 
           // Apply Fleet & Altitude Filters
           const nameUpper = (pos.name || '').toUpperCase();
