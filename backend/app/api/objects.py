@@ -116,38 +116,38 @@ async def get_data_health(db: Session = Depends(get_db)):
 @router.get("/objects/positions", response_model=PositionsBatchResponse)
 def get_batch_positions(
     timestamp: Optional[datetime] = None,
-    limit: int = Query(1000, ge=1, le=3000),
+    limit: int = Query(2500, ge=1, le=10000),
     db: Session = Depends(get_db)
 ):
     """
-    High-performance real-time batch propagation endpoint for the 3D space environment and 2D map.
+    High-performance real-time batch propagation endpoint for the 3D space environment.
     Returns a balanced, stratified selection of active payloads, debris fragments, and rocket stages.
     """
     target_time = to_utc(timestamp) if timestamp else datetime.now(timezone.utc)
     
-    # Comprehensive constellation sampling
-    starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(250).all()
-    oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(150).all()
+    # Comprehensive constellation & regime sampling
+    starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(500).all()
+    oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(200).all()
     gps = db.query(OrbitalObject).filter(
         OrbitalObject.name.ilike("%GPS%") | 
         OrbitalObject.name.ilike("%NAVSTAR%") | 
         OrbitalObject.name.ilike("%BEIDOU%") | 
         OrbitalObject.name.ilike("%GALILEO%") | 
         OrbitalObject.name.ilike("%GLONASS%")
-    ).limit(100).all()
+    ).limit(150).all()
     
     stations = db.query(OrbitalObject).filter(
         OrbitalObject.name.ilike("%ISS %") | 
         OrbitalObject.name.ilike("%TIANGONG%") | 
         OrbitalObject.name.ilike("%HUBBLE%")
-    ).limit(20).all()
+    ).limit(30).all()
 
     other_sats = db.query(OrbitalObject).filter(
         OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE
-    ).limit(200).all()
+    ).limit(600).all()
 
-    debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(400).all()
-    rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(200).all()
+    debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(800).all()
+    rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(400).all()
 
     selected_map = {}
     for obj in list(starlink) + list(oneweb) + list(gps) + list(stations) + list(other_sats) + list(debris) + list(rockets):

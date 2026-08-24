@@ -13,9 +13,22 @@ CELESTRAK_GROUPS = [
     ("starlink", "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle"),
     ("oneweb", "https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle"),
     ("gnss", "https://celestrak.org/NORAD/elements/gp.php?GROUP=gnss&FORMAT=tle"),
+    ("visual", "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle"),
+    ("weather", "https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle"),
+    ("noaa", "https://celestrak.org/NORAD/elements/gp.php?GROUP=noaa&FORMAT=tle"),
+    ("goes", "https://celestrak.org/NORAD/elements/gp.php?GROUP=goes&FORMAT=tle"),
+    ("resource", "https://celestrak.org/NORAD/elements/gp.php?GROUP=resource&FORMAT=tle"),
+    ("geo", "https://celestrak.org/NORAD/elements/gp.php?GROUP=geo&FORMAT=tle"),
+    ("science", "https://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle"),
+    ("engineering", "https://celestrak.org/NORAD/elements/gp.php?GROUP=engineering&FORMAT=tle"),
+    ("military", "https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=tle"),
+    ("cubesat", "https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle"),
+    ("last-30-days", "https://celestrak.org/NORAD/elements/gp.php?GROUP=last-30-days&FORMAT=tle"),
     ("1982-092", "https://celestrak.org/NORAD/elements/gp.php?GROUP=1982-092&FORMAT=tle"),  # Cosmos 1408 Debris
     ("1999-025", "https://celestrak.org/NORAD/elements/gp.php?GROUP=1999-025&FORMAT=tle"),  # Fengyun 1C Debris
-    ("cosmos-2251-debris", "https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=tle")
+    ("cosmos-2251-debris", "https://celestrak.org/NORAD/elements/gp.php?GROUP=cosmos-2251-debris&FORMAT=tle"),
+    ("iridium-33-debris", "https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle"),
+    ("2019-006", "https://celestrak.org/NORAD/elements/gp.php?GROUP=2019-006&FORMAT=tle")
 ]
 
 class CelesTrakProvider(BaseDataProvider):
