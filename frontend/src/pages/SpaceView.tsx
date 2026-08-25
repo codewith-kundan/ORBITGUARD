@@ -996,7 +996,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
       renderer.dispose();
     };
-  }, [activeFleetFilter, altitudeFilter, isDebrisMode, selectedObject]);
+  }, [activeFleetFilter, altitudeFilter, isDebrisMode]);
 
   // Update Solar Illumination Vector with Simulation Time
   useEffect(() => {
