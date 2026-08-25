@@ -331,10 +331,12 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   useEffect(() => {
     if (!isPlaying) return;
     const timer = setInterval(() => {
-      setSimTime((prev) => new Date(prev.getTime() + 1000 * simSpeed));
-    }, 1000);
+      if (simTimeRef.current) {
+        setSimTime(new Date(simTimeRef.current.getTime()));
+      }
+    }, 250);
     return () => clearInterval(timer);
-  }, [isPlaying, simSpeed]);
+  }, [isPlaying]);
 
   // Fetch Trajectory & Ground Track on Selected Object Change
   useEffect(() => {
@@ -726,10 +728,19 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       animationFrameId.current = requestAnimationFrame(animate);
       controls.update();
 
-      const delta = clock.getDelta();
+      const delta = Math.min(0.1, clock.getDelta());
       tumbleAngle += delta * 2.5;
 
-      // SGP4 LIVE EPHEMERIS PROPAGATION AT 60 FPS
+      if (cloudMesh) {
+        cloudMesh.rotation.y += delta * 0.015;
+      }
+
+      // Continuous 60 FPS SGP4 Orbit Simulation Clock
+      if (isPlayingRef.current && simTimeRef.current) {
+        const advanceMs = delta * 1000 * (simSpeedRef.current || 1);
+        simTimeRef.current = new Date(simTimeRef.current.getTime() + advanceMs);
+      }
+
       const currentSimDate = simTimeRef.current || new Date();
       const gmst = satellite.gstime(currentSimDate);
       const dummy = new THREE.Object3D();
