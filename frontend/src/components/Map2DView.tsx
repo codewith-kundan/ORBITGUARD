@@ -16,7 +16,7 @@ import {
   Globe, 
   Info 
 } from 'lucide-react';
-import { OrbitalObject, GroundStation, SystemStatistics } from '../types';
+import { OrbitalObject, OrbitalPosition, GroundStation, SystemStatistics } from '../types';
 import { api } from '../services/api';
 
 interface Map2DViewProps {
@@ -77,6 +77,10 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
   // Predefined Ground Stations State
   const [stations, setStations] = useState<GroundStation[]>([]);
 
+  // Real-Time Batch Positions Swarm State (4,000+ SGP4 tracked assets)
+  const [positions, setPositions] = useState<OrbitalPosition[]>([]);
+  const satrecMapRef = useRef<Map<number, { satrec: any; name: string; type: string; norad_id: number }>>(new Map());
+
   // Active object to track: selectedObject or default to primary asset (ISS/CSS/first sat)
   const activeObj = useMemo(() => {
     if (selectedObject) return selectedObject;
@@ -100,13 +104,50 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       .catch((err) => console.error('Failed to load ground stations:', err));
   }, []);
 
+  // Fetch Batch Ephemeris Positions from Backend API (4,000+ real assets)
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPositions = async () => {
+      try {
+        const batch = await api.getBatchPositions(simTime.toISOString(), 4000);
+        if (isMounted && batch.positions && batch.positions.length > 0) {
+          setPositions(batch.positions);
+          batch.positions.forEach((p: OrbitalPosition) => {
+            if (p.tle_line1 && p.tle_line2) {
+              try {
+                const rec = satellite.twoline2satrec(p.tle_line1, p.tle_line2);
+                if (rec && (rec as any).error === 0) {
+                  satrecMapRef.current.set(p.norad_id, {
+                    satrec: rec,
+                    name: p.name,
+                    type: p.type,
+                    norad_id: p.norad_id
+                  });
+                }
+              } catch (e) {}
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch batch positions in Map2D:', err);
+      }
+    };
+
+    fetchPositions();
+    const interval = setInterval(fetchPositions, 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Dynamic Fleet & Constellation & Regime Counts from real Database Stats
   const fleetCounts = useMemo(() => {
     if (stats?.fleet_breakdown) {
       return stats.fleet_breakdown;
     }
 
-    let all = stats?.tracked_objects || objects.length;
+    let all = stats?.tracked_objects || (positions.length > 0 ? positions.length : objects.length);
     let payload = stats?.active_satellites || 0;
     let starlink = 0;
     let oneweb = 0;
@@ -117,10 +158,11 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     let meo = stats?.altitude_distribution?.meo || 0;
     let geo = stats?.altitude_distribution?.geo || 0;
 
-    objects.forEach((o) => {
-      const name = o.name.toUpperCase();
-      const type = (typeof o.object_type === 'string' ? o.object_type : (o.object_type as any)?.value || '').toUpperCase();
-      const apogee = o.apogee_km || o.perigee_km || 0;
+    const sourceList = positions.length > 0 ? positions : objects;
+    sourceList.forEach((o: any) => {
+      const name = (o.name || '').toUpperCase();
+      const type = (typeof o.type === 'string' ? o.type : typeof o.object_type === 'string' ? o.object_type : (o.object_type as any)?.value || '').toUpperCase();
+      const apogee = o.alt_km || o.apogee_km || o.perigee_km || 0;
 
       if (type === 'DEBRIS') debris++;
       else if (type === 'ROCKET_BODY' || type === 'ROCKET') rocket++;
@@ -136,14 +178,29 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     });
 
     return { all, operational: payload, payload, starlink, oneweb, gps, debris, rocket, leo, meo, geo };
-  }, [objects, stats]);
+  }, [objects, positions, stats]);
 
-  // Filter Catalog Objects based on Active Fleet & Regime
-  const visibleCatalogObjects = useMemo(() => {
-    return objects.filter((o) => {
-      const name = o.name.toUpperCase();
-      const type = (typeof o.object_type === 'string' ? o.object_type : (o.object_type as any)?.value || '').toUpperCase();
-      const apogee = o.apogee_km || o.perigee_km || 0;
+  // Filter Real Live Swarm Positions based on Active Fleet & Regime
+  const visibleSwarm = useMemo(() => {
+    const list = positions.length > 0 ? positions : (objects.map((o) => ({
+      norad_id: o.norad_id,
+      name: o.name,
+      type: o.object_type,
+      lat: 0,
+      lon: 0,
+      alt_km: o.apogee_km || 400,
+      velocity_km_s: 7.6,
+      x_km: 0,
+      y_km: 0,
+      z_km: 0,
+      tle_line1: o.tle_line1,
+      tle_line2: o.tle_line2
+    } as OrbitalPosition)));
+
+    return list.filter((pos) => {
+      const name = (pos.name || '').toUpperCase();
+      const type = (pos.type || '').toUpperCase();
+      const alt = pos.alt_km || 400;
 
       if (isDebrisMode && type !== 'DEBRIS') return false;
 
@@ -154,13 +211,13 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       if (activeFleetFilter === 'DEBRIS' && type !== 'DEBRIS') return false;
       if (activeFleetFilter === 'ROCKET' && type !== 'ROCKET_BODY' && type !== 'ROCKET') return false;
 
-      if (altitudeFilter === 'LEO' && apogee > 2000) return false;
-      if (altitudeFilter === 'MEO' && (apogee <= 2000 || apogee >= 35000)) return false;
-      if (altitudeFilter === 'GEO' && apogee < 35000) return false;
+      if (altitudeFilter === 'LEO' && alt > 2000) return false;
+      if (altitudeFilter === 'MEO' && (alt <= 2000 || alt > 20000)) return false;
+      if (altitudeFilter === 'GEO' && alt <= 20000) return false;
 
       return true;
     });
-  }, [objects, activeFleetFilter, altitudeFilter, isDebrisMode]);
+  }, [positions, objects, activeFleetFilter, altitudeFilter, isDebrisMode]);
 
   // High-Precision Smooth Live Time Engine (60 FPS delta-time accumulator)
   useEffect(() => {
@@ -404,27 +461,34 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         });
       }
 
-      // 5. Filtered Catalog Swarm (Real-Time Synced)
+      // 5. Filtered Real-Time SGP4 Swarm
       if (showAllObjects) {
-        const timeOffset = simTime.getTime() / 60000;
-        visibleCatalogObjects.forEach((o) => {
-          if (activeObj?.norad_id === o.norad_id) return;
+        visibleSwarm.forEach((pos) => {
+          if (activeObj?.norad_id === pos.norad_id) return;
 
-          const inc = o.inclination || 51.6;
-          const periodMin = o.period_minutes || 92.0;
-          const meanMotion = (2.0 * Math.PI) / periodMin;
-          const phase = (o.norad_id * 137.5 + timeOffset * meanMotion) % (2.0 * Math.PI);
-          
-          const satLat = Math.asin(Math.sin(mathRadians(inc)) * Math.sin(phase)) * (180.0 / Math.PI);
-          const earthRotDeg = (timeOffset * (360.0 / 1436.0)) % 360.0;
-          const satLon = (((o.norad_id * 73.1 + Math.atan2(Math.cos(mathRadians(inc)) * Math.sin(phase), Math.cos(phase)) * (180.0 / Math.PI) - earthRotDeg) + 180.0) % 360.0) - 180.0;
+          let satLat = pos.lat;
+          let satLon = pos.lon;
+
+          // Propagate in real-time via SGP4 if satrec is present
+          const entry = satrecMapRef.current.get(pos.norad_id);
+          if (entry && entry.satrec) {
+            try {
+              const gmst = satellite.gstime(simTime);
+              const pv = satellite.propagate(entry.satrec, simTime);
+              if (pv && pv.position && typeof pv.position !== 'boolean') {
+                const geodetic = satellite.eciToGeodetic(pv.position as satellite.EciVec3<number>, gmst);
+                satLat = satellite.degreesLat(geodetic.latitude);
+                satLon = satellite.degreesLong(geodetic.longitude);
+              }
+            } catch (e) {}
+          }
 
           const dotX = lonToX(satLon);
           const dotY = latToY(satLat);
 
-          ctx.fillStyle = o.object_type === 'DEBRIS' ? '#ef4444' : o.object_type === 'ROCKET_BODY' ? '#f59e0b' : '#38bdf8';
+          ctx.fillStyle = pos.type === 'DEBRIS' ? '#ef4444' : pos.type === 'ROCKET_BODY' ? '#f59e0b' : '#00d4ff';
           ctx.beginPath();
-          ctx.arc(dotX, dotY, 2, 0, Math.PI * 2);
+          ctx.arc(dotX, dotY, 2.2, 0, Math.PI * 2);
           ctx.fill();
         });
       }
@@ -520,7 +584,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     livePosition,
     liveGroundTrack,
     stations,
-    visibleCatalogObjects,
+    visibleSwarm,
     showAllObjects,
     showFootprint,
     showTerminator,
@@ -600,6 +664,43 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       }
     }
 
+    // Check Swarm Satellites & Debris
+    if (showAllObjects) {
+      for (const pos of visibleSwarm) {
+        if (activeObj?.norad_id === pos.norad_id) continue;
+        let satLat = pos.lat;
+        let satLon = pos.lon;
+        const entry = satrecMapRef.current.get(pos.norad_id);
+        if (entry && entry.satrec) {
+          try {
+            const gmst = satellite.gstime(simTime);
+            const pv = satellite.propagate(entry.satrec, simTime);
+            if (pv && pv.position && typeof pv.position !== 'boolean') {
+              const geodetic = satellite.eciToGeodetic(pv.position as satellite.EciVec3<number>, gmst);
+              satLat = satellite.degreesLat(geodetic.latitude);
+              satLon = satellite.degreesLong(geodetic.longitude);
+            }
+          } catch (e) {}
+        }
+        const sx = lonToX(satLon);
+        const sy = latToY(satLat);
+        if (Math.hypot(x - sx, y - sy) < 7) {
+          setHoveredEntity({
+            type: 'satellite',
+            name: pos.name || `NORAD #${pos.norad_id}`,
+            id: pos.norad_id,
+            latitude: satLat,
+            longitude: satLon,
+            altitude_km: pos.alt_km,
+            details: `Type: ${pos.type} • Vel: ${pos.velocity_km_s?.toFixed(2) || '7.6'} km/s`,
+            screenX: e.clientX - rect.left,
+            screenY: e.clientY - rect.top
+          });
+          return;
+        }
+      }
+    }
+
     setHoveredEntity(null);
   };
 
@@ -636,6 +737,46 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         if (onOpenDetailsModal) onOpenDetailsModal(activeObj);
         else onOpenOverpassModal(activeObj);
         return;
+      }
+    }
+
+    // Check Swarm Objects Click
+    if (showAllObjects) {
+      for (const pos of visibleSwarm) {
+        let satLat = pos.lat;
+        let satLon = pos.lon;
+        const entry = satrecMapRef.current.get(pos.norad_id);
+        if (entry && entry.satrec) {
+          try {
+            const gmst = satellite.gstime(simTime);
+            const pv = satellite.propagate(entry.satrec, simTime);
+            if (pv && pv.position && typeof pv.position !== 'boolean') {
+              const geodetic = satellite.eciToGeodetic(pv.position as satellite.EciVec3<number>, gmst);
+              satLat = satellite.degreesLat(geodetic.latitude);
+              satLon = satellite.degreesLong(geodetic.longitude);
+            }
+          } catch (e) {}
+        }
+        const sx = lonToX(satLon);
+        const sy = latToY(satLat);
+        if (Math.hypot(x - sx, y - sy) < 9) {
+          const found = objects.find((o) => o.norad_id === pos.norad_id);
+          const clickedObj: OrbitalObject = found || {
+            id: pos.norad_id,
+            norad_id: pos.norad_id,
+            name: pos.name || `NORAD #${pos.norad_id}`,
+            object_type: (pos.type as any) || 'ACTIVE_SATELLITE',
+            source: 'Live SGP4 Feed',
+            tle_line1: pos.tle_line1 || '',
+            tle_line2: pos.tle_line2 || '',
+            perigee_km: pos.alt_km,
+            apogee_km: pos.alt_km,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          onSelectObject(clickedObj);
+          return;
+        }
       }
     }
   };
@@ -756,7 +897,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
                 : 'bg-space-950 text-slate-400 border-space-800 hover:text-white'
             }`}
           >
-            Swarm ({visibleCatalogObjects.length})
+            Swarm ({visibleSwarm.length})
           </button>
 
           {activeObj && (
