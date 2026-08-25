@@ -111,7 +111,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const mountRef = useRef<HTMLDivElement>(null);
   
   // UI State (LeoLabs Style Multi-Filter & Search Dock)
-  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(true);
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeFleetFilter, setActiveFleetFilter] = useState<string>('ALL');
@@ -256,7 +256,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     let isMounted = true;
     const fetchPositions = async () => {
       try {
-        const batch = await api.getBatchPositions(simTime.toISOString(), 2500);
+        const batch = await api.getBatchPositions(simTime.toISOString(), 4000);
         if (isMounted && batch.positions && batch.positions.length > 0) {
           setPositions(batch.positions);
           livePositionsRef.current = batch.positions.map((p: OrbitalPosition) => ({ ...p }));
@@ -526,15 +526,15 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     });
     scene.add(altRingsGroup);
 
-    // 12. LEOLABS SPECIALIZED 3D INSTANCED MESHES:
-    const maxInst = 2500;
+    // 12. SPECIALIZED 3D INSTANCED MESHES:
+    const maxInst = 4500;
 
     // A) Operational Payloads & Active Satellites (Cyan/Electric Blue Octahedron Diamond)
     const satGeom = new THREE.OctahedronGeometry(0.20, 0);
     const satMat = new THREE.MeshStandardMaterial({
-      color: 0x00f0ff,
-      emissive: 0x004466,
-      roughness: 0.2,
+      color: 0x00d4ff,
+      emissive: 0x003355,
+      roughness: 0.15,
       metalness: 0.9
     });
     const satMesh = new THREE.InstancedMesh(satGeom, satMat, maxInst);
@@ -545,35 +545,35 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     // B) Megaconstellations (e.g. Starlink, OneWeb - Violet/Purple Diamond)
     const starlinkGeom = new THREE.OctahedronGeometry(0.18, 0);
     const starlinkMat = new THREE.MeshStandardMaterial({
-      color: 0xaa55ff,
-      emissive: 0x331166,
+      color: 0x8b5cf6,
+      emissive: 0x2e1065,
       roughness: 0.2,
-      metalness: 0.9
+      metalness: 0.85
     });
     const starlinkMesh = new THREE.InstancedMesh(starlinkGeom, starlinkMat, maxInst);
     starlinkMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     scene.add(starlinkMesh);
     starlinkMeshRef.current = starlinkMesh;
 
-    // C) Debris / Shattered Destroyed Satellite Fragments (Jagged Faceted Dodecahedron)
-    const debrisGeom = new THREE.DodecahedronGeometry(0.18, 0);
+    // C) Debris / Shattered Space Debris Cloud (Vibrant Red Spheres)
+    const debrisGeom = new THREE.SphereGeometry(0.13, 10, 10);
     const debrisMat = new THREE.MeshStandardMaterial({
-      color: 0xff3355,
+      color: 0xef4444,
       emissive: 0x550011,
       roughness: 0.35,
-      metalness: 0.8
+      metalness: 0.6
     });
     const debrisMesh = new THREE.InstancedMesh(debrisGeom, debrisMat, maxInst);
     debrisMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     scene.add(debrisMesh);
     debrisMeshRef.current = debrisMesh;
 
-    // D) Rocket Bodies & Booster Upper Stages (Cylindrical Fuselage)
-    const rocketGeom = new THREE.CylinderGeometry(0.08, 0.12, 0.38, 8);
+    // D) Rocket Bodies & Booster Upper Stages (Amber/Gold Cylindrical Stages)
+    const rocketGeom = new THREE.CylinderGeometry(0.06, 0.12, 0.32, 8);
     const rocketMat = new THREE.MeshStandardMaterial({
-      color: 0xffaa00,
+      color: 0xf59e0b,
       emissive: 0x442200,
-      roughness: 0.4,
+      roughness: 0.35,
       metalness: 0.8
     });
     const rocketMesh = new THREE.InstancedMesh(rocketGeom, rocketMat, maxInst);
@@ -1125,21 +1125,23 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         </div>
       )}
 
-      {/* TOP LEFT: LeoLabs Style Multi-Fleet Filter & Search Dock */}
+      {/* TOP LEFT: Orbital Radar Floating Pill Badge & Expandable Multi-Fleet Dock */}
       <div className="absolute top-3 sm:top-4 left-3 sm:left-4 z-20 flex flex-col gap-2 max-w-[calc(100vw-24px)] sm:max-w-sm">
-        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-mono text-xs text-white shadow-xl flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
+          className="bg-slate-900/80 hover:bg-slate-900 backdrop-blur-xl border border-cyan-500/30 hover:border-cyan-400 px-3.5 py-2 rounded-xl font-mono text-xs text-white shadow-2xl flex items-center justify-between gap-3 transition active:scale-95 group cursor-pointer"
+        >
           <div className="flex items-center gap-2">
-            <Globe className="w-4 h-4 text-cyan-neon animate-pulse" />
-            <span className="font-bold tracking-wider text-cyan-neon text-[11px] sm:text-xs">ORBITAL RADAR</span>
+            <Globe className="w-4 h-4 text-cyan-400 group-hover:animate-pulse" />
+            <span className="font-bold tracking-wider text-cyan-400 text-xs">ORBITAL RADAR</span>
           </div>
-          <button
-            onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
-            className="p-1 hover:bg-space-800 rounded text-slate-400 hover:text-white"
-            title={isLeftPanelOpen ? 'Collapse HUD' : 'Expand HUD'}
-          >
-            {isLeftPanelOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </button>
-        </div>
+          {isLeftPanelOpen ? (
+            <ChevronLeft className="w-4 h-4 text-slate-400 group-hover:text-white" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-cyan-400 group-hover:translate-x-0.5 transition-transform" />
+          )}
+        </button>
 
         {isLeftPanelOpen && (
           <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-3 sm:p-3.5 flex flex-col gap-2.5 sm:gap-3 font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-220px)] overflow-y-auto">
@@ -1255,29 +1257,29 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         )}
       </div>
 
-      {/* TOP RIGHT: Global View Toggles & Clock */}
-      <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-20 flex items-center gap-1.5 sm:gap-2">
-        {/* UTC Clock (hidden on very small screens) */}
-        <div className="hidden sm:flex bg-slate-900/40 backdrop-blur-xl border border-white/10 px-2.5 py-1.5 rounded-xl font-mono text-[11px] sm:text-xs text-cyan-400 shadow-xl items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5 text-slate-400" />
-          <span>UTC: {simTime.toISOString().replace('T', ' ').substring(11, 19)}</span>
+      {/* TOP RIGHT: Global View Toggles & Clock (Reference Design Match) */}
+      <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-20 flex items-center gap-2">
+        {/* UTC Clock */}
+        <div className="bg-slate-900/80 backdrop-blur-xl border border-cyan-500/30 px-3.5 py-2 rounded-xl font-mono text-xs text-cyan-400 shadow-2xl flex items-center gap-2">
+          <Clock className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="font-bold tracking-wider">UTC: {simTime.toISOString().replace('T', ' ').substring(11, 19)}</span>
         </div>
 
         {/* Camera Reset & Fullscreen */}
-        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 p-1 rounded-xl flex items-center gap-1 shadow-xl">
+        <div className="bg-slate-900/80 backdrop-blur-xl border border-cyan-500/30 p-1 rounded-xl flex items-center gap-1 shadow-2xl">
           <button
             onClick={handleResetCamera}
-            className="p-1 sm:p-1.5 hover:bg-space-800 rounded text-slate-300 hover:text-cyan-neon"
+            className="p-1.5 hover:bg-space-800 rounded-lg text-slate-300 hover:text-cyan-400 transition cursor-pointer"
             title="Reset Camera View"
           >
-            <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <RotateCcw className="w-4 h-4" />
           </button>
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1 sm:p-1.5 hover:bg-space-800 rounded text-slate-300 hover:text-cyan-neon"
+            className="p-1.5 hover:bg-space-800 rounded-lg text-slate-300 hover:text-cyan-400 transition cursor-pointer"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
         </div>
       </div>

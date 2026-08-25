@@ -121,7 +121,7 @@ async def get_data_health(db: Session = Depends(get_db)):
 @router.get("/objects/positions", response_model=PositionsBatchResponse)
 def get_batch_positions(
     timestamp: Optional[datetime] = None,
-    limit: int = Query(2500, ge=1, le=10000),
+    limit: int = Query(4000, ge=1, le=10000),
     db: Session = Depends(get_db)
 ):
     """
@@ -131,8 +131,8 @@ def get_batch_positions(
     target_time = to_utc(timestamp) if timestamp else datetime.now(timezone.utc)
     
     # Comprehensive constellation & regime sampling
-    starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(500).all()
-    oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(200).all()
+    starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(600).all()
+    oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(400).all()
     gps = db.query(OrbitalObject).filter(
         OrbitalObject.name.ilike("%GPS%") | 
         OrbitalObject.name.ilike("%NAVSTAR%") | 
@@ -149,9 +149,9 @@ def get_batch_positions(
 
     other_sats = db.query(OrbitalObject).filter(
         OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE
-    ).limit(600).all()
+    ).limit(800).all()
 
-    debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(800).all()
+    debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(1800).all()
     rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(400).all()
     geo_sats = db.query(OrbitalObject).filter(OrbitalObject.apogee_km >= 35000).limit(50).all()
 
