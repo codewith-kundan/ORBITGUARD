@@ -140,12 +140,36 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const [rightPanelTab, setRightPanelTab] = useState<'ALERTS' | 'TELEMETRY'>('ALERTS');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchSuggestions, setSearchSuggestions] = useState<OrbitalObject[]>([]);
+  const [isSearchingCatalog, setIsSearchingCatalog] = useState<boolean>(false);
   const [activeFleetFilter, setActiveFleetFilter] = useState<string>('ALL');
   const [altitudeFilter, setAltitudeFilter] = useState<string>('ALL');
   const [isDebrisMode, setIsDebrisMode] = useState<boolean>(false);
   const [isFollowMode, setIsFollowMode] = useState<boolean>(false);
   const [showGroundTrack, setShowGroundTrack] = useState<boolean>(true);
   const [showOrbitRings, setShowOrbitRings] = useState<boolean>(true);
+
+  // Debounced live suggestions from full 32,282 catalog API
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+      setSearchSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingCatalog(true);
+        const res = await api.getPaginatedObjects(1, 8, searchQuery.trim());
+        if (res && res.items) {
+          setSearchSuggestions(res.items);
+        }
+      } catch (err) {
+        console.debug('Search suggestion error:', err);
+      } finally {
+        setIsSearchingCatalog(false);
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Sync right panel tab on selected object
   useEffect(() => {
@@ -1235,17 +1259,51 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
         {isLeftPanelOpen && (
           <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-3 sm:p-3.5 flex flex-col gap-2.5 sm:gap-3 font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-220px)] overflow-y-auto">
-            {/* Search Input */}
-            <form onSubmit={handleSearchSubmit} className="relative">
-              <input
-                type="text"
-                placeholder="Search Satellite, Starlink, Debris, NORAD..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-space-950 border border-space-700 rounded-lg px-3 py-1.5 pl-8 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 shadow-inner"
-              />
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-            </form>
+            {/* Search Input & Live Suggestions Dropdown */}
+            <div className="relative">
+              <form onSubmit={handleSearchSubmit} className="relative">
+                <input
+                  type="text"
+                  placeholder="Search Satellite, Starlink, Debris, NORAD..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-space-950 border border-space-700 rounded-lg px-3 py-1.5 pl-8 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 shadow-inner"
+                />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                {isSearchingCatalog && (
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping absolute right-2.5 top-3" />
+                )}
+              </form>
+
+              {/* Suggestions Dropdown */}
+              {searchSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-space-950/95 backdrop-blur-xl border border-cyan-500/40 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto">
+                  <div className="px-2.5 py-1 text-[9px] text-cyan-400 uppercase tracking-wider font-bold bg-cyan-950/40 border-b border-space-800">
+                    Live Catalog Matches ({searchSuggestions.length})
+                  </div>
+                  {searchSuggestions.map((item) => (
+                    <button
+                      key={item.norad_id}
+                      type="button"
+                      onClick={() => {
+                        onSelectObject(item);
+                        setSearchQuery('');
+                        setSearchSuggestions([]);
+                      }}
+                      className="w-full px-2.5 py-1.5 text-left hover:bg-cyan-500/20 border-b border-space-900/60 last:border-none flex items-center justify-between gap-2 text-xs transition"
+                    >
+                      <div className="truncate">
+                        <span className="font-bold text-white block truncate">{item.name}</span>
+                        <span className="text-[10px] text-slate-400">NORAD #{item.norad_id} • {item.object_type}</span>
+                      </div>
+                      <span className="text-[9px] px-1 py-0.5 rounded bg-space-900 text-cyan-300 font-mono flex-shrink-0">
+                        {item.inclination ? `${item.inclination.toFixed(1)}°` : 'LEO'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* LeoLabs Fleet & Constellation Filters */}
             <div>
