@@ -12,7 +12,9 @@ import {
   ArrowRight,
   Sparkles,
   Layers,
-  Activity
+  Activity,
+  Rocket,
+  Atom
 } from 'lucide-react';
 
 interface UserGuideModalProps {
@@ -35,9 +37,9 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       badge: 'OVERVIEW',
       tagline: 'Real-Time Space Situational Awareness (SSA) & Collision Risk Management',
       content: (
-        <div className="space-y-4">
-          <p className="text-slate-300 text-sm leading-relaxed">
-            <strong className="text-white">ORBITGUARD</strong> is an enterprise-grade SSA platform designed for real-time tracking, ephemeris propagation, orbital safety analysis, and autonomous collision avoidance for over <strong className="text-cyan-400">32,000+ cataloged space objects</strong>.
+        <div className="space-y-4 font-mono">
+          <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+            <strong className="text-white">ORBITGUARD</strong> is an SSA platform designed for real-time tracking, ephemeris propagation, orbital safety analysis, and autonomous collision avoidance for over <strong className="text-cyan-400">32,000+ cataloged space objects</strong>.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
             <div className="p-3 bg-space-950/80 rounded-xl border border-cyan-500/20 flex items-start gap-2.5">
@@ -59,6 +61,98 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       )
     },
     {
+      id: 'action-buttons',
+      title: 'Conjunction Quick Actions Guide',
+      icon: Zap,
+      color: 'from-cyan-600 via-purple-600 to-pink-600',
+      badge: 'QUICK ACTIONS',
+      tagline: 'Deep Dive into the 5 Real-Time Conjunction Action Buttons',
+      content: (
+        <div className="space-y-3 font-mono text-xs">
+          <p className="text-slate-300 text-[11px] leading-relaxed">
+            Every detected conjunction row and detail view provides 5 instant one-click analysis tools:
+          </p>
+
+          <div className="space-y-2.5 max-h-[290px] overflow-y-auto pr-1">
+            {/* 1. FOCUS 3D */}
+            <div className="p-2.5 bg-space-950/90 rounded-xl border border-cyan-500/30 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 text-[11px] flex items-center gap-1">
+                    <Globe className="w-3 h-3" /> FOCUS 3D
+                  </span>
+                  <span className="text-[10px] text-slate-400">Interactive 3D WebGL Camera Target</span>
+                </div>
+              </div>
+              <p className="text-slate-300 text-[11px] leading-relaxed">
+                Smoothly flies the 3D camera directly to the encounter location, locks onto the primary satellite, and renders a dynamic dashed red distance vector between both approaching spacecraft.
+              </p>
+            </div>
+
+            {/* 2. 2D GROUND TRACK */}
+            <div className="p-2.5 bg-space-950/90 rounded-xl border border-purple-500/30 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-purple-500/20 text-purple-300 font-bold border border-purple-500/40 text-[11px] flex items-center gap-1">
+                    <Map className="w-3 h-3" /> 2D GROUND TRACK
+                  </span>
+                  <span className="text-[10px] text-slate-400">Sub-Satellite Orbit Plotter</span>
+                </div>
+              </div>
+              <p className="text-slate-300 text-[11px] leading-relaxed">
+                Opens the 2D world map view and plots the exact sub-satellite orbital ground tracks (past 1 orbit + future 2 orbits), geographic coordinates (Lat, Lon, Alt), and communication coverage circles.
+              </p>
+            </div>
+
+            {/* 3. CCSDS CDM */}
+            <div className="p-2.5 bg-space-950/90 rounded-xl border border-blue-500/30 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-blue-500/20 text-blue-300 font-bold border border-blue-500/40 text-[11px] flex items-center gap-1">
+                    <FileCode className="w-3 h-3" /> CCSDS CDM
+                  </span>
+                  <span className="text-[10px] text-slate-400">Official Standards Compliant Message</span>
+                </div>
+              </div>
+              <p className="text-slate-300 text-[11px] leading-relaxed">
+                Generates and previews official <strong className="text-white">CCSDS 508.0-B-1 Conjunction Data Messages (CDM)</strong> in KVN or XML format, complete with 18th Space Defense Squadron compliance, operator metadata, and webhook dispatcher.
+              </p>
+            </div>
+
+            {/* 4. BREAKUP */}
+            <div className="p-2.5 bg-space-950/90 rounded-xl border border-amber-500/30 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 text-[11px] flex items-center gap-1">
+                    <Atom className="w-3 h-3" /> BREAKUP
+                  </span>
+                  <span className="text-[10px] text-slate-400">NASA Standard Breakup Model</span>
+                </div>
+              </div>
+              <p className="text-slate-300 text-[11px] leading-relaxed">
+                Simulates catastrophic hypervelocity impact fragmentation (&gt;5 cm debris count, characteristic length distribution $L_c$, area-to-mass ratio $A/m$) and computes interactive 2D orbital Gabbard plot clouds.
+              </p>
+            </div>
+
+            {/* 5. PLAN CAM */}
+            <div className="p-2.5 bg-space-950/90 rounded-xl border border-cyan-400/40 flex flex-col gap-1.5 bg-cyan-950/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-cyan-400 text-space-950 font-bold border border-cyan-300 text-[11px] flex items-center gap-1 shadow-sm">
+                    <Rocket className="w-3 h-3" /> PLAN CAM
+                  </span>
+                  <span className="text-[10px] text-cyan-300">Collision Avoidance Maneuver Planner</span>
+                </div>
+              </div>
+              <p className="text-slate-300 text-[11px] leading-relaxed">
+                Calculates the optimum impulsive maneuver thrust vector (<strong className="text-cyan-300 font-mono">&Delta;V</strong>: Prograde, Retrograde, Radial, or Cross-Track) to clear the keep-out ellipsoid with minimum fuel consumption.
+              </p>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
       id: '3d-radar',
       title: '3D Orbital Globe & Swarm Radar',
       icon: Globe,
@@ -66,7 +160,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       badge: 'VISUALIZATION',
       tagline: 'High-Fidelity 3D WebGL Visualization of Satellites & Debris',
       content: (
-        <div className="space-y-3 text-sm text-slate-300">
+        <div className="space-y-3 text-xs sm:text-sm text-slate-300 font-mono">
           <p>
             The <strong className="text-white">3D Orbit Tracker</strong> renders active space assets in Earth-Centered Inertial (<strong className="text-cyan-400">ECI/TEME</strong>) space, updated in real time via GPU instancing.
           </p>
@@ -87,7 +181,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       badge: 'GROUND SEGMENT',
       tagline: 'Global Sub-Satellite Points, Sensor Footprints & Day/Night Terminator',
       content: (
-        <div className="space-y-3 text-sm text-slate-300">
+        <div className="space-y-3 text-xs sm:text-sm text-slate-300 font-mono">
           <p>
             The <strong className="text-white">2D Ground Track Map</strong> converts 3D orbital state vectors into precise geodetic coordinates (<strong className="text-emerald-400">Lat, Lon, Alt</strong>) over an equirectangular projection.
           </p>
@@ -107,7 +201,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       badge: 'COLLISION DEFENSE',
       tagline: 'Proactive Close-Encounter Detection & Maneuver Burn Computation',
       content: (
-        <div className="space-y-3 text-sm text-slate-300">
+        <div className="space-y-3 text-xs sm:text-sm text-slate-300 font-mono">
           <p>
             ORBITGUARD screens potential crossing orbits to identify close approaches and calculate collision risk factors.
           </p>
@@ -135,7 +229,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       badge: 'MISSION OPS',
       tagline: 'Fragmentation Modeling, Atmospheric Lifetime & CCSDS Compliance',
       content: (
-        <div className="space-y-3 text-sm text-slate-300">
+        <div className="space-y-3 text-xs sm:text-sm text-slate-300 font-mono">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
             <div className="p-2.5 bg-space-950/80 rounded-xl border border-space-800">
               <Flame className="w-4 h-4 text-warning-400 mb-1" />
@@ -189,7 +283,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
                   Step {activeSection + 1} of {sections.length}
                 </span>
               </div>
-              <h3 className="text-lg font-bold tracking-wide mt-0.5">{currentSection.title}</h3>
+              <h3 className="text-base sm:text-lg font-bold tracking-wide mt-0.5">{currentSection.title}</h3>
             </div>
           </div>
           <button
@@ -218,7 +312,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
         </div>
 
         {/* Body Content */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+        <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-4">
           <div className="text-xs text-cyan-400 uppercase tracking-wider font-semibold">
             {currentSection.tagline}
           </div>
