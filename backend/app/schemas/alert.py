@@ -13,8 +13,10 @@ class AlertStatus(str, Enum):
 class AlertBase(BaseModel):
     conjunction_id: int
     severity: RiskLevel
+    title: Optional[str] = "Collision Risk Warning"
     status: AlertStatus = AlertStatus.ACTIVE
     message: str
+    description: Optional[str] = None
 
 class AlertCreate(AlertBase):
     pass

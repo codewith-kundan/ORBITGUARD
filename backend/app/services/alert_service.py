@@ -8,28 +8,33 @@ from backend.app.schemas.alert import AlertStatus
 
 class AlertService:
     @staticmethod
-    def sync_alerts_from_conjunctions(db: Session) -> int:
+    def sync_alerts_from_conjunctions(db: Session, include_all_levels: bool = False) -> int:
         """
-        Scans all conjunctions and creates alerts for HIGH and CRITICAL severity events.
+        Scans all conjunctions and creates alerts for active events.
         """
-        high_risk_conjunctions = db.query(Conjunction).filter(
-            Conjunction.risk_level.in_([RiskLevel.HIGH, RiskLevel.CRITICAL])
-        ).all()
+        if include_all_levels:
+            conjunctions_to_alert = db.query(Conjunction).all()
+        else:
+            conjunctions_to_alert = db.query(Conjunction).filter(
+                Conjunction.risk_level.in_([RiskLevel.HIGH, RiskLevel.CRITICAL])
+            ).all()
 
         created_count = 0
-        for conj in high_risk_conjunctions:
+        for conj in conjunctions_to_alert:
             # Check if alert already exists for this conjunction
             existing = db.query(Alert).filter(Alert.conjunction_id == conj.id).first()
             if not existing:
                 name_a = conj.object_a.name if conj.object_a else f"ID-{conj.object_a_id}"
                 name_b = conj.object_b.name if conj.object_b else f"ID-{conj.object_b_id}"
+                title = f"{conj.risk_level.value if hasattr(conj.risk_level, 'value') else conj.risk_level} RISK: {name_a} ↔ {name_b}"
                 msg = (
-                    f"Close conjunction warning: {name_a} ↔ {name_b} | "
-                    f"Miss distance: {conj.miss_distance_km} km | Risk Score: {conj.risk_score}/100"
+                    f"Predicted miss distance of {conj.miss_distance_km:.2f} km. "
+                    f"Relative velocity: {conj.relative_velocity_km_s:.2f} km/s. TCA: {conj.tca.strftime('%Y-%m-%d %H:%M:%S')} UTC."
                 )
                 alert = Alert(
                     conjunction_id=conj.id,
                     severity=conj.risk_level,
+                    title=title,
                     status=AlertStatus.ACTIVE,
                     message=msg,
                     created_at=datetime.utcnow()

@@ -22,9 +22,15 @@ def list_alerts(
         query = query.filter(Alert.status == status)
     if severity:
         query = query.filter(Alert.severity == severity)
-    else:
-        query = query.filter(Alert.severity.in_([RiskLevel.HIGH, RiskLevel.CRITICAL]))
-    return query.order_by(Alert.created_at.desc()).limit(limit).all()
+    
+    alerts = query.order_by(Alert.created_at.desc()).limit(limit).all()
+    
+    # If no high/critical alerts exist in DB, auto-sync from all active conjunctions
+    if not alerts:
+        AlertService.sync_alerts_from_conjunctions(db, include_all_levels=True)
+        alerts = db.query(Alert).order_by(Alert.created_at.desc()).limit(limit).all()
+        
+    return alerts
 
 @router.post("/{id}/acknowledge", response_model=AlertResponse)
 def acknowledge_alert(id: int, db: Session = Depends(get_db)):
