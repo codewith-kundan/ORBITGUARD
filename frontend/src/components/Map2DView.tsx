@@ -41,10 +41,6 @@ interface HoveredEntity {
   screenY: number;
 }
 
-interface LiveGroundTrack {
-  past: { lat: number; lon: number }[];
-  future: { lat: number; lon: number }[];
-}
 
 export const Map2DView: React.FC<Map2DViewProps> = ({
   objects,
@@ -241,46 +237,35 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     return null;
   }, [satrec, simTime]);
 
-  // Real-Time SGP4 Ground Track Ribbon (Dynamically anchored to simTime)
-  const liveGroundTrack = useMemo<LiveGroundTrack | null>(() => {
+  // Real-Time SGP4 Ground Track: Exactly 1 Single Clean Orbital Revolution (No clutter/overlapping paths)
+  const liveGroundTrack = useMemo<{ lat: number; lon: number }[] | null>(() => {
     if (!satrec) return null;
     try {
-      const past: { lat: number; lon: number }[] = [];
-      const future: { lat: number; lon: number }[] = [];
+      const track: { lat: number; lon: number }[] = [];
+      const periodMin = activeObj?.period_minutes || 95.0;
 
-      // Past 90 minutes track (step 2 min)
-      for (let m = -90; m <= 0; m += 2) {
+      // Exactly 1 single orbital revolution centered around the satellite (-10 min trailing, remainder ahead)
+      const startMin = -10;
+      const endMin = Math.max(85, Math.min(720, periodMin - 10));
+
+      for (let m = startMin; m <= endMin; m += 1.5) {
         const t = new Date(simTime.getTime() + m * 60000);
         const gmst = satellite.gstime(t);
         const pv = satellite.propagate(satrec, t);
         if (pv && pv.position && typeof pv.position !== 'boolean') {
           const geodetic = satellite.eciToGeodetic(pv.position as satellite.EciVec3<number>, gmst);
-          past.push({
+          track.push({
             lat: satellite.degreesLat(geodetic.latitude),
             lon: satellite.degreesLong(geodetic.longitude)
           });
         }
       }
 
-      // Future 180 minutes track (step 2 min)
-      for (let m = 0; m <= 180; m += 2) {
-        const t = new Date(simTime.getTime() + m * 60000);
-        const gmst = satellite.gstime(t);
-        const pv = satellite.propagate(satrec, t);
-        if (pv && pv.position && typeof pv.position !== 'boolean') {
-          const geodetic = satellite.eciToGeodetic(pv.position as satellite.EciVec3<number>, gmst);
-          future.push({
-            lat: satellite.degreesLat(geodetic.latitude),
-            lon: satellite.degreesLong(geodetic.longitude)
-          });
-        }
-      }
-
-      return { past, future };
+      return track;
     } catch (e) {
       return null;
     }
-  }, [satrec, simTime]);
+  }, [satrec, simTime, activeObj?.period_minutes]);
 
   // Real 2D Canvas Render Loop (60 FPS Smooth Live Animation)
   useEffect(() => {
@@ -444,61 +429,35 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         });
       }
 
-      // 6. Real Continuous SGP4 Ground Track Ribbon
-      if (liveGroundTrack) {
-        // Past Track (Solid Cyan)
-        if (liveGroundTrack.past.length > 1) {
-          ctx.strokeStyle = '#00f0ff';
-          ctx.lineWidth = 2.5;
-          ctx.beginPath();
+      // 6. Real Single Continuous SGP4 Ground Track (Exactly 1 Clean Revolution)
+      if (liveGroundTrack && liveGroundTrack.length > 1) {
+        ctx.save();
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 2.4;
+        ctx.shadowColor = 'rgba(0, 240, 255, 0.6)';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
 
-          for (let i = 0; i < liveGroundTrack.past.length; i++) {
-            const pt = liveGroundTrack.past[i];
-            const px = lonToX(pt.lon);
-            const py = latToY(pt.lat);
+        for (let i = 0; i < liveGroundTrack.length; i++) {
+          const pt = liveGroundTrack[i];
+          const px = lonToX(pt.lon);
+          const py = latToY(pt.lat);
 
-            if (i > 0) {
-              const prev = liveGroundTrack.past[i - 1];
-              if (Math.abs(pt.lon - prev.lon) > 180) {
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(px, py);
-                continue;
-              }
+          if (i > 0) {
+            const prev = liveGroundTrack[i - 1];
+            // Discontinuity split at +/- 180° antimeridian / date line
+            if (Math.abs(pt.lon - prev.lon) > 180) {
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(px, py);
+              continue;
             }
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
           }
-          ctx.stroke();
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
         }
-
-        // Future Projected Track (Dashed Emerald)
-        if (liveGroundTrack.future.length > 1) {
-          ctx.strokeStyle = '#10b981';
-          ctx.lineWidth = 2.2;
-          ctx.setLineDash([5, 4]);
-          ctx.beginPath();
-
-          for (let i = 0; i < liveGroundTrack.future.length; i++) {
-            const pt = liveGroundTrack.future[i];
-            const px = lonToX(pt.lon);
-            const py = latToY(pt.lat);
-
-            if (i > 0) {
-              const prev = liveGroundTrack.future[i - 1];
-              if (Math.abs(pt.lon - prev.lon) > 180) {
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(px, py);
-                continue;
-              }
-            }
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-          }
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
+        ctx.stroke();
+        ctx.restore();
       }
 
       // 7. Active Live Satellite Marker & Sensor Coverage Footprint
