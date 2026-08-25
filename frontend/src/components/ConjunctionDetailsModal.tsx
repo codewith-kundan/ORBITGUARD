@@ -6,6 +6,8 @@ import { X, ShieldAlert, ArrowRightLeft, Clock, Gauge, Layers, Rocket, Atom, Fil
 interface ConjunctionDetailsModalProps {
   conjunction: Conjunction | null;
   onClose: () => void;
+  onNavigateTo3D?: (conjunction: Conjunction) => void;
+  onNavigateTo2D?: (conjunction: Conjunction) => void;
   onOpenCAM?: (conjunction: Conjunction) => void;
   onOpenBreakup?: (conjunction: Conjunction) => void;
   onOpenCDM?: (conjunction: Conjunction) => void;
@@ -14,6 +16,8 @@ interface ConjunctionDetailsModalProps {
 export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = ({
   conjunction,
   onClose,
+  onNavigateTo3D,
+  onNavigateTo2D,
   onOpenCAM,
   onOpenBreakup,
   onOpenCDM
@@ -148,13 +152,37 @@ export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = (
             SGP4 Conjunction Assessment
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {onNavigateTo3D && (
+              <button
+                onClick={() => {
+                  onNavigateTo3D(conjunction);
+                  onClose();
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-xs font-bold transition"
+              >
+                <span>🌐 FOCUS 3D</span>
+              </button>
+            )}
+
+            {onNavigateTo2D && (
+              <button
+                onClick={() => {
+                  onNavigateTo2D(conjunction);
+                  onClose();
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-xl text-xs font-bold transition"
+              >
+                <span>🗺️ 2D GROUND TRACK</span>
+              </button>
+            )}
+
             {onOpenCDM && (
               <button
                 onClick={() => onOpenCDM(conjunction)}
                 className="flex items-center gap-1.5 px-3 py-2 bg-space-800 hover:bg-space-700 text-cyan-400 border border-cyan-500/30 rounded-xl text-xs font-bold transition"
               >
                 <FileText className="w-4 h-4" />
-                CCSDS CDM & DISPATCH
+                CCSDS CDM
               </button>
             )}
 
@@ -164,7 +192,7 @@ export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = (
                 className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition"
               >
                 <Atom className="w-4 h-4" />
-                SIMULATE BREAKUP
+                BREAKUP
               </button>
             )}
 

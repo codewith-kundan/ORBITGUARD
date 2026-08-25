@@ -35,6 +35,8 @@ interface ConjunctionTableProps {
   conjunctions: Conjunction[];
   selectedConjunction: Conjunction | null;
   onSelectConjunction: (conj: Conjunction) => void;
+  onFocus3D?: (conj: Conjunction) => void;
+  onGroundTrack2D?: (conj: Conjunction) => void;
   onScreenNew?: () => void;
   isScreening?: boolean;
 }
@@ -43,6 +45,8 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
   conjunctions,
   selectedConjunction,
   onSelectConjunction,
+  onFocus3D,
+  onGroundTrack2D,
   onScreenNew,
   isScreening
 }) => {
@@ -193,16 +197,42 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
                       <RiskBadge level={c.risk_level} score={c.risk_score} size="sm" />
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectConjunction(c);
-                        }}
-                        className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-neon border border-cyan-500/30 rounded-lg text-xs font-bold transition flex items-center gap-1 ml-auto shadow-sm"
-                      >
-                        <Crosshair className="w-3.5 h-3.5" />
-                        <span>INSPECT</span>
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        {onFocus3D && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onFocus3D(c);
+                            }}
+                            className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+                            title="Focus in 3D Orbit View (Blinking Objects)"
+                          >
+                            <span>🌐 3D</span>
+                          </button>
+                        )}
+                        {onGroundTrack2D && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onGroundTrack2D(c);
+                            }}
+                            className="px-2 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+                            title="View 2D Ground Track & Collision TCA Hotspot"
+                          >
+                            <span>🗺️ 2D</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectConjunction(c);
+                          }}
+                          className="px-2 py-1 bg-space-800 hover:bg-space-700 text-slate-300 border border-space-700 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+                        >
+                          <Crosshair className="w-3 h-3" />
+                          <span>DETAILS</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

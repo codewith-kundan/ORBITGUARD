@@ -314,6 +314,16 @@ export default function App() {
                 conjunctions={conjunctions}
                 selectedConjunction={selectedConjunction}
                 onSelectConjunction={handleOpenConjunctionModal}
+                onFocus3D={(conj) => {
+                  setSelectedConjunction(conj);
+                  if (conj.object_a) setSelectedObject(conj.object_a);
+                  setActiveTab('space');
+                }}
+                onGroundTrack2D={(conj) => {
+                  setSelectedConjunction(conj);
+                  if (conj.object_a) setSelectedObject(conj.object_a);
+                  setActiveTab('map2d');
+                }}
                 onScreenNew={handleScreenConjunctions}
                 isScreening={isScreening}
               />
@@ -337,6 +347,16 @@ export default function App() {
         <ConjunctionDetailsModal
           conjunction={selectedConjunction}
           onClose={() => setIsConjunctionModalOpen(false)}
+          onNavigateTo3D={(conj) => {
+            setSelectedConjunction(conj);
+            if (conj.object_a) setSelectedObject(conj.object_a);
+            setActiveTab('space');
+          }}
+          onNavigateTo2D={(conj) => {
+            setSelectedConjunction(conj);
+            if (conj.object_a) setSelectedObject(conj.object_a);
+            setActiveTab('map2d');
+          }}
           onOpenCAM={handleOpenCAM}
           onOpenBreakup={handleOpenBreakup}
           onOpenCDM={handleOpenCDM}

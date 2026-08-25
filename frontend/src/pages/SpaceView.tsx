@@ -800,7 +800,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             const nameUpper = (pos.name || '').toUpperCase();
             const isStarlink = nameUpper.includes('STARLINK');
             const isOneWeb = nameUpper.includes('ONEWEB');
-            const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO');
+            const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO') || nameUpper.includes('GLONASS') || nameUpper.includes('GSAT');
 
             if (isDebrisMode && pos.type !== 'DEBRIS') return;
             if (activeFleetFilter === 'STARLINK' && !isStarlink) return;

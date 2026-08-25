@@ -242,7 +242,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       if (activeFleetFilter === 'PAYLOAD' && type !== 'ACTIVE_SATELLITE' && type !== 'PAYLOAD') return false;
       if (activeFleetFilter === 'STARLINK' && !name.includes('STARLINK')) return false;
       if (activeFleetFilter === 'ONEWEB' && !name.includes('ONEWEB')) return false;
-      if (activeFleetFilter === 'GPS' && !name.includes('NAVSTAR') && !name.includes('GPS') && !name.includes('GLONASS') && !name.includes('GALILEO') && !name.includes('BEIDOU')) return false;
+      if (activeFleetFilter === 'GPS' && !name.includes('NAVSTAR') && !name.includes('GPS') && !name.includes('GLONASS') && !name.includes('GALILEO') && !name.includes('BEIDOU') && !name.includes('GSAT')) return false;
       if (activeFleetFilter === 'DEBRIS' && type !== 'DEBRIS') return false;
       if (activeFleetFilter === 'ROCKET' && type !== 'ROCKET_BODY' && type !== 'ROCKET') return false;
 
