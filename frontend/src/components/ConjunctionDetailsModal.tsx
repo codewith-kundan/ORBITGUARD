@@ -1,20 +1,22 @@
 import React from 'react';
 import { Conjunction } from '../types';
 import { RiskBadge } from './RiskBadge';
-import { X, ShieldAlert, ArrowRightLeft, Clock, Gauge, Layers, Rocket, Atom } from 'lucide-react';
+import { X, ShieldAlert, ArrowRightLeft, Clock, Gauge, Layers, Rocket, Atom, FileText } from 'lucide-react';
 
 interface ConjunctionDetailsModalProps {
   conjunction: Conjunction | null;
   onClose: () => void;
   onOpenCAM?: (conjunction: Conjunction) => void;
   onOpenBreakup?: (conjunction: Conjunction) => void;
+  onOpenCDM?: (conjunction: Conjunction) => void;
 }
 
 export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = ({
   conjunction,
   onClose,
   onOpenCAM,
-  onOpenBreakup
+  onOpenBreakup,
+  onOpenCDM
 }) => {
   if (!conjunction) return null;
 
@@ -145,7 +147,17 @@ export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = (
           <div className="text-[10px] text-slate-500 font-mono">
             SGP4 Conjunction Assessment
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {onOpenCDM && (
+              <button
+                onClick={() => onOpenCDM(conjunction)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-space-800 hover:bg-space-700 text-cyan-400 border border-cyan-500/30 rounded-xl text-xs font-bold transition"
+              >
+                <FileText className="w-4 h-4" />
+                CCSDS CDM & DISPATCH
+              </button>
+            )}
+
             {onOpenBreakup && (
               <button
                 onClick={() => onOpenBreakup(conjunction)}

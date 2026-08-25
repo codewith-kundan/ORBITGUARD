@@ -12,6 +12,7 @@ import { CAMPlannerModal } from './components/CAMPlannerModal';
 import { OverpassModal } from './components/OverpassModal';
 import { BreakupSimulatorModal } from './components/BreakupSimulatorModal';
 import { ReentryTrackerModal } from './components/ReentryTrackerModal';
+import { CDMExportModal } from './components/CDMExportModal';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -39,6 +40,7 @@ export default function App() {
   const [isOverpassModalOpen, setIsOverpassModalOpen] = useState<boolean>(false);
   const [isBreakupModalOpen, setIsBreakupModalOpen] = useState<boolean>(false);
   const [isReentryModalOpen, setIsReentryModalOpen] = useState<boolean>(false);
+  const [isCDMModalOpen, setIsCDMModalOpen] = useState<boolean>(false);
   const [overpassTargetObject, setOverpassTargetObject] = useState<OrbitalObject | null>(null);
   const [reentryTargetObject, setReentryTargetObject] = useState<OrbitalObject | null>(null);
 
@@ -149,6 +151,12 @@ export default function App() {
   const handleOpenReentryModal = (obj: OrbitalObject) => {
     setReentryTargetObject(obj);
     setIsReentryModalOpen(true);
+  };
+
+  const handleOpenCDM = (conj: Conjunction) => {
+    setSelectedConjunction(conj);
+    setIsConjunctionModalOpen(false);
+    setIsCDMModalOpen(true);
   };
 
   const alertCount = alerts.filter(
@@ -270,6 +278,7 @@ export default function App() {
           onClose={() => setIsConjunctionModalOpen(false)}
           onOpenCAM={handleOpenCAM}
           onOpenBreakup={handleOpenBreakup}
+          onOpenCDM={handleOpenCDM}
         />
       )}
 
@@ -302,6 +311,14 @@ export default function App() {
         <ReentryTrackerModal
           object={reentryTargetObject || selectedObject || objects[0]}
           onClose={() => setIsReentryModalOpen(false)}
+        />
+      )}
+
+      {/* CCSDS 508.0-B-1 CDM Export & Operator Dispatcher Modal */}
+      {isCDMModalOpen && selectedConjunction && (
+        <CDMExportModal
+          conjunction={selectedConjunction}
+          onClose={() => setIsCDMModalOpen(false)}
         />
       )}
 

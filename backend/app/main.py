@@ -14,6 +14,7 @@ from backend.app.api.cam import router as cam_router
 from backend.app.api.overpass import router as overpass_router
 from backend.app.api.breakup import router as breakup_router
 from backend.app.api.decay import router as decay_router
+from backend.app.api.compliance import router as compliance_router
 from backend.app.models.base import Base, engine, get_db, SessionLocal
 from backend.app.models.orbital_object import OrbitalObject, SyncLog
 from backend.app.models.conjunction import Conjunction
@@ -50,6 +51,7 @@ app.include_router(cam_router)
 app.include_router(overpass_router)
 app.include_router(breakup_router)
 app.include_router(decay_router)
+app.include_router(compliance_router)
 
 async def periodic_sync_worker():
     """Background task running periodic orbital ephemeris synchronization."""

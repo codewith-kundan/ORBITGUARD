@@ -22,7 +22,10 @@ import {
   BreakupResponse,
   ReentryPrediction,
   DecayWatchlistItem,
-  DecayAssessmentRequest
+  DecayAssessmentRequest,
+  CDMPreviewResponse,
+  WebhookDispatchRequest,
+  WebhookDispatchResponse
 } from '../types';
 
 const rawApiUrl = ((import.meta as any).env?.VITE_API_URL as string) || '';
@@ -216,5 +219,21 @@ export const api = {
 
   getDecayWatchlist: async (maxDays: number = 90.0): Promise<DecayWatchlistItem[]> => {
     return request<DecayWatchlistItem[]>(`/decay/watchlist?max_days=${maxDays}`);
+  },
+
+  // Aerospace Standards Compliance & Dispatcher
+  getCDM: async (conjunctionId: number): Promise<CDMPreviewResponse> => {
+    return request<CDMPreviewResponse>(`/compliance/cdm/${conjunctionId}`);
+  },
+
+  getCDMDownloadUrl: (conjunctionId: number, format: 'kvn' | 'xml' = 'kvn'): string => {
+    return `${API_BASE}/compliance/cdm/${conjunctionId}/download?format=${format}`;
+  },
+
+  dispatchWebhook: async (payload: WebhookDispatchRequest): Promise<WebhookDispatchResponse> => {
+    return request<WebhookDispatchResponse>('/compliance/dispatch/webhook', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   }
 };

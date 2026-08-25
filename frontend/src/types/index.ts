@@ -555,5 +555,41 @@ export interface DecayAssessmentRequest {
   geomagnetic_ap?: number;
 }
 
+export interface CDMPreviewResponse {
+  conjunction_id: number;
+  message_id: string;
+  creation_date: string;
+  originator: string;
+  tca: string;
+  miss_distance_m: number;
+  relative_speed_m_s: number;
+  collision_probability: number;
+  object1_name: string;
+  object1_norad_id: number;
+  object2_name: string;
+  object2_norad_id: number;
+  kvn_content: string;
+  xml_content: string;
+}
+
+export interface WebhookDispatchRequest {
+  conjunction_id: number;
+  webhook_url: string;
+  secret_token?: string;
+  include_cdm_attachment?: boolean;
+  custom_notes?: string;
+}
+
+export interface WebhookDispatchResponse {
+  success: boolean;
+  status_code?: number;
+  response_body?: string;
+  dispatched_at: string;
+  destination_url: string;
+  message: string;
+  latency_ms: number;
+}
+
+
 
 
