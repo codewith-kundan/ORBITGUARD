@@ -25,13 +25,14 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
   const [sortBy, setSortBy] = useState<string>('norad_id');
   const [sortOrder, setSortOrder] = useState<string>('asc');
 
-  const fetchObjects = async () => {
+  const fetchObjects = async (searchQuery?: string) => {
     setLoading(true);
     try {
+      const activeSearch = searchQuery !== undefined ? searchQuery : search;
       const res = await api.getPaginatedObjects(
         page,
         pageSize,
-        search.trim() ? search.trim() : undefined,
+        activeSearch.trim() ? activeSearch.trim() : undefined,
         typeFilter !== 'ALL' ? typeFilter : undefined,
         sortBy,
         sortOrder
@@ -47,8 +48,11 @@ export const ObjectTable: React.FC<ObjectTableProps> = ({
   };
 
   useEffect(() => {
-    fetchObjects();
-  }, [page, typeFilter, sortBy, sortOrder]);
+    const handler = setTimeout(() => {
+      fetchObjects();
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [page, typeFilter, sortBy, sortOrder, search]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
