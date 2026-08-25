@@ -267,11 +267,13 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const sunMeshRef = useRef<THREE.Mesh | null>(null);
   const moonMeshRef = useRef<THREE.Mesh | null>(null);
 
-  // Specialized LeoLabs 3D Instanced Meshes
+  // Specialized 3D Instanced Meshes (Color-Coded)
   const debrisMeshRef = useRef<THREE.InstancedMesh | null>(null);
   const satMeshRef = useRef<THREE.InstancedMesh | null>(null);
   const starlinkMeshRef = useRef<THREE.InstancedMesh | null>(null);
+  const onewebMeshRef = useRef<THREE.InstancedMesh | null>(null);
   const rocketMeshRef = useRef<THREE.InstancedMesh | null>(null);
+  const gpsMeshRef = useRef<THREE.InstancedMesh | null>(null);
   
   const trajectoryLineRef = useRef<THREE.Line | null>(null);
   const groundTrackLineRef = useRef<THREE.Line | null>(null);
@@ -586,14 +588,14 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     });
     scene.add(altRingsGroup);
 
-    // 12. SPECIALIZED 3D INSTANCED MESHES:
+    // 12. SPECIALIZED 3D INSTANCED MESHES (Exact Color Specification):
     const maxInst = 4500;
 
-    // A) Operational Payloads & Active Satellites (Cyan/Electric Blue Octahedron Diamond)
+    // A) Operational Payloads & Active Satellites (BLUE)
     const satGeom = new THREE.OctahedronGeometry(0.20, 0);
     const satMat = new THREE.MeshStandardMaterial({
-      color: 0x00d4ff,
-      emissive: 0x003355,
+      color: 0x2563eb, // Vibrant Royal Blue
+      emissive: 0x1d4ed8,
       roughness: 0.15,
       metalness: 0.9
     });
@@ -602,11 +604,11 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(satMesh);
     satMeshRef.current = satMesh;
 
-    // B) Megaconstellations (e.g. Starlink, OneWeb - Violet/Purple Diamond)
+    // B) Starlink Constellation (PURPLE)
     const starlinkGeom = new THREE.OctahedronGeometry(0.18, 0);
     const starlinkMat = new THREE.MeshStandardMaterial({
-      color: 0x8b5cf6,
-      emissive: 0x2e1065,
+      color: 0xa855f7, // Vibrant Purple
+      emissive: 0x7e22ce,
       roughness: 0.2,
       metalness: 0.85
     });
@@ -615,11 +617,37 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(starlinkMesh);
     starlinkMeshRef.current = starlinkMesh;
 
-    // C) Debris / Shattered Space Debris Cloud (Vibrant Red Spheres)
+    // C) OneWeb Constellation (WHITE)
+    const onewebGeom = new THREE.OctahedronGeometry(0.18, 0);
+    const onewebMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff, // Pure White
+      emissive: 0xd4d4d8,
+      roughness: 0.1,
+      metalness: 0.95
+    });
+    const onewebMesh = new THREE.InstancedMesh(onewebGeom, onewebMat, maxInst);
+    onewebMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(onewebMesh);
+    onewebMeshRef.current = onewebMesh;
+
+    // D) GPS / GNSS Constellation (GREEN)
+    const gpsGeom = new THREE.OctahedronGeometry(0.22, 0);
+    const gpsMat = new THREE.MeshStandardMaterial({
+      color: 0x22c55e, // Vibrant Green
+      emissive: 0x15803d,
+      roughness: 0.15,
+      metalness: 0.9
+    });
+    const gpsMesh = new THREE.InstancedMesh(gpsGeom, gpsMat, maxInst);
+    gpsMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(gpsMesh);
+    gpsMeshRef.current = gpsMesh;
+
+    // E) Debris / Shattered Fragment Clouds (RED)
     const debrisGeom = new THREE.SphereGeometry(0.13, 10, 10);
     const debrisMat = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      emissive: 0x550011,
+      color: 0xef4444, // Vibrant Red
+      emissive: 0xb91c1c,
       roughness: 0.35,
       metalness: 0.6
     });
@@ -628,11 +656,11 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     scene.add(debrisMesh);
     debrisMeshRef.current = debrisMesh;
 
-    // D) Rocket Bodies & Booster Upper Stages (Amber/Gold Cylindrical Stages)
+    // F) Rocket Bodies & Booster Upper Stages (YELLOW)
     const rocketGeom = new THREE.CylinderGeometry(0.06, 0.12, 0.32, 8);
     const rocketMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0x442200,
+      color: 0xeab308, // Bright Yellow
+      emissive: 0xa16207,
       roughness: 0.35,
       metalness: 0.8
     });
@@ -763,6 +791,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
       let satIdx = 0;
       let starlinkIdx = 0;
+      let onewebIdx = 0;
+      let gpsIdx = 0;
       let debrisIdx = 0;
       let rocketIdx = 0;
 
@@ -815,7 +845,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             const nameUpper = (pos.name || '').toUpperCase();
             const isStarlink = nameUpper.includes('STARLINK');
             const isOneWeb = nameUpper.includes('ONEWEB');
-            const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO') || nameUpper.includes('GLONASS') || nameUpper.includes('GSAT');
+            const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO') || nameUpper.includes('GLONASS') || nameUpper.includes('QZSS') || nameUpper.includes('IRNSS');
 
             if (isDebrisMode && pos.type !== 'DEBRIS') return;
             if (activeFleetFilter === 'STARLINK' && !isStarlink) return;
@@ -851,6 +881,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             }
             dummy.scale.set(scale, scale, scale);
 
+            // 1. DEBRIS -> RED
             if (pos.type === 'DEBRIS') {
               if (debrisMeshRef.current && debrisIdx < maxInst) {
                 dummy.rotation.set(tumbleAngle * 0.8 + pos.norad_id, tumbleAngle * 1.2, tumbleAngle * 0.5);
@@ -858,6 +889,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                 debrisMeshRef.current.setMatrixAt(debrisIdx, dummy.matrix);
                 debrisIdx++;
               }
+            // 2. ROCKETS -> YELLOW
             } else if (pos.type === 'ROCKET_BODY') {
               if (rocketMeshRef.current && rocketIdx < maxInst) {
                 dummy.rotation.set(0.3, tumbleAngle * 0.3 + pos.norad_id, 0);
@@ -865,13 +897,31 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                 rocketMeshRef.current.setMatrixAt(rocketIdx, dummy.matrix);
                 rocketIdx++;
               }
-            } else if (isStarlink || isOneWeb) {
+            // 3. STARLINK -> PURPLE
+            } else if (isStarlink) {
               if (starlinkMeshRef.current && starlinkIdx < maxInst) {
                 dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
                 dummy.updateMatrix();
                 starlinkMeshRef.current.setMatrixAt(starlinkIdx, dummy.matrix);
                 starlinkIdx++;
               }
+            // 4. ONEWEB -> WHITE
+            } else if (isOneWeb) {
+              if (onewebMeshRef.current && onewebIdx < maxInst) {
+                dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
+                dummy.updateMatrix();
+                onewebMeshRef.current.setMatrixAt(onewebIdx, dummy.matrix);
+                onewebIdx++;
+              }
+            // 5. GPS / GNSS -> GREEN
+            } else if (isGps) {
+              if (gpsMeshRef.current && gpsIdx < maxInst) {
+                dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
+                dummy.updateMatrix();
+                gpsMeshRef.current.setMatrixAt(gpsIdx, dummy.matrix);
+                gpsIdx++;
+              }
+            // 6. OPERATIONAL / OTHER ACTIVE -> BLUE
             } else {
               if (satMeshRef.current && satIdx < maxInst) {
                 dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
@@ -915,6 +965,11 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           }
           dummy.scale.set(scale, scale, scale);
 
+          const nameUpper = (pos.name || '').toUpperCase();
+          const isStarlink = nameUpper.includes('STARLINK');
+          const isOneWeb = nameUpper.includes('ONEWEB');
+          const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO') || nameUpper.includes('GLONASS');
+
           if (pos.type === 'DEBRIS') {
             if (debrisMeshRef.current && debrisIdx < maxInst) {
               dummy.rotation.set(tumbleAngle * 0.8 + pos.norad_id, tumbleAngle * 1.2, tumbleAngle * 0.5);
@@ -928,6 +983,27 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               dummy.updateMatrix();
               rocketMeshRef.current.setMatrixAt(rocketIdx, dummy.matrix);
               rocketIdx++;
+            }
+          } else if (isStarlink) {
+            if (starlinkMeshRef.current && starlinkIdx < maxInst) {
+              dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
+              dummy.updateMatrix();
+              starlinkMeshRef.current.setMatrixAt(starlinkIdx, dummy.matrix);
+              starlinkIdx++;
+            }
+          } else if (isOneWeb) {
+            if (onewebMeshRef.current && onewebIdx < maxInst) {
+              dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
+              dummy.updateMatrix();
+              onewebMeshRef.current.setMatrixAt(onewebIdx, dummy.matrix);
+              onewebIdx++;
+            }
+          } else if (isGps) {
+            if (gpsMeshRef.current && gpsIdx < maxInst) {
+              dummy.rotation.set(0, tumbleAngle * 0.4 + pos.norad_id, 0);
+              dummy.updateMatrix();
+              gpsMeshRef.current.setMatrixAt(gpsIdx, dummy.matrix);
+              gpsIdx++;
             }
           } else {
             if (satMeshRef.current && satIdx < maxInst) {
@@ -949,6 +1025,14 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       if (starlinkMeshRef.current) {
         starlinkMeshRef.current.count = starlinkIdx;
         starlinkMeshRef.current.instanceMatrix.needsUpdate = true;
+      }
+      if (onewebMeshRef.current) {
+        onewebMeshRef.current.count = onewebIdx;
+        onewebMeshRef.current.instanceMatrix.needsUpdate = true;
+      }
+      if (gpsMeshRef.current) {
+        gpsMeshRef.current.count = gpsIdx;
+        gpsMeshRef.current.instanceMatrix.needsUpdate = true;
       }
       if (debrisMeshRef.current) {
         debrisMeshRef.current.count = debrisIdx;
@@ -1074,13 +1158,28 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       });
 
       const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
-      const isDebris = selectedObject?.object_type === 'DEBRIS';
-      const lineColor = isDebris ? 0xff3344 : 0x00f0ff;
+      const nameUpper = (selectedObject?.name || '').toUpperCase();
+      const isStarlink = nameUpper.includes('STARLINK');
+      const isOneWeb = nameUpper.includes('ONEWEB');
+      const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO') || nameUpper.includes('GLONASS');
+
+      let lineColor = 0x2563eb; // Default Operational Blue
+      if (selectedObject?.object_type === 'DEBRIS') {
+        lineColor = 0xef4444; // Debris Red
+      } else if (selectedObject?.object_type === 'ROCKET_BODY') {
+        lineColor = 0xeab308; // Rocket Yellow
+      } else if (isStarlink) {
+        lineColor = 0xa855f7; // Starlink Purple
+      } else if (isOneWeb) {
+        lineColor = 0xffffff; // OneWeb White
+      } else if (isGps) {
+        lineColor = 0x22c55e; // GPS Green
+      }
 
       const lineMat = new THREE.LineBasicMaterial({
         color: lineColor,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.95,
         linewidth: 2
       });
 
@@ -1113,20 +1212,38 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         );
       });
 
+      const nameUpper = (selectedObject?.name || '').toUpperCase();
+      const isStarlink = nameUpper.includes('STARLINK');
+      const isOneWeb = nameUpper.includes('ONEWEB');
+      const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO') || nameUpper.includes('GLONASS');
+
+      let groundColor = 0x2563eb; // Operational Blue
+      if (selectedObject?.object_type === 'DEBRIS') {
+        groundColor = 0xef4444; // Debris Red
+      } else if (selectedObject?.object_type === 'ROCKET_BODY') {
+        groundColor = 0xeab308; // Rocket Yellow
+      } else if (isStarlink) {
+        groundColor = 0xa855f7; // Starlink Purple
+      } else if (isOneWeb) {
+        groundColor = 0xffffff; // OneWeb White
+      } else if (isGps) {
+        groundColor = 0x22c55e; // GPS Green
+      }
+
       const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
       const lineMat = new THREE.LineDashedMaterial({
-        color: 0x00ffff,
+        color: groundColor,
         dashSize: 0.2,
         gapSize: 0.1,
         transparent: true,
-        opacity: 0.7
+        opacity: 0.8
       });
       const line = new THREE.Line(lineGeom, lineMat);
       line.computeLineDistances();
       scene.add(line);
       groundTrackLineRef.current = line;
     }
-  }, [_groundTrackData, showGroundTrack]);
+  }, [_groundTrackData, showGroundTrack, selectedObject]);
 
   // Update Visual Conjunction Vector Line
   useEffect(() => {
@@ -1318,13 +1435,13 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-1 text-[11px]">
                 {[
-                  { key: 'ALL', label: 'All Objects', count: fleetCounts.all, color: 'text-white' },
-                  { key: 'PAYLOAD', label: '◆ Operational', count: fleetCounts.operational, color: 'text-cyan-400' },
-                  { key: 'STARLINK', label: '◆ Starlink Fleet', count: fleetCounts.starlink, color: 'text-purple-400' },
-                  { key: 'ONEWEB', label: '◆ OneWeb', count: fleetCounts.oneweb, color: 'text-purple-400' },
-                  { key: 'GPS', label: '◆ GPS / GNSS', count: fleetCounts.gps, color: 'text-emerald-400' },
-                  { key: 'DEBRIS', label: '⬟ Debris Clouds', count: fleetCounts.debris, color: 'text-danger-400' },
-                  { key: 'ROCKET', label: '❚ Rocket Bodies', count: fleetCounts.rocket, color: 'text-warning-400' }
+                  { key: 'ALL', label: 'All Objects', count: fleetCounts.all, color: 'text-slate-200' },
+                  { key: 'PAYLOAD', label: '◆ Operational', count: fleetCounts.operational, color: 'text-blue-400' },
+                  { key: 'DEBRIS', label: '⬟ Debris Clouds', count: fleetCounts.debris, color: 'text-red-400' },
+                  { key: 'STARLINK', label: '◆ Starlink', count: fleetCounts.starlink, color: 'text-purple-400' },
+                  { key: 'ONEWEB', label: '◆ OneWeb', count: fleetCounts.oneweb, color: 'text-white' },
+                  { key: 'ROCKET', label: '❚ Rocket Bodies', count: fleetCounts.rocket, color: 'text-yellow-400' },
+                  { key: 'GPS', label: '◆ GPS / GNSS', count: fleetCounts.gps, color: 'text-green-400' }
                 ].map((f) => (
                   <button
                     key={f.key}

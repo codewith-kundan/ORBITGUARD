@@ -624,19 +624,62 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           const dotX = lonToX(satLon);
           const dotY = latToY(satLat);
 
-          ctx.fillStyle = pos.type === 'DEBRIS' ? '#ef4444' : pos.type === 'ROCKET_BODY' ? '#f59e0b' : '#00d4ff';
+          const nameUpper = (pos.name || '').toUpperCase();
+          const isStarlink = nameUpper.includes('STARLINK');
+          const isOneWeb = nameUpper.includes('ONEWEB');
+          const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO') || nameUpper.includes('GLONASS');
+
+          let dotColor = '#2563eb'; // Operational Blue
+          if (pos.type === 'DEBRIS') {
+            dotColor = '#ef4444'; // Debris Red
+          } else if (pos.type === 'ROCKET_BODY') {
+            dotColor = '#eab308'; // Rocket Yellow
+          } else if (isStarlink) {
+            dotColor = '#a855f7'; // Starlink Purple
+          } else if (isOneWeb) {
+            dotColor = '#ffffff'; // OneWeb White
+          } else if (isGps) {
+            dotColor = '#22c55e'; // GPS Green
+          }
+
+          ctx.fillStyle = dotColor;
           ctx.beginPath();
-          ctx.arc(dotX, dotY, 2.2, 0, Math.PI * 2);
+          ctx.arc(dotX, dotY, 2.3, 0, Math.PI * 2);
           ctx.fill();
         });
+      }
+
+      // Compute Primary Object Color
+      const primaryNameUpper = (activeObj?.name || '').toUpperCase();
+      const isPrimaryStarlink = primaryNameUpper.includes('STARLINK');
+      const isPrimaryOneWeb = primaryNameUpper.includes('ONEWEB');
+      const isPrimaryGps = primaryNameUpper.includes('GPS') || primaryNameUpper.includes('NAVSTAR') || primaryNameUpper.includes('BEIDOU') || primaryNameUpper.includes('GALILEO') || primaryNameUpper.includes('GLONASS');
+
+      let primaryColorHex = '#2563eb'; // Default Blue
+      let primaryGlow = 'rgba(37, 99, 235, 0.7)';
+      if (activeObj?.object_type === 'DEBRIS') {
+        primaryColorHex = '#ef4444';
+        primaryGlow = 'rgba(239, 68, 68, 0.7)';
+      } else if (activeObj?.object_type === 'ROCKET_BODY') {
+        primaryColorHex = '#eab308';
+        primaryGlow = 'rgba(234, 179, 8, 0.7)';
+      } else if (isPrimaryStarlink) {
+        primaryColorHex = '#a855f7';
+        primaryGlow = 'rgba(168, 85, 247, 0.7)';
+      } else if (isPrimaryOneWeb) {
+        primaryColorHex = '#ffffff';
+        primaryGlow = 'rgba(255, 255, 255, 0.7)';
+      } else if (isPrimaryGps) {
+        primaryColorHex = '#22c55e';
+        primaryGlow = 'rgba(34, 197, 94, 0.7)';
       }
 
       // 6. Real Single Continuous SGP4 Ground Track (Exactly 1 Clean Revolution)
       if (liveGroundTrack && liveGroundTrack.length > 1) {
         ctx.save();
-        ctx.strokeStyle = '#00f0ff';
-        ctx.lineWidth = 2.4;
-        ctx.shadowColor = 'rgba(0, 240, 255, 0.6)';
+        ctx.strokeStyle = primaryColorHex;
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = primaryGlow;
         ctx.shadowBlur = 6;
         ctx.beginPath();
 
@@ -700,8 +743,8 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         // Ground Coverage Footprint Circle
         if (showFootprint && livePosition.footprint_radius_km > 0) {
           const footprintPx = (livePosition.footprint_radius_km / 40075.0) * w;
-          ctx.fillStyle = 'rgba(0, 240, 255, 0.14)';
-          ctx.strokeStyle = 'rgba(0, 240, 255, 0.75)';
+          ctx.fillStyle = primaryGlow.replace('0.7', '0.14');
+          ctx.strokeStyle = primaryGlow;
           ctx.lineWidth = 1.8;
           ctx.beginPath();
           ctx.arc(curX, curY, Math.max(18, footprintPx), 0, Math.PI * 2);
@@ -710,7 +753,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         }
 
         // Satellite Marker Beacon
-        ctx.fillStyle = '#00f0ff';
+        ctx.fillStyle = primaryColorHex;
         ctx.beginPath();
         ctx.arc(curX, curY, 7.5, 0, Math.PI * 2);
         ctx.fill();
@@ -720,7 +763,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         ctx.stroke();
 
         const pulseR = 9 + (Date.now() % 1200) / 80;
-        ctx.strokeStyle = 'rgba(0, 240, 255, 0.85)';
+        ctx.strokeStyle = primaryGlow;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(curX, curY, pulseR, 0, Math.PI * 2);
@@ -731,7 +774,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         ctx.font = 'bold 12px monospace';
         ctx.fillText(`🛰️ ${activeObj.name} (#${activeObj.norad_id})`, curX + 14, curY - 8);
 
-        ctx.fillStyle = '#38bdf8';
+        ctx.fillStyle = primaryColorHex;
         ctx.font = 'bold 10px monospace';
         ctx.fillText(
           `Alt: ${livePosition.altitude_km.toFixed(1)} km • Lat: ${livePosition.latitude.toFixed(2)}° • Lon: ${livePosition.longitude.toFixed(2)}° • Vel: ${livePosition.velocity_km_s.toFixed(2)} km/s`,
@@ -1262,13 +1305,13 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
                 <div className="grid grid-cols-2 gap-1 text-[11px]">
                   {[
-                    { key: 'ALL', label: 'All Objects', count: fleetCounts.all, color: 'text-white' },
-                    { key: 'PAYLOAD', label: '◆ Operational', count: fleetCounts.operational, color: 'text-cyan-400' },
-                    { key: 'STARLINK', label: '◆ Starlink Fleet', count: fleetCounts.starlink, color: 'text-purple-400' },
-                    { key: 'ONEWEB', label: '◆ OneWeb', count: fleetCounts.oneweb, color: 'text-purple-400' },
-                    { key: 'GPS', label: '◆ GPS / GNSS', count: fleetCounts.gps, color: 'text-emerald-400' },
-                    { key: 'DEBRIS', label: '⬟ Debris Clouds', count: fleetCounts.debris, color: 'text-danger-400' },
-                    { key: 'ROCKET', label: '❚ Rocket Bodies', count: fleetCounts.rocket, color: 'text-warning-400' }
+                    { key: 'ALL', label: 'All Objects', count: fleetCounts.all, color: 'text-slate-200' },
+                    { key: 'PAYLOAD', label: '◆ Operational', count: fleetCounts.operational, color: 'text-blue-400' },
+                    { key: 'DEBRIS', label: '⬟ Debris Clouds', count: fleetCounts.debris, color: 'text-red-400' },
+                    { key: 'STARLINK', label: '◆ Starlink', count: fleetCounts.starlink, color: 'text-purple-400' },
+                    { key: 'ONEWEB', label: '◆ OneWeb', count: fleetCounts.oneweb, color: 'text-white' },
+                    { key: 'ROCKET', label: '❚ Rocket Bodies', count: fleetCounts.rocket, color: 'text-yellow-400' },
+                    { key: 'GPS', label: '◆ GPS / GNSS', count: fleetCounts.gps, color: 'text-green-400' }
                   ].map((f) => (
                     <button
                       key={f.key}
