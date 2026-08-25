@@ -225,30 +225,37 @@ export default function App() {
 
       {/* Main Container */}
       <main className="flex-1 p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto w-full">
+        {error && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 sm:p-4 mb-4 font-mono text-amber-300 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-300">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚠️</span>
+              <div>
+                <p className="font-bold text-xs sm:text-sm text-white">Backend Offline / Standalone SGP4 Mode Active</p>
+                <p className="text-[11px] text-amber-200/80">{error}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                onClick={() => { setError(null); loadAllData(); }}
+                className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-space-950 font-bold rounded-lg text-xs transition"
+              >
+                RETRY
+              </button>
+              <button
+                onClick={() => setError(null)}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition border border-slate-700"
+              >
+                DISMISS
+              </button>
+            </div>
+          </div>
+        )}
+
         {loading && objects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[60vh] gap-3 font-mono text-cyan-400">
             <Loader2 className="w-8 h-8 animate-spin text-cyan-neon" />
             <p className="text-sm font-bold">Connecting to SPACE SENTINEL SGP4 Ephemeris Engine...</p>
             <p className="text-xs text-slate-400">Loading orbital state vectors and active collision screening tables...</p>
-          </div>
-        ) : error ? (
-          <div className="bg-danger-500/10 border border-danger-500/30 rounded-2xl p-6 text-center font-mono text-danger-neon max-w-lg mx-auto mt-12 shadow-2xl">
-            <p className="font-bold text-base mb-2">Backend Connection Issue</p>
-            <p className="text-xs text-slate-300 mb-4">{error}</p>
-            <div className="flex gap-2 justify-center">
-              <button
-                onClick={loadAllData}
-                className="px-4 py-2 bg-cyan-500 text-space-950 font-bold hover:bg-cyan-400 rounded-xl text-xs transition"
-              >
-                RETRY CONNECTION
-              </button>
-              <button
-                onClick={() => handleSync('LIVE')}
-                className="px-4 py-2 bg-space-800 hover:bg-space-700 text-white rounded-xl border border-space-700 text-xs transition"
-              >
-                FORCE SYNC
-              </button>
-            </div>
           </div>
         ) : (
           <>

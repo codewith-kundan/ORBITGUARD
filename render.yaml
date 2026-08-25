@@ -1,30 +1,13 @@
 services:
-  # Python FastAPI Backend
   - type: web
     name: orbitguard-backend
-    env: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    runtime: python
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PYTHONPATH
         value: .
       - key: DATABASE_URL
         value: sqlite:///./data/orbitguard.db
-      - key: SPACETRACK_USER
-        sync: false
-      - key: SPACETRACK_PASSWORD
-        sync: false
-
-  # React / Vite Frontend
-  - type: web
-    name: orbitguard-frontend
-    env: static
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
-    rootDir: frontend
-    envVars:
-      - key: VITE_API_URL
-        fromService:
-          type: web
-          name: orbitguard-backend
-          property: host
+      - key: ORBITAL_DATA_PROVIDER
+        value: Space-Track
