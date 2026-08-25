@@ -235,6 +235,7 @@ export default function App() {
                 selectedObject={selectedObject}
                 onSelectObject={handleSelectObject}
                 onOpenOverpassModal={handleOpenOverpassModal}
+                onOpenDetailsModal={handleOpenObjectModal}
               />
             )}
 

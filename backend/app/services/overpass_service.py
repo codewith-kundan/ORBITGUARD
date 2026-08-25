@@ -39,6 +39,15 @@ PREDEFINED_STATIONS: List[GroundStation] = [
         min_elevation_deg=10.0
     ),
     GroundStation(
+        id="isro_shar",
+        name="ISRO SDSC (Sriharikota, India)",
+        country="India",
+        latitude_deg=13.733,
+        longitude_deg=80.235,
+        altitude_m=20.0,
+        min_elevation_deg=10.0
+    ),
+    GroundStation(
         id="nasa_ksc",
         name="NASA Kennedy Space Center (Florida, USA)",
         country="USA",
@@ -46,6 +55,51 @@ PREDEFINED_STATIONS: List[GroundStation] = [
         longitude_deg=-80.649,
         altitude_m=3.0,
         min_elevation_deg=10.0
+    ),
+    GroundStation(
+        id="dsn_goldstone",
+        name="NASA DSN Goldstone (California, USA)",
+        country="USA",
+        latitude_deg=35.426,
+        longitude_deg=-116.890,
+        altitude_m=1036.0,
+        min_elevation_deg=10.0
+    ),
+    GroundStation(
+        id="dsn_madrid",
+        name="NASA DSN Madrid (Robledo, Spain)",
+        country="Spain",
+        latitude_deg=40.427,
+        longitude_deg=-4.249,
+        altitude_m=834.0,
+        min_elevation_deg=10.0
+    ),
+    GroundStation(
+        id="dsn_canberra",
+        name="NASA DSN Canberra (Australia)",
+        country="Australia",
+        latitude_deg=-35.401,
+        longitude_deg=148.981,
+        altitude_m=650.0,
+        min_elevation_deg=10.0
+    ),
+    GroundStation(
+        id="esa_kourou",
+        name="ESA ESTRACK Kourou (French Guiana)",
+        country="France",
+        latitude_deg=5.251,
+        longitude_deg=-52.805,
+        altitude_m=15.0,
+        min_elevation_deg=10.0
+    ),
+    GroundStation(
+        id="esa_kiruna",
+        name="ESA ESTRACK Kiruna (Sweden)",
+        country="Sweden",
+        latitude_deg=67.857,
+        longitude_deg=20.964,
+        altitude_m=380.0,
+        min_elevation_deg=5.0
     ),
     GroundStation(
         id="esa_harwell",
@@ -58,7 +112,7 @@ PREDEFINED_STATIONS: List[GroundStation] = [
     ),
     GroundStation(
         id="ksat_svalbard",
-        name="KSAT Svalbard Satellite Station (Svalbard, Norway)",
+        name="KSAT Svalbard (Svalbard, Norway)",
         country="Norway",
         latitude_deg=78.229,
         longitude_deg=15.407,
@@ -66,22 +120,40 @@ PREDEFINED_STATIONS: List[GroundStation] = [
         min_elevation_deg=5.0
     ),
     GroundStation(
-        id="dsn_canberra",
-        name="Canberra Deep Space Communication Complex (Australia)",
-        country="Australia",
-        latitude_deg=-35.401,
-        longitude_deg=148.981,
-        altitude_m=650.0,
+        id="sansa_hart",
+        name="SANSA Space Ops (Hartebeesthoek, South Africa)",
+        country="South Africa",
+        latitude_deg=-25.887,
+        longitude_deg=27.707,
+        altitude_m=1560.0,
+        min_elevation_deg=10.0
+    ),
+    GroundStation(
+        id="santiago_chile",
+        name="Santiago Ground Station (Santiago, Chile)",
+        country="Chile",
+        latitude_deg=-33.150,
+        longitude_deg=-70.667,
+        altitude_m=730.0,
         min_elevation_deg=10.0
     ),
     GroundStation(
         id="jaxa_tsukuba",
-        name="JAXA Tsukuba Space Center (Ibaraki, Japan)",
+        name="JAXA Tsukuba Space Center (Japan)",
         country="Japan",
         latitude_deg=36.066,
         longitude_deg=140.128,
         altitude_m=30.0,
         min_elevation_deg=10.0
+    ),
+    GroundStation(
+        id="mcmurdo_antarctica",
+        name="McMurdo Ground Station (Antarctica)",
+        country="Antarctica",
+        latitude_deg=-77.846,
+        longitude_deg=166.668,
+        altitude_m=40.0,
+        min_elevation_deg=5.0
     )
 ]
 
