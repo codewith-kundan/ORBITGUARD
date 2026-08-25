@@ -673,8 +673,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       }
     };
 
-    // Instant Click Selection on Any Dot
-    const handleCanvasClick = async (e: MouseEvent) => {
+    // Double-Click Selection on Any Dot (Prevents accidental selection during camera rotation and preserves zoom level)
+    const handleCanvasDblClick = async (e: MouseEvent) => {
       const match = findClosestDot(e.clientX, e.clientY, 32);
       if (match) {
         const p = match.pos;
@@ -704,20 +704,11 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         } catch (err) {
           // Keep using fallback
         }
-
-        const targetVec = new THREE.Vector3(
-          p.x_km / 1000,
-          p.z_km / 1000,
-          -p.y_km / 1000
-        );
-        controls.target.copy(targetVec);
-        camera.position.copy(targetVec.clone().add(new THREE.Vector3(0, 3, 7)));
-        controls.update();
       }
     };
 
     renderer.domElement.addEventListener('mousemove', handlePointerMove);
-    renderer.domElement.addEventListener('click', handleCanvasClick);
+    renderer.domElement.addEventListener('dblclick', handleCanvasDblClick);
 
     // 60 FPS Orbit Simulation Clock
     const clock = new THREE.Clock();
@@ -976,7 +967,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       window.removeEventListener('resize', handleResize);
       if (renderer.domElement) {
         renderer.domElement.removeEventListener('mousemove', handlePointerMove);
-        renderer.domElement.removeEventListener('click', handleCanvasClick);
+        renderer.domElement.removeEventListener('dblclick', handleCanvasDblClick);
       }
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
       renderer.dispose();
@@ -1220,7 +1211,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             <div>Alt: <span className="text-white font-bold">{hoveredObject.alt_km.toFixed(1)} km</span></div>
             <div>Vel: <span className="text-cyan-400 font-bold">{hoveredObject.velocity_km_s.toFixed(2)} km/s</span></div>
           </div>
-          <div className="text-[9px] text-slate-500 mt-0.5 text-center">Click dot for full telemetry</div>
+          <div className="text-[9px] text-cyan-400/80 mt-0.5 text-center">Double-click dot for full telemetry</div>
         </div>
       )}
 
