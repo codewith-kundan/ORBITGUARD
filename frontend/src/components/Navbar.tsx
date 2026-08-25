@@ -8,7 +8,8 @@ import {
   X, 
   LucideIcon,
   Activity,
-  MapPin
+  MapPin,
+  BookOpen
 } from 'lucide-react';
 import { SystemStatistics, DataStatus } from '../types';
 
@@ -23,6 +24,7 @@ interface NavbarProps {
   isRefreshing: boolean;
   alertCount?: number;
   onOpenSystemHealth?: () => void;
+  onOpenUserGuide?: () => void;
 }
 
 interface NavItemConfig {
@@ -41,7 +43,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   alertCount,
   onRefresh,
   isRefreshing,
-  onOpenSystemHealth
+  onOpenSystemHealth,
+  onOpenUserGuide
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const isLive = dataStatus?.mode === 'LIVE';
@@ -125,6 +128,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '—')}
             </span>
           </div>
+
+          {/* User Guide Interactive Modal Trigger Button */}
+          {onOpenUserGuide && (
+            <button
+              onClick={onOpenUserGuide}
+              className="flex items-center gap-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1 rounded-lg border border-cyan-500/30 hover:border-cyan-400 text-[11px] sm:text-xs text-cyan-300 hover:text-white transition shadow-sm font-bold"
+              title="Open ORBITGUARD Comprehensive User Guide & Walkthrough"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+              <span>GUIDE</span>
+            </button>
+          )}
 
           {/* System & Database Diagnostics Trigger Button */}
           {onOpenSystemHealth && (

@@ -13,6 +13,7 @@ import { OverpassModal } from './components/OverpassModal';
 import { BreakupSimulatorModal } from './components/BreakupSimulatorModal';
 import { ReentryTrackerModal } from './components/ReentryTrackerModal';
 import { CDMExportModal } from './components/CDMExportModal';
+import { UserGuideModal } from './components/UserGuideModal';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -48,6 +49,9 @@ export default function App() {
   const [isBreakupModalOpen, setIsBreakupModalOpen] = useState<boolean>(false);
   const [isReentryModalOpen, setIsReentryModalOpen] = useState<boolean>(false);
   const [isCDMModalOpen, setIsCDMModalOpen] = useState<boolean>(false);
+  const [isUserGuideOpen, setIsUserGuideOpen] = useState<boolean>(() => {
+    return localStorage.getItem('orbitguard_user_guide_seen') !== 'true';
+  });
   const [overpassTargetObject, setOverpassTargetObject] = useState<OrbitalObject | null>(null);
   const [reentryTargetObject, setReentryTargetObject] = useState<OrbitalObject | null>(null);
 
@@ -220,6 +224,7 @@ export default function App() {
         onRefresh={loadAllData}
         isRefreshing={loading}
         onOpenSystemHealth={() => setIsSystemHealthModalOpen(true)}
+        onOpenUserGuide={() => setIsUserGuideOpen(true)}
       />
 
       {/* Global Data Provider Status Bar */}
@@ -402,6 +407,12 @@ export default function App() {
           onClose={() => setIsCDMModalOpen(false)}
         />
       )}
+
+      {/* Interactive Comprehensive User Guide Modal */}
+      <UserGuideModal
+        isOpen={isUserGuideOpen}
+        onClose={() => setIsUserGuideOpen(false)}
+      />
 
       {/* System & Database Diagnostics Modal */}
       <SystemHealthModal
