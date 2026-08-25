@@ -45,8 +45,19 @@ interface SpaceViewProps {
 
 const EARTH_RADIUS = 6.371; // 1 unit = 1000 km in 3D scene
 
+const parseUtcDate = (dStr: string) => {
+  if (!dStr) return new Date();
+  let s = dStr.trim();
+  if (!s.endsWith('Z') && !s.includes('+') && !s.includes('T')) {
+    s = s.replace(' ', 'T') + 'Z';
+  } else if (!s.endsWith('Z') && !s.includes('+')) {
+    s += 'Z';
+  }
+  return new Date(s);
+};
+
 const formatTcaCountdown = (tcaStr: string, currDate: Date = new Date()) => {
-  const tca = new Date(tcaStr);
+  const tca = parseUtcDate(tcaStr);
   const diffMs = tca.getTime() - currDate.getTime();
   if (diffMs <= 0) return 'PASSED';
   const hours = Math.floor(diffMs / 3600000);

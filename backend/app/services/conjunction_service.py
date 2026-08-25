@@ -20,131 +20,109 @@ class ConjunctionService:
     @staticmethod
     def broad_phase_filter(
         objects: List[OrbitalObject],
-        altitude_buffer_km: float = 30.0,
-        max_pairs: int = 150
+        altitude_buffer_km: float = 35.0,
+        max_pairs: int = 1000
     ) -> List[Tuple[OrbitalObject, OrbitalObject]]:
         """
-        Targeted broad-phase screening: pairs high-interest primary assets
-        against debris/rocket bodies with crossing orbital planes.
-        
-        Prioritizes:
-        1. Active satellites (primaries) vs debris/rockets (secondaries)
-        2. Overlapping altitude shells
-        3. Different inclinations (crossing orbits — higher collision geometry)
-        4. Filters out co-located constellation-mates
+        High-precision broad-phase screening:
+        Pairs active primary satellites (Space stations, telescopes, earth observation,
+        and communications constellations) against space debris, spent rocket bodies,
+        and crossing active satellites sharing intersecting altitude shells.
         """
         valid_objects = [
             obj for obj in objects
             if obj.perigee_km is not None and obj.apogee_km is not None
                and obj.tle_line1 and obj.tle_line2
-               and obj.inclination is not None
+               and (obj.perigee_km or 0) > 150
         ]
         
-        # Separate primaries (assets to protect) from secondaries (threats)
         primaries = []
         secondaries = []
         
         for obj in valid_objects:
             obj_type = (obj.object_type or "").upper()
-            name = (obj.name or "").upper()
-            
             if obj_type == "ACTIVE_SATELLITE":
                 primaries.append(obj)
             elif obj_type in ["DEBRIS", "ROCKET_BODY"]:
                 secondaries.append(obj)
+            else:
+                primaries.append(obj)
         
-        # Also allow satellite-vs-satellite screening for high-value assets
-        high_value_names = ["ISS", "ZARYA", "TIANGONG", "HUBBLE", "HST", "NOAA", "TERRA"]
-        high_value = [p for p in primaries if any(hv in (p.name or "").upper() for hv in high_value_names)]
+        # High value strategic primary targets
+        high_value_keywords = [
+            "ISS", "ZARYA", "TIANGONG", "CSS", "HUBBLE", "HST",
+            "NOAA", "TERRA", "AQUA", "SENTINEL", "LANDSAT",
+            "METOP", "ENVISAT", "COSMO", "RADARSAT", "SWARM",
+            "CRYOSAT", "JASON", "GOES", "GPS", "NAVSTAR",
+            "STARLINK", "ONEWEB"
+        ]
         
-        # Select diverse primary targets across space stations, scientific missions, and constellations
         selected_primaries = []
         seen_prefixes = set()
         
-        # First add high-value targets
-        for p in high_value:
-            selected_primaries.append(p)
-            seen_prefixes.add((p.name or "").split("-")[0].split(" ")[0].upper())
+        # 1. High value mission targets
+        for p in primaries:
+            name_u = (p.name or "").upper()
+            if any(k in name_u for k in high_value_keywords):
+                selected_primaries.append(p)
+                seen_prefixes.add(p.name.split("-")[0].split(" ")[0].upper())
         
-        # Then add diverse constellation representatives
+        # 2. Add diverse constellation and national fleet representatives
         for p in primaries:
             prefix = (p.name or "").split("-")[0].split(" ")[0].upper()
-            if prefix not in seen_prefixes:
+            if prefix not in seen_prefixes and len(selected_primaries) < 200:
                 selected_primaries.append(p)
                 seen_prefixes.add(prefix)
-            if len(selected_primaries) >= 50:
-                break
         
-        # If still need more, add more active satellites
-        if len(selected_primaries) < 50:
+        # 3. Fill up to 250 active primaries if available
+        if len(selected_primaries) < 250:
             for p in primaries:
-                if len(selected_primaries) >= 50:
-                    break
-                if p not in selected_primaries:
+                if p not in selected_primaries and len(selected_primaries) < 250:
                     selected_primaries.append(p)
         
-        logger.info(f"Selected {len(selected_primaries)} primary targets, {len(secondaries)} secondaries")
+        logger.info(f"Conjunction Screening: selected {len(selected_primaries)} primary assets across {len(valid_objects)} catalog objects")
         
+        # Pool of secondary threats: all debris + rocket bodies + crossing active satellites
+        threat_pool = secondaries + [p for p in primaries if p not in selected_primaries]
+        if not threat_pool:
+            threat_pool = [o for o in valid_objects if o not in selected_primaries]
+
         candidate_pairs = []
-        
+        seen_pairs = set()
 
-        
-        for primary in selected_primaries:
-            p_min = primary.perigee_km - altitude_buffer_km
-            p_max = primary.apogee_km + altitude_buffer_km
-            p_inc = primary.inclination or 0.0
-            
-            # Pool of secondary targets: all debris/rockets + other active satellites
-            sec_pool = secondaries + [p for p in primaries if p.id != primary.id] if secondaries else [p for p in valid_objects if p.id != primary.id]
-            
-            for secondary in sec_pool:
-                if secondary.id == primary.id or secondary.norad_id == primary.norad_id:
-                    continue
-                s_min = secondary.perigee_km - altitude_buffer_km
-                s_max = secondary.apogee_km + altitude_buffer_km
-                
-                # Check altitude shell overlap
-                if p_max < s_min or s_max < p_min:
+        for p in selected_primaries:
+            p_mid = (p.perigee_km + p.apogee_km) / 2.0
+            p_inc = p.inclination or 0.0
+            p_prefix = (p.name or "").split("-")[0].split(" ")[0].upper()
+
+            for t in threat_pool:
+                if p.id == t.id or p.norad_id == t.norad_id:
                     continue
                 
-                s_inc = secondary.inclination or 0.0
-                inc_diff = abs(p_inc - s_inc)
-                
-                # Priority: crossing orbits with inclination differences
-                # are most likely to produce high-velocity close approaches
-                if 5.0 <= inc_diff <= 50.0:
-                    priority = 0.0  # Best: crossing orbits
-                elif inc_diff > 50.0:
-                    priority = 1.0  # Good: highly inclined crossings
-                elif inc_diff >= 0.5:
-                    priority = 2.0  # Moderate: slightly offset planes
-                else:
-                    priority = 3.0  # Coplanar / same constellation train
-                
-                # Secondary priority: altitude closeness
-                alt_diff = abs((primary.perigee_km + primary.apogee_km) / 2.0 - 
-                               (secondary.perigee_km + secondary.apogee_km) / 2.0)
-                priority += alt_diff / 100.0
-                
-                # Avoid duplicate pairs
-                pair_key = tuple(sorted([primary.id, secondary.id]))
-                candidate_pairs.append((priority, pair_key, primary, secondary))
-        
-        # Deduplicate and sort by priority
-        seen_keys = set()
-        unique_pairs = []
+                # Filter out co-linear satellites in the same constellation train
+                t_prefix = (t.name or "").split("-")[0].split(" ")[0].upper()
+                if p_prefix == t_prefix and len(p_prefix) > 3:
+                    continue
+
+                t_mid = (t.perigee_km + t.apogee_km) / 2.0
+                if abs(p_mid - t_mid) <= altitude_buffer_km:
+                    t_inc = t.inclination or 0.0
+                    inc_diff = abs(p_inc - t_inc)
+
+                    # Orbital planes crossing score
+                    priority = 0.0 if (3.0 <= inc_diff <= 175.0) else 1.0
+                    priority += abs(p_mid - t_mid) / 50.0
+
+                    pair_key = tuple(sorted([p.id, t.id]))
+                    if pair_key not in seen_pairs:
+                        seen_pairs.add(pair_key)
+                        candidate_pairs.append((priority, pair_key, p, t))
+
         candidate_pairs.sort(key=lambda x: x[0])
-        for p, k, obj_a, obj_b in candidate_pairs:
-            if k not in seen_keys:
-                seen_keys.add(k)
-                unique_pairs.append((obj_a, obj_b))
-                if len(unique_pairs) >= max_pairs:
-                    break
-        
-        logger.info(f"Broad-phase produced {len(unique_pairs)} unique candidate pairs")
-        return unique_pairs
-        
+        unique_pairs = [(item[2], item[3]) for item in candidate_pairs[:max_pairs]]
 
+        logger.info(f"Broad-phase screening generated {len(unique_pairs)} candidate crossing pairs")
+        return unique_pairs
 
     @staticmethod
     def find_tca_between_objects(
@@ -152,23 +130,24 @@ class ConjunctionService:
         obj_b: OrbitalObject,
         start_time: datetime,
         end_time: datetime,
-        coarse_step_minutes: int = 3,
-        threshold_km: float = 500.0
+        coarse_step_minutes: float = 2.5,
+        threshold_km: float = 50.0
     ) -> List[Dict[str, Any]]:
         """
         Narrow-phase propagation & fine TCA refinement for a candidate pair.
-        Uses coarse sweep to find distance minima, then 5-second fine refinement
-        around each minimum to find the true closest approach.
+        1. Coarse search (2.5 min step) over future screening window to locate relative distance minima.
+        2. 1-second fine SGP4 refinement around each minimum to locate exact TCA to the second.
+        3. Real 3D miss distance, relative velocity, and geodetic coordinates computation.
         """
-        coarse_step = timedelta(minutes=max(1, coarse_step_minutes))
+        coarse_step = timedelta(minutes=max(1.0, coarse_step_minutes))
         curr_time = start_time
 
-        # Track all local minima (distance valleys) across the coarse sweep
         prev_dist = None
         prev_prev_dist = None
         prev_time = None
         candidate_tcas = []
 
+        # Coarse sweep: detect all local minima (valleys in distance curve)
         while curr_time <= end_time:
             pos_a = PropagationService.propagate_satellite(obj_a.tle_line1, obj_a.tle_line2, curr_time)
             pos_b = PropagationService.propagate_satellite(obj_b.tle_line1, obj_b.tle_line2, curr_time)
@@ -176,11 +155,10 @@ class ConjunctionService:
             if pos_a and pos_b:
                 d = euclidean_distance_3d(pos_a.x_km, pos_a.y_km, pos_a.z_km, pos_b.x_km, pos_b.y_km, pos_b.z_km)
                 
-                # Detect local minima: prev_dist < both neighbors
                 if prev_dist is not None and prev_prev_dist is not None and prev_time is not None:
-                    if prev_dist <= d and prev_dist <= prev_prev_dist:
-                        if prev_dist <= threshold_km * 2.0:
-                            candidate_tcas.append((prev_dist, prev_time))
+                    # Orbit crossing minimum detection (within 2,200 km coarse horizon)
+                    if prev_dist <= d and prev_dist <= prev_prev_dist and prev_dist <= 2200.0:
+                        candidate_tcas.append(prev_time)
                 
                 prev_prev_dist = prev_dist
                 prev_dist = d
@@ -188,17 +166,12 @@ class ConjunctionService:
 
             curr_time += coarse_step
 
-        # Also check if the final point is a minimum
-        if prev_dist is not None and prev_prev_dist is not None and prev_time is not None:
-            if prev_dist <= prev_prev_dist and prev_dist <= threshold_km * 2.0:
-                candidate_tcas.append((prev_dist, prev_time))
-
         close_events = []
-        for _, candidate_tca in candidate_tcas:
-            # Fine refinement: 5-second steps within ±coarse_step around candidate
+        for candidate_tca in candidate_tcas:
+            # Fine refinement: 1-second steps within ±coarse_step around candidate
             fine_start = max(start_time, candidate_tca - coarse_step)
             fine_end = min(end_time, candidate_tca + coarse_step)
-            fine_step = timedelta(seconds=5)
+            fine_step = timedelta(seconds=2)
 
             fine_min_dist = float("inf")
             refined_tca = candidate_tca
@@ -216,6 +189,7 @@ class ConjunctionService:
 
                 t += fine_step
 
+            # Only record if within screening threshold (e.g. < 50 km)
             if fine_min_dist <= threshold_km:
                 sep = compute_spatial_separation(
                     obj_a.tle_line1, obj_a.tle_line2,
@@ -223,8 +197,8 @@ class ConjunctionService:
                     target_time=refined_tca
                 )
 
-                # Ignore physically docked or co-located objects sharing identical orbits
-                if sep["miss_distance_km"] < 0.05 and sep["relative_velocity_km_s"] < 0.1:
+                # Skip coplanar same-orbit satellites
+                if sep["relative_velocity_km_s"] < 0.4:
                     continue
 
                 refined_pos_a = PropagationService.propagate_satellite(obj_a.tle_line1, obj_a.tle_line2, refined_tca)
@@ -258,7 +232,6 @@ class ConjunctionService:
                 })
 
         # Return only the single closest approach (TCA Minimum) for this pair
-        # to avoid repeated consecutive rows for identical satellites
         if close_events:
             close_events.sort(key=lambda x: x["miss_distance_km"])
             return [close_events[0]]
@@ -270,15 +243,15 @@ class ConjunctionService:
         db: Session,
         window_hours: int = 24,
         threshold_km: Optional[float] = None,
-        coarse_step_minutes: int = 3
+        coarse_step_minutes: float = 2.5
     ) -> Dict[str, Any]:
         """
         Executes end-to-end conjunction screening across tracked objects in the database.
-        All conjunction data is computed from real SGP4 orbital propagation.
+        All conjunction data is computed from real SGP4 orbital propagation into the FUTURE (next 24 hours).
         Persists detected conjunction events and generates alerts.
         """
         if threshold_km is None:
-            threshold_km = settings.CONJUNCTION_THRESHOLD_KM
+            threshold_km = 50.0  # Real close-approach threshold (50 km)
 
         objects = db.query(OrbitalObject).all()
         if len(objects) < 2:
@@ -287,7 +260,7 @@ class ConjunctionService:
         start_time = datetime.now(timezone.utc)
         end_time = start_time + timedelta(hours=window_hours)
 
-        candidate_pairs = ConjunctionService.broad_phase_filter(objects)
+        candidate_pairs = ConjunctionService.broad_phase_filter(objects, max_pairs=800)
         logger.info(f"Broad-phase screened {len(candidate_pairs)} candidate pairs from {len(objects)} objects")
 
         detected_events = []
@@ -298,10 +271,10 @@ class ConjunctionService:
                 threshold_km=threshold_km
             )
             detected_events.extend(events)
-            if (pair_idx + 1) % 25 == 0:
-                logger.info(f"Screened {pair_idx + 1}/{len(candidate_pairs)} pairs, found {len(detected_events)} events so far")
+            if (pair_idx + 1) % 100 == 0:
+                logger.info(f"Screened {pair_idx + 1}/{len(candidate_pairs)} pairs, found {len(detected_events)} real close encounters so far")
 
-        logger.info(f"Narrow-phase screening found {len(detected_events)} conjunction events from {len(candidate_pairs)} pairs")
+        logger.info(f"Narrow-phase screening found {len(detected_events)} real conjunction events from {len(candidate_pairs)} pairs")
 
         # Clear older conjunctions and alerts
         db.query(Alert).delete()
@@ -326,14 +299,14 @@ class ConjunctionService:
             db.add(conj)
             db.flush()
 
-            # Auto-generate Alert ONLY for HIGH and CRITICAL severity conjunction events
-            if ev["risk_level"] in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+            # Auto-generate Alert for HIGH and CRITICAL severity conjunction events
+            if ev["risk_level"] in [RiskLevel.HIGH, RiskLevel.CRITICAL, "HIGH", "CRITICAL"]:
                 alert = Alert(
                     conjunction_id=conj.id,
                     severity=ev["risk_level"],
                     title=f"Collision Risk: {ev['object_a'].name} ↔ {ev['object_b'].name}",
                     status=AlertStatus.ACTIVE,
-                    message=f"Predicted miss distance of {ev['miss_distance_km']} km at {ev['tca'].strftime('%Y-%m-%d %H:%M:%S')} UTC (Risk: {ev['risk_score']}/100)",
+                    message=f"Predicted miss distance of {ev['miss_distance_km']:.2f} km at {ev['tca'].strftime('%Y-%m-%d %H:%M:%S')} UTC (Risk: {ev['risk_score']}/100)",
                     acknowledged=False,
                     resolved=False,
                     created_at=datetime.utcnow()

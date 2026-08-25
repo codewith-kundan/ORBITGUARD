@@ -3,8 +3,19 @@ import { Conjunction } from '../types';
 import { RiskBadge } from './RiskBadge';
 import { ShieldAlert, Activity, Crosshair } from 'lucide-react';
 
+const parseUtcDate = (dStr: string) => {
+  if (!dStr) return new Date();
+  let s = dStr.trim();
+  if (!s.endsWith('Z') && !s.includes('+') && !s.includes('T')) {
+    s = s.replace(' ', 'T') + 'Z';
+  } else if (!s.endsWith('Z') && !s.includes('+')) {
+    s += 'Z';
+  }
+  return new Date(s);
+};
+
 const formatTcaCountdown = (tcaStr: string) => {
-  const tca = new Date(tcaStr);
+  const tca = parseUtcDate(tcaStr);
   const now = new Date();
   const diffMs = tca.getTime() - now.getTime();
   if (diffMs <= 0) return 'PASSED';
@@ -15,9 +26,9 @@ const formatTcaCountdown = (tcaStr: string) => {
 };
 
 const getMissDistanceColor = (km: number) => {
-  if (km < 5) return 'text-red-400';
-  if (km < 25) return 'text-amber-400';
-  return 'text-cyan-400';
+  if (km < 5) return 'text-red-400 font-bold';
+  if (km < 25) return 'text-amber-400 font-bold';
+  return 'text-cyan-400 font-semibold';
 };
 
 interface ConjunctionTableProps {
@@ -43,13 +54,13 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
   });
 
   const formatTCA = (tcaStr: string) => {
-    const tca = new Date(tcaStr);
+    const tca = parseUtcDate(tcaStr);
     const now = new Date();
     const diffMs = tca.getTime() - now.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-    const timeFormatted = tca.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' UTC';
+    const timeFormatted = tca.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC' }) + ' UTC';
     if (diffMs > 0) {
       return { timeFormatted, countdown: `in ${diffHours}h ${diffMins}m` };
     }
