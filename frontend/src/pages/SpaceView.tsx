@@ -40,6 +40,7 @@ interface SpaceViewProps {
   onSelectObject: (obj: OrbitalObject | null) => void;
   onSelectConjunction: (conj: Conjunction | null) => void;
   onOpenConjunctionDetails: (conj: Conjunction) => void;
+  onNavigateTo2DTrack?: (conj: Conjunction) => void;
 }
 
 const EARTH_RADIUS = 6.371; // 1 unit = 1000 km in 3D scene
@@ -117,7 +118,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   stats,
   onSelectObject,
   onSelectConjunction,
-  onOpenConjunctionDetails
+  onOpenConjunctionDetails,
+  onNavigateTo2DTrack
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   
@@ -794,7 +796,22 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
             dummy.position.set(x3d, y3d, z3d);
             const isSelected = selectedObject?.norad_id === pos.norad_id;
-            const scale = isSelected ? 3.4 : 1.15;
+            const isConjunctionA = selectedConjunction && (
+              pos.norad_id === selectedConjunction.object_a?.norad_id || 
+              pos.norad_id === selectedConjunction.object_a_id
+            );
+            const isConjunctionB = selectedConjunction && (
+              pos.norad_id === selectedConjunction.object_b?.norad_id || 
+              pos.norad_id === selectedConjunction.object_b_id
+            );
+
+            let scale = 1.15;
+            if (isSelected) scale = 3.4;
+            if (isConjunctionA || isConjunctionB) {
+              // Rapid high-visibility pulsing blink animation for both conjunction objects
+              const pulse = Math.sin(tumbleAngle * 7.0) * 2.5 + 4.2;
+              scale = Math.max(2.0, pulse);
+            }
             dummy.scale.set(scale, scale, scale);
 
             if (pos.type === 'DEBRIS') {
@@ -844,7 +861,21 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           currentVisible.push(pos);
           dummy.position.set(x3d, y3d, z3d);
           const isSelected = selectedObject?.norad_id === pos.norad_id;
-          const scale = isSelected ? 3.4 : 1.15;
+          const isConjunctionA = selectedConjunction && (
+            pos.norad_id === selectedConjunction.object_a?.norad_id || 
+            pos.norad_id === selectedConjunction.object_a_id
+          );
+          const isConjunctionB = selectedConjunction && (
+            pos.norad_id === selectedConjunction.object_b?.norad_id || 
+            pos.norad_id === selectedConjunction.object_b_id
+          );
+
+          let scale = 1.15;
+          if (isSelected) scale = 3.4;
+          if (isConjunctionA || isConjunctionB) {
+            const pulse = Math.sin(tumbleAngle * 7.0) * 2.5 + 4.2;
+            scale = Math.max(2.0, pulse);
+          }
           dummy.scale.set(scale, scale, scale);
 
           if (pos.type === 'DEBRIS') {
@@ -1473,22 +1504,37 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                       </div>
 
                       {/* Action Buttons */}
-                      <div className="grid grid-cols-2 gap-1.5">
+                      <div className="grid grid-cols-3 gap-1">
                         <button
                           type="button"
                           onClick={() => { onSelectConjunction(conj); handleJumpToTca(conj); }}
-                          className="py-1 px-2 bg-danger-600 hover:bg-danger-500 text-white rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 shadow transition active:scale-95 cursor-pointer"
+                          className="py-1 px-1 bg-danger-600 hover:bg-danger-500 text-white rounded-lg font-bold text-[9px] sm:text-[10px] flex items-center justify-center gap-0.5 sm:gap-1 shadow transition active:scale-95 cursor-pointer"
+                          title="Focus 3D Scene and blink both encounter objects"
                         >
                           <FastForward className="w-3 h-3" />
                           FOCUS 3D
                         </button>
                         <button
                           type="button"
+                          onClick={() => {
+                            if (onNavigateTo2DTrack) {
+                              onNavigateTo2DTrack(conj);
+                            }
+                          }}
+                          className="py-1 px-1 bg-cyan-500 hover:bg-cyan-400 text-space-950 rounded-lg font-bold text-[9px] sm:text-[10px] flex items-center justify-center gap-0.5 sm:gap-1 shadow transition active:scale-95 cursor-pointer"
+                          title="View both objects' ground tracks together on 2D map"
+                        >
+                          <Compass className="w-3 h-3" />
+                          2D TRACK
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => onOpenConjunctionDetails(conj)}
-                          className="py-1 px-2 bg-space-900 hover:bg-space-800 text-cyan-400 border border-cyan-500/40 rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 transition cursor-pointer"
+                          className="py-1 px-1 bg-space-900 hover:bg-space-800 text-cyan-400 border border-cyan-500/40 rounded-lg font-bold text-[9px] sm:text-[10px] flex items-center justify-center gap-0.5 sm:gap-1 transition cursor-pointer"
+                          title="Open Conjunction CDM Report"
                         >
                           <Radio className="w-3 h-3" />
-                          CDM REPORT
+                          REPORT
                         </button>
                       </div>
                     </div>

@@ -16,14 +16,16 @@ import {
   Globe, 
   Info 
 } from 'lucide-react';
-import { OrbitalObject, OrbitalPosition, GroundStation, SystemStatistics } from '../types';
+import { OrbitalObject, OrbitalPosition, GroundStation, SystemStatistics, Conjunction } from '../types';
 import { api } from '../services/api';
 
 interface Map2DViewProps {
   objects: OrbitalObject[];
   selectedObject: OrbitalObject | null;
+  selectedConjunction?: Conjunction | null;
   stats?: SystemStatistics | null;
   onSelectObject: (obj: OrbitalObject | null) => void;
+  onSelectConjunction?: (conj: Conjunction | null) => void;
   onOpenOverpassModal: (obj: OrbitalObject) => void;
   onOpenDetailsModal?: (obj: OrbitalObject) => void;
 }
@@ -45,8 +47,10 @@ interface HoveredEntity {
 export const Map2DView: React.FC<Map2DViewProps> = ({
   objects,
   selectedObject,
+  selectedConjunction,
   stats,
   onSelectObject,
+  onSelectConjunction,
   onOpenOverpassModal,
   onOpenDetailsModal
 }) => {
@@ -81,12 +85,18 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
   const [positions, setPositions] = useState<OrbitalPosition[]>([]);
   const satrecMapRef = useRef<Map<number, { satrec: any; name: string; type: string; norad_id: number }>>(new Map());
 
-  // Active object to track: selectedObject or default to primary asset (ISS/CSS/first sat)
+  // Active object to track: in conjunction mode objA is activeObj, objB is secondaryObj
   const activeObj = useMemo(() => {
+    if (selectedConjunction?.object_a) return selectedConjunction.object_a;
     if (selectedObject) return selectedObject;
     if (objects.length > 0) return objects[0];
     return null;
-  }, [selectedObject, objects]);
+  }, [selectedConjunction, selectedObject, objects]);
+
+  const secondaryObj = useMemo(() => {
+    if (selectedConjunction?.object_b) return selectedConjunction.object_b;
+    return null;
+  }, [selectedConjunction]);
 
   // Load Real NASA Equirectangular Texture
   useEffect(() => {
@@ -243,7 +253,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
   const mathRadians = (deg: number) => (deg * Math.PI) / 180.0;
   const mathDegrees = (rad: number) => (rad * 180.0) / Math.PI;
 
-  // Real SGP4 Satrec record for Active Object
+  // Real SGP4 Satrec record for Active Object (Object A)
   const satrec = useMemo(() => {
     if (!activeObj?.tle_line1 || !activeObj?.tle_line2) return null;
     try {
@@ -255,7 +265,19 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     return null;
   }, [activeObj?.norad_id, activeObj?.tle_line1, activeObj?.tle_line2]);
 
-  // Real-Time High-Precision SGP4 Sub-Satellite Position at simTime
+  // Real SGP4 Satrec record for Secondary Object (Object B in conjunction)
+  const satrecB = useMemo(() => {
+    if (!secondaryObj?.tle_line1 || !secondaryObj?.tle_line2) return null;
+    try {
+      const rec = satellite.twoline2satrec(secondaryObj.tle_line1, secondaryObj.tle_line2);
+      if (rec && !rec.error) return rec;
+    } catch (e) {
+      console.debug('Failed to init SGP4 Satrec for Object B:', e);
+    }
+    return null;
+  }, [secondaryObj?.norad_id, secondaryObj?.tle_line1, secondaryObj?.tle_line2]);
+
+  // Real-Time High-Precision SGP4 Sub-Satellite Position for Primary Object at simTime
   const livePosition = useMemo(() => {
     if (!satrec) return null;
     try {
@@ -294,7 +316,45 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     return null;
   }, [satrec, simTime]);
 
-  // Real-Time SGP4 Ground Track: Exactly 1 Single Clean Orbital Revolution (No clutter/overlapping paths)
+  // Real-Time High-Precision SGP4 Sub-Satellite Position for Secondary Object at simTime
+  const livePositionB = useMemo(() => {
+    if (!satrecB) return null;
+    try {
+      const gmst = satellite.gstime(simTime);
+      const pv = satellite.propagate(satrecB, simTime);
+      if (pv && pv.position && typeof pv.position !== 'boolean') {
+        const pEci = pv.position as satellite.EciVec3<number>;
+        const vEci = pv.velocity as satellite.EciVec3<number>;
+        const geodetic = satellite.eciToGeodetic(pEci, gmst);
+        const lat = satellite.degreesLat(geodetic.latitude);
+        const lon = satellite.degreesLong(geodetic.longitude);
+        const altKm = Math.max(120, geodetic.height);
+
+        let velKmS = 7.66;
+        if (vEci) {
+          velKmS = Math.sqrt(vEci.x * vEci.x + vEci.y * vEci.y + vEci.z * vEci.z);
+        }
+
+        const R_E = 6371.0;
+        const rho = Math.acos(R_E / Math.max(R_E + 10, R_E + altKm));
+        const footprintKm = R_E * rho;
+
+        return {
+          latitude: lat,
+          longitude: lon,
+          altitude_km: altKm,
+          velocity_km_s: velKmS,
+          footprint_radius_km: footprintKm,
+          is_sunlit: true
+        };
+      }
+    } catch (e) {
+      console.debug('Live SGP4 propagation error for Object B:', e);
+    }
+    return null;
+  }, [satrecB, simTime]);
+
+  // Real-Time SGP4 Ground Track: Exactly 1 Single Clean Orbital Revolution for Object A
   const liveGroundTrack = useMemo<{ lat: number; lon: number }[] | null>(() => {
     if (!satrec) return null;
     try {
@@ -323,6 +383,35 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       return null;
     }
   }, [satrec, simTime, activeObj?.period_minutes]);
+
+  // Real-Time SGP4 Ground Track for Secondary Object (Object B in conjunction)
+  const liveGroundTrackB = useMemo<{ lat: number; lon: number }[] | null>(() => {
+    if (!satrecB) return null;
+    try {
+      const track: { lat: number; lon: number }[] = [];
+      const periodMin = secondaryObj?.period_minutes || 95.0;
+
+      const startMin = -10;
+      const endMin = Math.max(85, Math.min(720, periodMin - 10));
+
+      for (let m = startMin; m <= endMin; m += 1.5) {
+        const t = new Date(simTime.getTime() + m * 60000);
+        const gmst = satellite.gstime(t);
+        const pv = satellite.propagate(satrecB, t);
+        if (pv && pv.position && typeof pv.position !== 'boolean') {
+          const geodetic = satellite.eciToGeodetic(pv.position as satellite.EciVec3<number>, gmst);
+          track.push({
+            lat: satellite.degreesLat(geodetic.latitude),
+            lon: satellite.degreesLong(geodetic.longitude)
+          });
+        }
+      }
+
+      return track;
+    } catch (e) {
+      return null;
+    }
+  }, [satrecB, simTime, secondaryObj?.period_minutes]);
 
   // Real 2D Canvas Render Loop (60 FPS Smooth Live Animation)
   useEffect(() => {
@@ -524,7 +613,37 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         ctx.restore();
       }
 
-      // 7. Active Live Satellite Marker & Sensor Coverage Footprint
+      // 6b. Real Single Continuous SGP4 Ground Track for Object B (Threat Debris in Red)
+      if (liveGroundTrackB && liveGroundTrackB.length > 1) {
+        ctx.save();
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2.4;
+        ctx.shadowColor = 'rgba(239, 68, 68, 0.7)';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+
+        for (let i = 0; i < liveGroundTrackB.length; i++) {
+          const pt = liveGroundTrackB[i];
+          const px = lonToX(pt.lon);
+          const py = latToY(pt.lat);
+
+          if (i > 0) {
+            const prev = liveGroundTrackB[i - 1];
+            if (Math.abs(pt.lon - prev.lon) > 180) {
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(px, py);
+              continue;
+            }
+          }
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 7a. Primary Live Satellite Marker & Sensor Coverage Footprint
       if (livePosition && activeObj) {
         const curX = lonToX(livePosition.longitude);
         const curY = latToY(livePosition.latitude);
@@ -571,6 +690,78 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           curY + 7
         );
       }
+
+      // 7b. Secondary Live Satellite Marker (Object B / Threat Debris in Red)
+      if (livePositionB && secondaryObj) {
+        const curX = lonToX(livePositionB.longitude);
+        const curY = latToY(livePositionB.latitude);
+
+        // Ground Coverage Footprint Circle for Threat
+        if (showFootprint && livePositionB.footprint_radius_km > 0) {
+          const footprintPx = (livePositionB.footprint_radius_km / 40075.0) * w;
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.14)';
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.arc(curX, curY, Math.max(18, footprintPx), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // Marker Beacon for Object B (Red Pulsing Dot)
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(curX, curY, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        const pulseR = 9 + (Date.now() % 1200) / 80;
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(curX, curY, pulseR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Telemetry Label HUD for Object B
+        ctx.fillStyle = '#fca5a5';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(`💥 ${secondaryObj.name} (#${secondaryObj.norad_id})`, curX + 14, curY - 8);
+
+        ctx.fillStyle = '#f87171';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(
+          `Alt: ${livePositionB.altitude_km.toFixed(1)} km • Lat: ${livePositionB.latitude.toFixed(2)}° • Lon: ${livePositionB.longitude.toFixed(2)}° • Vel: ${livePositionB.velocity_km_s.toFixed(2)} km/s`,
+          curX + 14,
+          curY + 7
+        );
+      }
+
+      // 8. TCA Conjunction Hazard Hotspot Marker (if coordinates available)
+      if (selectedConjunction && selectedConjunction.latitude_deg !== undefined && selectedConjunction.longitude_deg !== undefined) {
+        const tcaX = lonToX(selectedConjunction.longitude_deg);
+        const tcaY = latToY(selectedConjunction.latitude_deg);
+
+        const haloR = 12 + (Date.now() % 1000) / 60;
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(tcaX, tcaY, haloR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(tcaX, tcaY, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText(`⚠️ TCA HOTSPOT (${selectedConjunction.miss_distance_km.toFixed(2)} km)`, tcaX + 12, tcaY - 6);
+      }
     };
 
     render();
@@ -582,7 +773,9 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     };
   }, [
     livePosition,
+    livePositionB,
     liveGroundTrack,
+    liveGroundTrackB,
     stations,
     visibleSwarm,
     showAllObjects,
@@ -591,7 +784,9 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     showStations,
     showGrids,
     simTime,
-    activeObj
+    activeObj,
+    secondaryObj,
+    selectedConjunction
   ]);
 
   // Search Filter Handler
@@ -789,19 +984,41 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       {/* TOP CONTROLS & LIVE SIMULATION BAR */}
       <div className="bg-space-900/95 border-b border-space-800 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs z-30 backdrop-blur-md">
         
-        {/* Left: Active Satellite Badge */}
-        <div className="flex items-center gap-2.5">
+        {/* Left: Active Satellite Badge OR Dual Conjunction Tracking Badge */}
+        <div className="flex items-center gap-2.5 flex-wrap">
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4 text-cyan-neon animate-pulse" />
             <span className="font-bold tracking-wider text-cyan-neon text-xs">2D GROUND TRACK</span>
           </div>
 
-          {activeObj && (
-            <div className="flex items-center gap-2 px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-neon font-bold text-xs">
-              <Satellite className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="truncate max-w-[150px]">{activeObj.name}</span>
-              <span className="text-[10px] text-slate-400">#{activeObj.norad_id}</span>
+          {selectedConjunction ? (
+            <div className="flex items-center gap-2 px-3 py-1 bg-danger-950/80 border border-danger-500/50 rounded-lg text-danger-neon font-bold text-xs shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+              <AlertTriangle className="w-3.5 h-3.5 text-danger-400 animate-pulse" />
+              <span className="text-cyan-400">{activeObj?.name || 'Primary'}</span>
+              <span className="text-slate-400">↔</span>
+              <span className="text-danger-400">{secondaryObj?.name || 'Threat'}</span>
+              <span className="text-[10px] text-amber-300 font-mono px-1.5 py-0.5 bg-danger-900/60 rounded border border-danger-700">
+                Miss: {selectedConjunction.miss_distance_km.toFixed(1)} km
+              </span>
+              {onSelectConjunction && (
+                <button
+                  type="button"
+                  onClick={() => onSelectConjunction(null)}
+                  className="ml-1 text-slate-400 hover:text-white text-xs px-1 rounded hover:bg-danger-900 transition"
+                  title="Exit Conjunction Dual Track"
+                >
+                  ✕
+                </button>
+              )}
             </div>
+          ) : (
+            activeObj && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-neon font-bold text-xs">
+                <Satellite className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="truncate max-w-[150px]">{activeObj.name}</span>
+                <span className="text-[10px] text-slate-400">#{activeObj.norad_id}</span>
+              </div>
+            )
           )}
         </div>
 

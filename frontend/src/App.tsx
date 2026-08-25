@@ -225,6 +225,11 @@ export default function App() {
                 onSelectObject={handleSelectObject}
                 onSelectConjunction={handleSelectConjunction}
                 onOpenConjunctionDetails={handleOpenConjunctionModal}
+                onNavigateTo2DTrack={(conj) => {
+                  setSelectedConjunction(conj);
+                  if (conj.object_a) setSelectedObject(conj.object_a);
+                  setActiveTab('map2d');
+                }}
               />
             )}
 
@@ -233,8 +238,10 @@ export default function App() {
               <Map2DView
                 objects={objects}
                 selectedObject={selectedObject}
+                selectedConjunction={selectedConjunction}
                 stats={stats}
                 onSelectObject={handleSelectObject}
+                onSelectConjunction={handleSelectConjunction}
                 onOpenOverpassModal={handleOpenOverpassModal}
                 onOpenDetailsModal={handleOpenObjectModal}
               />
