@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { 
@@ -143,6 +143,40 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     screenX: number;
     screenY: number;
   } | null>(null);
+
+  // Dynamic Individual Fleet & Constellation and Regime Counts
+  const fleetCounts = useMemo(() => {
+    let all = objects.length;
+    let payload = 0;
+    let starlink = 0;
+    let oneweb = 0;
+    let gps = 0;
+    let debris = 0;
+    let rocket = 0;
+    let leo = 0;
+    let meo = 0;
+    let geo = 0;
+
+    objects.forEach((o) => {
+      const name = o.name.toUpperCase();
+      const type = (typeof o.object_type === 'string' ? o.object_type : (o.object_type as any)?.value || '').toUpperCase();
+      const apogee = o.apogee_km || o.perigee_km || 0;
+
+      if (type === 'DEBRIS') debris++;
+      else if (type === 'ROCKET_BODY' || type === 'ROCKET') rocket++;
+      else payload++;
+
+      if (name.includes('STARLINK')) starlink++;
+      if (name.includes('ONEWEB')) oneweb++;
+      if (name.includes('NAVSTAR') || name.includes('GPS') || name.includes('GLONASS') || name.includes('GALILEO') || name.includes('BEIDOU')) gps++;
+
+      if (apogee <= 2000) leo++;
+      else if (apogee < 35000) meo++;
+      else geo++;
+    });
+
+    return { all, payload, starlink, oneweb, gps, debris, rocket, leo, meo, geo };
+  }, [objects]);
 
   // Mutable Refs for 60 FPS Animation & Screen-Space Raycasting
   const positionsRef = useRef<OrbitalPosition[]>([]);
@@ -1130,24 +1164,28 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-1 text-[11px]">
                 {[
-                  { key: 'ALL', label: 'All Objects', color: 'text-white' },
-                  { key: 'PAYLOAD', label: '◆ Operational', color: 'text-cyan-400' },
-                  { key: 'STARLINK', label: '◆ Starlink Fleet', color: 'text-purple-400' },
-                  { key: 'ONEWEB', label: '◆ OneWeb', color: 'text-purple-400' },
-                  { key: 'GPS', label: '◆ GPS / GNSS', color: 'text-emerald-400' },
-                  { key: 'DEBRIS', label: '⬟ Debris Clouds', color: 'text-danger-400' },
-                  { key: 'ROCKET', label: '❚ Rocket Bodies', color: 'text-warning-400' }
+                  { key: 'ALL', label: 'All Objects', count: fleetCounts.all, color: 'text-white' },
+                  { key: 'PAYLOAD', label: '◆ Operational', count: fleetCounts.payload, color: 'text-cyan-400' },
+                  { key: 'STARLINK', label: '◆ Starlink Fleet', count: fleetCounts.starlink, color: 'text-purple-400' },
+                  { key: 'ONEWEB', label: '◆ OneWeb', count: fleetCounts.oneweb, color: 'text-purple-400' },
+                  { key: 'GPS', label: '◆ GPS / GNSS', count: fleetCounts.gps, color: 'text-emerald-400' },
+                  { key: 'DEBRIS', label: '⬟ Debris Clouds', count: fleetCounts.debris, color: 'text-danger-400' },
+                  { key: 'ROCKET', label: '❚ Rocket Bodies', count: fleetCounts.rocket, color: 'text-warning-400' }
                 ].map((f) => (
                   <button
                     key={f.key}
+                    type="button"
                     onClick={() => { setActiveFleetFilter(f.key); setIsDebrisMode(false); }}
-                    className={`px-2 py-1 rounded transition text-left ${
+                    className={`px-2 py-1 rounded transition text-left flex items-center justify-between gap-1 ${
                       activeFleetFilter === f.key && !isDebrisMode
                         ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
                         : 'bg-space-950 text-slate-400 hover:text-slate-200 border border-space-800'
                     }`}
                   >
-                    <span className={f.color}>{f.label}</span>
+                    <span className={`truncate text-[11px] ${f.color}`}>{f.label}</span>
+                    <span className="text-[9px] px-1 py-0.5 rounded bg-space-900 border border-space-800 text-slate-300 font-mono flex-shrink-0">
+                      {f.count.toLocaleString()}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -1161,21 +1199,23 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               </div>
               <div className="grid grid-cols-4 gap-1 text-[10px]">
                 {[
-                  { key: 'ALL', label: 'ALL' },
-                  { key: 'LEO', label: 'LEO' },
-                  { key: 'MEO', label: 'MEO' },
-                  { key: 'GEO', label: 'GEO' }
+                  { key: 'ALL', label: 'ALL', count: fleetCounts.all },
+                  { key: 'LEO', label: 'LEO', count: fleetCounts.leo },
+                  { key: 'MEO', label: 'MEO', count: fleetCounts.meo },
+                  { key: 'GEO', label: 'GEO', count: fleetCounts.geo }
                 ].map((alt) => (
                   <button
                     key={alt.key}
+                    type="button"
                     onClick={() => setAltitudeFilter(alt.key)}
-                    className={`py-1 rounded text-center ${
+                    className={`py-1 px-1 rounded text-center flex flex-col items-center justify-center transition ${
                       altitudeFilter === alt.key
                         ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
                         : 'bg-space-950 text-slate-400 hover:text-slate-200 border border-space-800'
                     }`}
                   >
-                    {alt.label}
+                    <span className="font-bold">{alt.label}</span>
+                    <span className="text-[8px] text-cyan-400/80 font-mono">{alt.count.toLocaleString()}</span>
                   </button>
                 ))}
               </div>

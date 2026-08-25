@@ -3,8 +3,17 @@ import {
   Satellite, 
   Radio, 
   Search, 
-  X, 
-  Info
+  Play, 
+  Pause, 
+  RotateCcw, 
+  Clock, 
+  Sliders, 
+  Compass, 
+  AlertTriangle, 
+  ChevronLeft, 
+  ChevronRight, 
+  Globe, 
+  Info 
 } from 'lucide-react';
 import { OrbitalObject, GroundTrackRibbonResponse, GroundStation } from '../types';
 import { api } from '../services/api';
@@ -40,28 +49,40 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const earthImgRef = useRef<HTMLImageElement | null>(null);
-  const earthNightImgRef = useRef<HTMLImageElement | null>(null);
 
-  const [trackData, setTrackData] = useState<GroundTrackRibbonResponse | null>(null);
-  const [stations, setStations] = useState<GroundStation[]>([]);
+  // Filter & Search Dock State
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+  const [activeFleetFilter, setActiveFleetFilter] = useState<string>('ALL');
+  const [altitudeFilter, setAltitudeFilter] = useState<string>('ALL');
+  const [isDebrisMode, setIsDebrisMode] = useState<boolean>(false);
+
+  // Layer Toggles
   const [showAllObjects, setShowAllObjects] = useState<boolean>(true);
   const [showFootprint, setShowFootprint] = useState<boolean>(true);
   const [showTerminator, setShowTerminator] = useState<boolean>(true);
   const [showStations, setShowStations] = useState<boolean>(true);
   const [showGrids, setShowGrids] = useState<boolean>(true);
+
+  // Live Time Engine State
+  const [simTime, setSimTime] = useState<Date>(new Date());
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [simSpeed, setSimSpeed] = useState<number>(1); // 1x = live real-time clock
   const [hoveredEntity, setHoveredEntity] = useState<HoveredEntity | null>(null);
   const [imgLoaded, setImgLoaded] = useState<boolean>(false);
 
-  // Active object to track
+  // Ground Track & Stations State
+  const [trackData, setTrackData] = useState<GroundTrackRibbonResponse | null>(null);
+  const [stations, setStations] = useState<GroundStation[]>([]);
+
+  // Active object to track: selectedObject or default to first
   const activeObj = useMemo(() => {
     if (selectedObject) return selectedObject;
     if (objects.length > 0) return objects[0];
     return null;
   }, [selectedObject, objects]);
 
-  // Load Real NASA Earth Equirectangular Textures
+  // Load Real NASA Equirectangular Texture
   useEffect(() => {
     const dayImg = new Image();
     dayImg.src = '/textures/earth_day.jpg';
@@ -69,20 +90,72 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       earthImgRef.current = dayImg;
       setImgLoaded(true);
     };
-
-    const nightImg = new Image();
-    nightImg.src = '/textures/earth_night.jpg';
-    nightImg.onload = () => {
-      earthNightImgRef.current = nightImg;
-    };
   }, []);
 
-  // Fetch predefined real global ground stations
+  // Fetch Predefined Ground Stations
   useEffect(() => {
     api.getGroundStations()
       .then(setStations)
       .catch((err) => console.error('Failed to load ground stations:', err));
   }, []);
+
+  // Dynamic Fleet & Constellation & Regime Counts
+  const fleetCounts = useMemo(() => {
+    let all = objects.length;
+    let payload = 0;
+    let starlink = 0;
+    let oneweb = 0;
+    let gps = 0;
+    let debris = 0;
+    let rocket = 0;
+    let leo = 0;
+    let meo = 0;
+    let geo = 0;
+
+    objects.forEach((o) => {
+      const name = o.name.toUpperCase();
+      const type = (typeof o.object_type === 'string' ? o.object_type : (o.object_type as any)?.value || '').toUpperCase();
+      const apogee = o.apogee_km || o.perigee_km || 0;
+
+      if (type === 'DEBRIS') debris++;
+      else if (type === 'ROCKET_BODY' || type === 'ROCKET') rocket++;
+      else payload++;
+
+      if (name.includes('STARLINK')) starlink++;
+      if (name.includes('ONEWEB')) oneweb++;
+      if (name.includes('NAVSTAR') || name.includes('GPS') || name.includes('GLONASS') || name.includes('GALILEO') || name.includes('BEIDOU')) gps++;
+
+      if (apogee <= 2000) leo++;
+      else if (apogee < 35000) meo++;
+      else geo++;
+    });
+
+    return { all, payload, starlink, oneweb, gps, debris, rocket, leo, meo, geo };
+  }, [objects]);
+
+  // Filter Catalog Objects based on Active Fleet & Regime
+  const visibleCatalogObjects = useMemo(() => {
+    return objects.filter((o) => {
+      const name = o.name.toUpperCase();
+      const type = (typeof o.object_type === 'string' ? o.object_type : (o.object_type as any)?.value || '').toUpperCase();
+      const apogee = o.apogee_km || o.perigee_km || 0;
+
+      if (isDebrisMode && type !== 'DEBRIS') return false;
+
+      if (activeFleetFilter === 'PAYLOAD' && type !== 'ACTIVE_SATELLITE' && type !== 'PAYLOAD') return false;
+      if (activeFleetFilter === 'STARLINK' && !name.includes('STARLINK')) return false;
+      if (activeFleetFilter === 'ONEWEB' && !name.includes('ONEWEB')) return false;
+      if (activeFleetFilter === 'GPS' && !name.includes('NAVSTAR') && !name.includes('GPS') && !name.includes('GLONASS') && !name.includes('GALILEO') && !name.includes('BEIDOU')) return false;
+      if (activeFleetFilter === 'DEBRIS' && type !== 'DEBRIS') return false;
+      if (activeFleetFilter === 'ROCKET' && type !== 'ROCKET_BODY' && type !== 'ROCKET') return false;
+
+      if (altitudeFilter === 'LEO' && apogee > 2000) return false;
+      if (altitudeFilter === 'MEO' && (apogee <= 2000 || apogee >= 35000)) return false;
+      if (altitudeFilter === 'GEO' && apogee < 35000) return false;
+
+      return true;
+    });
+  }, [objects, activeFleetFilter, altitudeFilter, isDebrisMode]);
 
   // Fetch continuous ground track ribbon for active object
   useEffect(() => {
@@ -98,7 +171,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     };
 
     fetchTrack();
-    const interval = setInterval(fetchTrack, 5000);
+    const interval = setInterval(fetchTrack, 10000);
 
     return () => {
       isMounted = false;
@@ -106,26 +179,52 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     };
   }, [activeObj?.norad_id]);
 
-  // Filter objects for search
-  const filteredObjects = useMemo(() => {
-    if (!searchQuery.trim()) return objects.slice(0, 50);
-    const q = searchQuery.toLowerCase();
-    return objects
-      .filter(o => o.name.toLowerCase().includes(q) || o.norad_id.toString().includes(q))
-      .slice(0, 50);
-  }, [objects, searchQuery]);
+  // Live Time Engine: advances simTime at simSpeed
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const interval = setInterval(() => {
+      setSimTime((prev) => new Date(prev.getTime() + 1000 * simSpeed));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, simSpeed]);
 
   const mathRadians = (deg: number) => (deg * Math.PI) / 180.0;
   const mathDegrees = (rad: number) => (rad * 180.0) / Math.PI;
 
-  // Real 2D Canvas Render Loop
+  // Real-time Sub-Satellite Interpolation along Ground Track
+  const currentLivePos = useMemo(() => {
+    if (!trackData) return null;
+    const base = trackData.current_position;
+    if (!isPlaying || simSpeed === 1) return base;
+
+    // Time elapsed in minutes from base epoch
+    const period = trackData.period_minutes || 92.0;
+    const inc = activeObj?.inclination || 51.6;
+    const timeDeltaMin = (simTime.getTime() - Date.now()) / 60000.0;
+    const meanMotion = (2.0 * Math.PI) / period;
+    const phase = (timeDeltaMin * meanMotion) % (2.0 * Math.PI);
+
+    const lat = Math.asin(Math.sin(mathRadians(inc)) * Math.sin(phase)) * (180.0 / Math.PI);
+    const earthRotDeg = (timeDeltaMin * (360.0 / 1436.0)) % 360.0;
+    const lon = (((base.longitude + Math.atan2(Math.cos(mathRadians(inc)) * Math.sin(phase), Math.cos(phase)) * (180.0 / Math.PI) - earthRotDeg) + 180.0) % 360.0) - 180.0;
+
+    return {
+      ...base,
+      latitude: lat,
+      longitude: lon
+    };
+  }, [trackData, simTime, isPlaying, simSpeed, activeObj]);
+
+  // Real 2D Canvas Render Loop (60 FPS Smooth Live Animation)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animationFrameId: number | null = null;
+    let animId: number | null = null;
 
     const render = () => {
       const w = canvas.width;
@@ -135,15 +234,12 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       const lonToX = (lon: number) => ((lon + 180) / 360) * w;
       const latToY = (lat: number) => ((90 - lat) / 180) * h;
 
-      // 1. Draw Real NASA Earth Map Texture (or high-tech dark cartographic fallback)
+      // 1. Draw Real NASA Earth Map Texture
       if (earthImgRef.current && earthImgRef.current.complete) {
         ctx.drawImage(earthImgRef.current, 0, 0, w, h);
-
-        // Subtle dark contrast wash to make orbital lines pop
-        ctx.fillStyle = 'rgba(6, 10, 18, 0.35)';
+        ctx.fillStyle = 'rgba(6, 10, 18, 0.38)';
         ctx.fillRect(0, 0, w, h);
       } else {
-        // High-tech fallback canvas background
         ctx.fillStyle = '#060d1a';
         ctx.fillRect(0, 0, w, h);
       }
@@ -153,7 +249,6 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'rgba(56, 189, 248, 0.18)';
 
-        // Latitude lines every 30 deg
         for (let lat = -60; lat <= 60; lat += 30) {
           const y = latToY(lat);
           ctx.beginPath();
@@ -166,7 +261,6 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           ctx.fillText(`${lat >= 0 ? lat + '°N' : Math.abs(lat) + '°S'}`, 8, y - 4);
         }
 
-        // Longitude lines every 45 deg
         for (let lon = -180; lon <= 180; lon += 45) {
           const x = lonToX(lon);
           ctx.beginPath();
@@ -195,20 +289,23 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         ctx.stroke();
       }
 
-      // 3. Day / Night Solar Terminator Curve & Night Shading
-      if (showTerminator && trackData?.sub_solar_point) {
-        const sunLat = trackData.sub_solar_point.latitude;
-        const sunLon = trackData.sub_solar_point.longitude;
+      // 3. Live Day / Night Solar Terminator Curve
+      if (showTerminator) {
+        // Solar declination & Greenwich Hour Angle from simTime
+        const dayOfYear = Math.floor((simTime.getTime() - new Date(simTime.getUTCFullYear(), 0, 0).getTime()) / 86400000);
+        const sunDec = -23.44 * Math.cos(mathRadians((360 / 365) * (dayOfYear + 10)));
+        const utcHours = simTime.getUTCHours() + simTime.getUTCMinutes() / 60 + simTime.getUTCSeconds() / 3600;
+        const sunLon = (12.0 - utcHours) * 15.0;
 
         ctx.save();
-        ctx.fillStyle = 'rgba(2, 6, 23, 0.55)';
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.58)';
         ctx.beginPath();
         ctx.moveTo(0, h);
 
         for (let x = 0; x <= w; x += 4) {
           const lon = (x / w) * 360 - 180;
           const dLon = mathRadians(lon - sunLon);
-          const latTerm = mathDegrees(Math.atan(-Math.cos(dLon) / Math.tan(mathRadians(sunLat || 0.1))));
+          const latTerm = mathDegrees(Math.atan(-Math.cos(dLon) / Math.tan(mathRadians(sunDec || 0.1))));
           const y = latToY(latTerm);
           ctx.lineTo(x, y);
         }
@@ -217,9 +314,9 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         ctx.fill();
         ctx.restore();
 
-        // Draw Sub-Solar Point
+        // Sub-Solar Point Marker
         const sunX = lonToX(sunLon);
-        const sunY = latToY(sunLat);
+        const sunY = latToY(sunDec);
         ctx.fillStyle = '#fbbf24';
         ctx.beginPath();
         ctx.arc(sunX, sunY, 7, 0, Math.PI * 2);
@@ -234,13 +331,12 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         ctx.fillText('☉ SUB-SOLAR POINT', sunX + 10, sunY + 3);
       }
 
-      // 4. Real Global Space Ground Station Locations
+      // 4. Real Global Ground Stations
       if (showStations) {
         stations.forEach((st) => {
           const sx = lonToX(st.longitude_deg);
           const sy = latToY(st.latitude_deg);
 
-          // Station Radar Base Marker
           ctx.fillStyle = '#10b981';
           ctx.beginPath();
           ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
@@ -252,7 +348,6 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           ctx.arc(sx, sy, 8, 0, Math.PI * 2);
           ctx.stroke();
 
-          // Station Name Label
           ctx.fillStyle = '#a7f3d0';
           ctx.font = 'bold 9px monospace';
           const shortName = st.name.split('(')[0].trim();
@@ -260,13 +355,12 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         });
       }
 
-      // 5. Catalog Multi-Satellite Swarm Overlay
+      // 5. Filtered Catalog Swarm
       if (showAllObjects) {
-        const timeOffset = Date.now() / 60000;
-        objects.forEach((o) => {
-          if (activeObj?.norad_id === o.norad_id) return; // Active satellite rendered below in high-def
+        const timeOffset = simTime.getTime() / 60000;
+        visibleCatalogObjects.forEach((o) => {
+          if (activeObj?.norad_id === o.norad_id) return;
 
-          // Keplerian ground position approximation for visual swarm
           const inc = o.inclination || 51.6;
           const periodMin = o.period_minutes || 92.0;
           const meanMotion = (2.0 * Math.PI) / periodMin;
@@ -288,7 +382,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
       // 6. Active Satellite Continuous Ground Track Ribbon
       if (trackData) {
-        // Past Ground Track (Solid Cyan Ribbon)
+        // Past Track (Cyan)
         if (trackData.past_track.length > 1) {
           ctx.strokeStyle = '#00f0ff';
           ctx.lineWidth = 2.5;
@@ -301,7 +395,6 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
             if (i > 0) {
               const prev = trackData.past_track[i - 1];
-              // Avoid wrap-around line across canvas edge
               if (Math.abs(pt.longitude - prev.longitude) > 180) {
                 ctx.stroke();
                 ctx.beginPath();
@@ -315,7 +408,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           ctx.stroke();
         }
 
-        // Future Ground Track (Dashed Emerald Ribbon)
+        // Future Track (Dashed Emerald)
         if (trackData.future_track.length > 1) {
           ctx.strokeStyle = '#10b981';
           ctx.lineWidth = 2.2;
@@ -343,8 +436,8 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           ctx.setLineDash([]);
         }
 
-        // 7. Ground Coverage Sensor Footprint Circle
-        const curr = trackData.current_position;
+        // 7. Ground Coverage Footprint Circle
+        const curr = currentLivePos || trackData.current_position;
         const curX = lonToX(curr.longitude);
         const curY = latToY(curr.latitude);
 
@@ -359,25 +452,24 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           ctx.stroke();
         }
 
-        // 8. Active Satellite Marker & Beacon
+        // 8. Active Live Satellite Marker & Pulsing Radar Beacon
         ctx.fillStyle = '#00f0ff';
         ctx.beginPath();
-        ctx.arc(curX, curY, 7, 0, Math.PI * 2);
+        ctx.arc(curX, curY, 7.5, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2.5;
         ctx.stroke();
 
-        // Pulsing radar ring
         const pulseR = 9 + (Date.now() % 1200) / 80;
-        ctx.strokeStyle = 'rgba(0, 240, 255, 0.8)';
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.85)';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(curX, curY, pulseR, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Satellite Telemetry Label
+        // Satellite Telemetry HUD Label
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 12px monospace';
         ctx.fillText(`🛰️ ${trackData.object_name} (#${trackData.norad_id})`, curX + 14, curY - 8);
@@ -397,22 +489,39 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
     return () => {
       clearInterval(interval);
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      if (animId) cancelAnimationFrame(animId);
     };
   }, [
     trackData,
+    currentLivePos,
     stations,
+    visibleCatalogObjects,
     showAllObjects,
     showFootprint,
     showTerminator,
     showStations,
     showGrids,
-    objects,
+    simTime,
     activeObj,
     imgLoaded
   ]);
 
-  // Handle Canvas Mouse Move (Tooltips on hover)
+  // Search Filter Handler
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    const query = searchQuery.trim().toUpperCase();
+    const found = objects.find(
+      (o) => o.name.toUpperCase().includes(query) || o.norad_id.toString() === query
+    );
+    if (found) {
+      onSelectObject(found);
+      setSearchQuery('');
+    }
+  };
+
+  // Canvas Mouse Move (Hover Tooltips)
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -430,8 +539,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       for (const st of stations) {
         const sx = lonToX(st.longitude_deg);
         const sy = latToY(st.latitude_deg);
-        const dist = Math.hypot(x - sx, y - sy);
-        if (dist < 14) {
+        if (Math.hypot(x - sx, y - sy) < 14) {
           setHoveredEntity({
             type: 'station',
             name: st.name,
@@ -450,17 +558,17 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
     // Check Active Satellite
     if (trackData) {
-      const sx = lonToX(trackData.current_position.longitude);
-      const sy = latToY(trackData.current_position.latitude);
-      const dist = Math.hypot(x - sx, y - sy);
-      if (dist < 16) {
+      const pos = currentLivePos || trackData.current_position;
+      const sx = lonToX(pos.longitude);
+      const sy = latToY(pos.latitude);
+      if (Math.hypot(x - sx, y - sy) < 16) {
         setHoveredEntity({
           type: 'satellite',
           name: trackData.object_name,
           id: trackData.norad_id,
-          latitude: trackData.current_position.latitude,
-          longitude: trackData.current_position.longitude,
-          altitude_km: trackData.current_position.altitude_km,
+          latitude: pos.latitude,
+          longitude: pos.longitude,
+          altitude_km: pos.altitude_km,
           details: `Period: ${trackData.period_minutes.toFixed(1)}m • Footprint: ${trackData.footprint_radius_km.toFixed(0)}km`,
           screenX: e.clientX - rect.left,
           screenY: e.clientY - rect.top
@@ -472,7 +580,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     setHoveredEntity(null);
   };
 
-  // Handle Canvas Click (Select satellite or station)
+  // Canvas Click (Select satellite or station)
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -485,30 +593,26 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     const lonToX = (lon: number) => ((lon + 180) / 360) * w;
     const latToY = (lat: number) => ((90 - lat) / 180) * h;
 
-    // Check if clicked a ground station -> open Overpass Predictor
+    // Check Ground Station Click
     if (showStations) {
       for (const st of stations) {
         const sx = lonToX(st.longitude_deg);
         const sy = latToY(st.latitude_deg);
         if (Math.hypot(x - sx, y - sy) < 16) {
-          if (activeObj) {
-            onOpenOverpassModal(activeObj);
-          }
+          if (activeObj) onOpenOverpassModal(activeObj);
           return;
         }
       }
     }
 
-    // Check if clicked near active satellite -> open details modal
+    // Check Active Satellite Click
     if (trackData && activeObj) {
-      const sx = lonToX(trackData.current_position.longitude);
-      const sy = latToY(trackData.current_position.latitude);
+      const pos = currentLivePos || trackData.current_position;
+      const sx = lonToX(pos.longitude);
+      const sy = latToY(pos.latitude);
       if (Math.hypot(x - sx, y - sy) < 18) {
-        if (onOpenDetailsModal) {
-          onOpenDetailsModal(activeObj);
-        } else {
-          onOpenOverpassModal(activeObj);
-        }
+        if (onOpenDetailsModal) onOpenDetailsModal(activeObj);
+        else onOpenOverpassModal(activeObj);
         return;
       }
     }
@@ -517,50 +621,73 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
   return (
     <div 
       ref={containerRef}
-      className="flex-1 flex flex-col bg-space-950 text-slate-100 font-mono relative overflow-hidden rounded-2xl border border-space-800 shadow-2xl min-h-[calc(100vh-170px)]"
+      className="flex-1 flex flex-col bg-space-950 text-slate-100 font-mono relative overflow-hidden rounded-2xl border border-space-800 shadow-2xl min-h-[calc(100vh-140px)]"
     >
-      {/* Top Controls Header */}
+      {/* TOP CONTROLS & LIVE SIMULATION BAR */}
       <div className="bg-space-900/95 border-b border-space-800 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs z-30 backdrop-blur-md">
         
-        {/* Search & Satellite Quick Pills */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="relative w-56 sm:w-64">
-            <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
-            <input
-              type="text"
-              placeholder="Search 2D satellite..."
-              value={searchQuery}
-              onFocus={() => setIsSearchOpen(true)}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setIsSearchOpen(true);
-              }}
-              className="w-full bg-space-950 border border-space-700 rounded-xl pl-8 pr-7 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition"
-            />
-            {searchQuery && (
-              <button 
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setIsSearchOpen(false);
-                }}
-                className="absolute right-2 top-2 text-slate-400 hover:text-white"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+        {/* Left: Active Satellite Badge */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-cyan-neon animate-pulse" />
+            <span className="font-bold tracking-wider text-cyan-neon text-xs">2D GROUND TRACK</span>
           </div>
 
           {activeObj && (
             <div className="flex items-center gap-2 px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-neon font-bold text-xs">
               <Satellite className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="truncate max-w-[140px]">{activeObj.name}</span>
+              <span className="truncate max-w-[150px]">{activeObj.name}</span>
               <span className="text-[10px] text-slate-400">#{activeObj.norad_id}</span>
             </div>
           )}
         </div>
 
-        {/* View Toggle Buttons */}
+        {/* Center: Live Time Controls & Multiplier */}
+        <div className="flex items-center gap-2 bg-space-950/80 px-3 py-1 rounded-xl border border-space-800">
+          <button
+            type="button"
+            onClick={() => setIsPlaying(!isPlaying)}
+            className={`p-1.5 rounded-lg transition ${
+              isPlaying ? 'bg-cyan-500 text-space-950 font-bold' : 'bg-space-800 text-slate-300'
+            }`}
+            title={isPlaying ? 'Pause Simulation' : 'Resume Live Simulation'}
+          >
+            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSimTime(new Date())}
+            className="p-1.5 hover:bg-space-800 text-slate-400 hover:text-white rounded-lg transition"
+            title="Reset to Real-Time UTC"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="flex items-center gap-1.5 text-[11px] text-cyan-400">
+            <Clock className="w-3.5 h-3.5 text-slate-400" />
+            <span className="font-mono">{simTime.toISOString().replace('T', ' ').substring(11, 19)} UTC</span>
+          </div>
+
+          <div className="flex items-center gap-1 border-l border-space-800 pl-2">
+            {[1, 5, 15, 60, 300].map((spd) => (
+              <button
+                key={spd}
+                type="button"
+                onClick={() => setSimSpeed(spd)}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition ${
+                  simSpeed === spd 
+                    ? 'bg-cyan-500 text-space-950' 
+                    : 'text-slate-400 hover:text-white hover:bg-space-800'
+                }`}
+              >
+                {spd === 1 ? '1X' : `${spd}X`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: Layer Toggles & Pass Predictor Button */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <button
             type="button"
@@ -607,19 +734,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
                 : 'bg-space-950 text-slate-400 border-space-800 hover:text-white'
             }`}
           >
-            Catalog Swarm
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowGrids(!showGrids)}
-            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition ${
-              showGrids 
-                ? 'bg-cyan-500/20 text-cyan-neon border-cyan-500/40 shadow-sm' 
-                : 'bg-space-950 text-slate-400 border-space-800 hover:text-white'
-            }`}
-          >
-            Grids
+            Swarm ({visibleCatalogObjects.length})
           </button>
 
           {activeObj && (
@@ -635,8 +750,10 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         </div>
       </div>
 
-      {/* Main 2D Canvas Area */}
+      {/* MAIN WORKSPACE: CANVAS + LEFT HUD DOCK */}
       <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+        
+        {/* 2D Equirectangular Canvas */}
         <canvas
           ref={canvasRef}
           width={2048}
@@ -646,6 +763,140 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           onClick={handleCanvasClick}
           className="w-full h-full object-fill block cursor-crosshair"
         />
+
+        {/* LEFT DOCK: Fleet & Constellations Filter Dock with Individual Count Badges */}
+        <div className="absolute top-3 sm:top-4 left-3 sm:left-4 z-20 flex flex-col gap-2 max-w-[calc(100vw-24px)] sm:max-w-sm">
+          <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-mono text-xs text-white shadow-xl flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-cyan-neon" />
+              <span className="font-bold tracking-wider text-cyan-neon text-[11px] sm:text-xs">FLEET FILTERS</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
+              className="p-1 hover:bg-space-800 rounded text-slate-400 hover:text-white transition"
+              title={isLeftPanelOpen ? 'Collapse HUD' : 'Expand HUD'}
+            >
+              {isLeftPanelOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {isLeftPanelOpen && (
+            <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-xl p-3 sm:p-3.5 flex flex-col gap-2.5 sm:gap-3 font-mono text-xs shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-230px)] overflow-y-auto">
+              {/* Search Satellite Box */}
+              <form onSubmit={handleSearchSubmit} className="relative">
+                <input
+                  type="text"
+                  placeholder="Search Satellite, Starlink, Debris..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-space-950/80 border border-space-700 rounded-lg px-3 py-1.5 pl-8 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 shadow-inner"
+                />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              </form>
+
+              {/* Fleet & Constellations Filter Buttons with Numbers */}
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Sliders className="w-3 h-3 text-cyan-400" />
+                    Fleet & Constellations
+                  </span>
+                  <span className="text-[9px] text-cyan-400 font-mono">
+                    {visibleCatalogObjects.length.toLocaleString()} TRACKED
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1 text-[11px]">
+                  {[
+                    { key: 'ALL', label: 'All Objects', count: fleetCounts.all, color: 'text-white' },
+                    { key: 'PAYLOAD', label: '◆ Operational', count: fleetCounts.payload, color: 'text-cyan-400' },
+                    { key: 'STARLINK', label: '◆ Starlink Fleet', count: fleetCounts.starlink, color: 'text-purple-400' },
+                    { key: 'ONEWEB', label: '◆ OneWeb', count: fleetCounts.oneweb, color: 'text-purple-400' },
+                    { key: 'GPS', label: '◆ GPS / GNSS', count: fleetCounts.gps, color: 'text-emerald-400' },
+                    { key: 'DEBRIS', label: '⬟ Debris Clouds', count: fleetCounts.debris, color: 'text-danger-400' },
+                    { key: 'ROCKET', label: '❚ Rocket Bodies', count: fleetCounts.rocket, color: 'text-warning-400' }
+                  ].map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => { setActiveFleetFilter(f.key); setIsDebrisMode(false); }}
+                      className={`px-2 py-1.5 rounded transition text-left flex items-center justify-between gap-1 ${
+                        activeFleetFilter === f.key && !isDebrisMode
+                          ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
+                          : 'bg-space-950/80 text-slate-400 hover:text-slate-200 border border-space-800'
+                      }`}
+                    >
+                      <span className={`truncate text-[11px] ${f.color}`}>{f.label}</span>
+                      <span className="text-[9px] px-1 py-0.5 rounded bg-space-900 border border-space-800 text-slate-300 font-mono flex-shrink-0">
+                        {f.count.toLocaleString()}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Orbital Regime Filter Buttons with Numbers */}
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <Compass className="w-3 h-3 text-cyan-400" />
+                  <span>Orbital Regime</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1 text-[10px]">
+                  {[
+                    { key: 'ALL', label: 'ALL', count: fleetCounts.all },
+                    { key: 'LEO', label: 'LEO', count: fleetCounts.leo },
+                    { key: 'MEO', label: 'MEO', count: fleetCounts.meo },
+                    { key: 'GEO', label: 'GEO', count: fleetCounts.geo }
+                  ].map((alt) => (
+                    <button
+                      key={alt.key}
+                      type="button"
+                      onClick={() => setAltitudeFilter(alt.key)}
+                      className={`py-1 px-1 rounded text-center flex flex-col items-center justify-center transition ${
+                        altitudeFilter === alt.key
+                          ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
+                          : 'bg-space-950/80 text-slate-400 hover:text-slate-200 border border-space-800'
+                      }`}
+                    >
+                      <span className="font-bold">{alt.label}</span>
+                      <span className="text-[8px] text-cyan-400/80 font-mono">{alt.count.toLocaleString()}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Visual Action Toggles */}
+              <div className="pt-2 border-t border-space-800/80 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowGrids(!showGrids)}
+                  className={`px-2 py-1 rounded text-[10px] font-bold border transition flex items-center gap-1 ${
+                    showGrids
+                      ? 'bg-cyan-500/20 text-cyan-neon border-cyan-500/40'
+                      : 'bg-space-950 text-slate-500 border-space-800'
+                  }`}
+                >
+                  <Compass className="w-3 h-3" />
+                  GRID LINES
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsDebrisMode(!isDebrisMode)}
+                  className={`px-2 py-1 rounded text-[10px] font-bold border transition flex items-center gap-1 ${
+                    isDebrisMode
+                      ? 'bg-danger-600 text-white border-danger-400 shadow-md'
+                      : 'bg-space-950 text-danger-400 border-space-800'
+                  }`}
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  DEBRIS ISOLATE
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Hover Tooltip HUD */}
         {hoveredEntity && (
@@ -672,63 +923,28 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           </div>
         )}
 
-        {/* Floating Search Results Dropdown */}
-        {isSearchOpen && searchQuery.trim() && (
-          <div className="absolute top-3 left-4 z-40 w-80 max-h-72 bg-space-900/95 border border-cyan-500/40 rounded-xl overflow-y-auto shadow-2xl p-2 space-y-1 backdrop-blur-xl">
-            <div className="flex items-center justify-between text-[10px] text-slate-400 px-2 py-1 border-b border-space-800">
-              <span>FOUND {filteredObjects.length} SATELLITES</span>
-              <button 
-                type="button"
-                onClick={() => setIsSearchOpen(false)}
-                className="hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-            {filteredObjects.map((o) => (
-              <div
-                key={o.norad_id}
-                onClick={() => {
-                  onSelectObject(o);
-                  setIsSearchOpen(false);
-                  setSearchQuery('');
-                }}
-                className="p-2 hover:bg-space-800 rounded-lg cursor-pointer transition text-xs flex justify-between items-center group"
-              >
-                <div>
-                  <div className="text-white font-bold group-hover:text-cyan-neon transition">{o.name}</div>
-                  <div className="text-[10px] text-slate-400">NORAD #{o.norad_id} • {o.object_type}</div>
-                </div>
-                <span className="text-[10px] text-cyan-neon font-bold opacity-0 group-hover:opacity-100 transition">
-                  TRACK →
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* Live Telemetry Floating Card (Bottom-Left) */}
         {trackData && (
-          <div className="absolute bottom-4 left-4 z-30 bg-space-950/90 backdrop-blur-xl border border-cyan-500/30 p-3.5 rounded-2xl text-xs space-y-2 max-w-xs sm:max-w-sm shadow-2xl">
+          <div className="absolute bottom-4 right-4 z-30 bg-space-950/90 backdrop-blur-xl border border-cyan-500/30 p-3.5 rounded-2xl text-xs space-y-2 max-w-xs sm:max-w-sm shadow-2xl">
             <div className="flex items-center justify-between border-b border-space-800 pb-1.5">
               <span className="font-bold text-white text-xs truncate max-w-[180px]">{trackData.object_name}</span>
               <span className="text-[10px] text-emerald-400 font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30">
-                LIVE RIBBON
+                LIVE ORBIT
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div>
                 <span className="text-slate-500 block text-[10px]">SUB-LATITUDE:</span>
-                <span className="text-white font-bold">{trackData.current_position.latitude.toFixed(3)}°</span>
+                <span className="text-white font-bold">{(currentLivePos || trackData.current_position).latitude.toFixed(3)}°</span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[10px]">SUB-LONGITUDE:</span>
-                <span className="text-white font-bold">{trackData.current_position.longitude.toFixed(3)}°</span>
+                <span className="text-white font-bold">{(currentLivePos || trackData.current_position).longitude.toFixed(3)}°</span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[10px]">ALTITUDE:</span>
-                <span className="text-cyan-neon font-bold">{trackData.current_position.altitude_km.toFixed(1)} km</span>
+                <span className="text-cyan-neon font-bold">{(currentLivePos || trackData.current_position).altitude_km.toFixed(1)} km</span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[10px]">COVERAGE RADIUS:</span>
@@ -738,8 +954,8 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
             <div className="pt-2 border-t border-space-800 flex items-center justify-between text-[10px]">
               <span className="text-slate-400">Period: {trackData.period_minutes.toFixed(1)} min</span>
-              <span className={`font-bold ${trackData.current_position.is_sunlit ? 'text-amber-400' : 'text-slate-500'}`}>
-                {trackData.current_position.is_sunlit ? '☀️ SUNLIT' : '🌑 ECLIPSED'}
+              <span className={`font-bold ${(currentLivePos || trackData.current_position).is_sunlit ? 'text-amber-400' : 'text-slate-500'}`}>
+                {(currentLivePos || trackData.current_position).is_sunlit ? '☀️ SUNLIT' : '🌑 ECLIPSED'}
               </span>
             </div>
 
@@ -748,7 +964,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenDetailsModal(activeObj)}
-                  className="w-full py-1 bg-space-900 hover:bg-space-800 text-cyan-400 rounded-lg text-[10px] font-bold border border-space-700 transition flex items-center justify-center gap-1"
+                  className="w-full py-1.5 bg-space-900 hover:bg-space-800 text-cyan-400 rounded-lg text-[10px] font-bold border border-space-700 transition flex items-center justify-center gap-1 shadow-sm"
                 >
                   <Info className="w-3 h-3" />
                   VIEW TELEMETRY SPECS
