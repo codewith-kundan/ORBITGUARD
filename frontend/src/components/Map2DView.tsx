@@ -62,7 +62,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
   const [isDebrisMode, setIsDebrisMode] = useState<boolean>(false);
 
   // Layer Toggles
-  const [showAllObjects, setShowAllObjects] = useState<boolean>(true);
+  const [showAllObjects] = useState<boolean>(false);
   const [showFootprint, setShowFootprint] = useState<boolean>(true);
   const [showTerminator, setShowTerminator] = useState<boolean>(true);
   const [showStations, setShowStations] = useState<boolean>(true);
@@ -888,17 +888,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
             Stations ({stations.length})
           </button>
 
-          <button
-            type="button"
-            onClick={() => setShowAllObjects(!showAllObjects)}
-            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition ${
-              showAllObjects 
-                ? 'bg-sky-500/20 text-sky-400 border-sky-500/40 shadow-sm' 
-                : 'bg-space-950 text-slate-400 border-space-800 hover:text-white'
-            }`}
-          >
-            Swarm ({visibleSwarm.length})
-          </button>
+
 
           {activeObj && (
             <button
