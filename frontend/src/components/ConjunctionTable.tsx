@@ -126,8 +126,8 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
             <tr>
               <th className="py-3 px-4">Primary Target (Object A)</th>
               <th className="py-3 px-4">Secondary Target (Object B)</th>
-              <th className="py-3 px-4">Miss Distance ($d$)</th>
-              <th className="py-3 px-4">Rel. Velocity ($\Delta v$)</th>
+              <th className="py-3 px-4">Miss Distance</th>
+              <th className="py-3 px-4">Relative Velocity</th>
               <th className="py-3 px-4">Time of Closest Approach (TCA)</th>
               <th className="py-3 px-4 text-center">TCA Countdown</th>
               <th className="py-3 px-4 text-center">Collision Risk Score</th>
