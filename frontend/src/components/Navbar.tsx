@@ -6,7 +6,8 @@ import {
   Globe, 
   Menu, 
   X, 
-  LucideIcon
+  LucideIcon,
+  Activity
 } from 'lucide-react';
 import { SystemStatistics, DataStatus } from '../types';
 
@@ -20,6 +21,7 @@ interface NavbarProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   alertCount?: number;
+  onOpenSystemHealth?: () => void;
 }
 
 interface NavItemConfig {
@@ -37,7 +39,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   dataStatus,
   alertCount,
   onRefresh,
-  isRefreshing
+  isRefreshing,
+  onOpenSystemHealth
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const isLive = dataStatus?.mode === 'LIVE';
@@ -120,6 +123,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '—')}
             </span>
           </div>
+
+          {/* System & Database Diagnostics Trigger Button */}
+          {onOpenSystemHealth && (
+            <button
+              onClick={onOpenSystemHealth}
+              className="flex items-center gap-1.5 bg-space-900 hover:bg-space-800 px-2.5 py-1 rounded-lg border border-space-700 hover:border-cyan-500/40 text-[11px] sm:text-xs text-slate-300 hover:text-white transition shadow-sm"
+              title="Open System, Database & Provider Diagnostics Center"
+            >
+              <Activity className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="font-bold">SYSTEM</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            </button>
+          )}
 
           {/* Live Mode Badge */}
           <div className="flex items-center gap-1.5 bg-space-900 px-2 sm:px-2.5 py-1 rounded-lg border border-space-800 text-[11px] sm:text-xs">

@@ -9,6 +9,7 @@ import {
   SystemStatistics,
   DataStatus,
   SystemHealth,
+  SystemHealthDiagnostics,
   Alert
 } from '../types';
 
@@ -41,6 +42,10 @@ export const api = {
 
   getDataStatus: async (): Promise<DataStatus> => {
     return request<DataStatus>('/data/status');
+  },
+
+  getDataHealth: async (): Promise<SystemHealthDiagnostics> => {
+    return request<SystemHealthDiagnostics>('/data/health');
   },
 
   syncData: async (mode: string = 'LIVE'): Promise<any> => {

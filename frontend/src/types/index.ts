@@ -199,6 +199,68 @@ export interface SystemHealth {
   last_conjunction_scan?: string;
 }
 
+export interface ProviderHealth {
+  provider: string;
+  status: string;
+  latency_ms: number;
+  is_live: boolean;
+  requires_auth: boolean;
+  message?: string;
+  last_checked?: string;
+}
+
+export interface SyncHistoryItem {
+  id: number;
+  source: string;
+  started_at: string;
+  completed_at?: string;
+  records_fetched: number;
+  records_inserted: number;
+  records_updated: number;
+  records_failed: number;
+  status: string;
+  error_message?: string;
+}
+
+export interface SystemHealthDiagnostics {
+  overall_status: string;
+  timestamp: string;
+  database: {
+    connected: boolean;
+    engine: string;
+    tables: {
+      orbital_objects: number;
+      tle_records: number;
+      conjunctions: number;
+      active_alerts: number;
+    };
+  };
+  total_tracked_objects: number;
+  data_age_hours?: number;
+  providers: ProviderHealth[];
+  latest_sync?: {
+    source: string;
+    mode: string;
+    status: string;
+    total_synced: number;
+    timestamp?: string;
+    error_message?: string;
+  };
+  sync_history: SyncHistoryItem[];
+  astrodynamics: {
+    propagation_engine: string;
+    ellipsoid_model: string;
+    conjunction_screening: {
+      status: string;
+      window_hours: number;
+      threshold_km: number;
+      critical_threshold_km: number;
+      high_threshold_km: number;
+      coarse_step_minutes: number;
+    };
+  };
+}
+
 export type AlertStatus = 'ACTIVE' | 'MONITORING' | 'ACKNOWLEDGED' | 'RESOLVED';
 
 export interface Alert {

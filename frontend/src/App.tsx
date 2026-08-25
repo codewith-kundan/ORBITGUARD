@@ -6,6 +6,7 @@ import { ObjectTable } from './components/ObjectTable';
 import { ConjunctionTable } from './components/ConjunctionTable';
 import { ObjectDetailsModal } from './components/ObjectDetailsModal';
 import { ConjunctionDetailsModal } from './components/ConjunctionDetailsModal';
+import { SystemHealthModal } from './components/SystemHealthModal';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -28,6 +29,7 @@ export default function App() {
   const [selectedConjunction, setSelectedConjunction] = useState<Conjunction | null>(null);
   const [isObjectModalOpen, setIsObjectModalOpen] = useState<boolean>(false);
   const [isConjunctionModalOpen, setIsConjunctionModalOpen] = useState<boolean>(false);
+  const [isSystemHealthModalOpen, setIsSystemHealthModalOpen] = useState<boolean>(false);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -131,6 +133,7 @@ export default function App() {
         alertCount={alertCount}
         onRefresh={loadAllData}
         isRefreshing={loading}
+        onOpenSystemHealth={() => setIsSystemHealthModalOpen(true)}
       />
 
       {/* Global Data Provider Status Bar */}
@@ -222,6 +225,16 @@ export default function App() {
           onClose={() => setIsConjunctionModalOpen(false)}
         />
       )}
+
+      {/* System & Database Diagnostics Modal */}
+      <SystemHealthModal
+        isOpen={isSystemHealthModalOpen}
+        onClose={() => setIsSystemHealthModalOpen(false)}
+        onSync={handleSync}
+        isSyncing={isSyncing}
+        onScreenConjunctions={handleScreenConjunctions}
+        isScreening={isScreening}
+      />
     </div>
   );
 }
