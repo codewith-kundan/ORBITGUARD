@@ -1442,12 +1442,21 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
               </div>
 
               {/* List of All Conjunction Hotspots */}
-              {conjunctions.length === 0 ? (
-                <div className="p-4 text-center text-slate-500 text-xs bg-space-950/40 rounded-xl border border-space-800">
-                  No critical close approaches detected within current threshold.
-                </div>
-              ) : (
-                conjunctions.map((conj) => {
+              {(() => {
+                const upcomingConjs = conjunctions.filter((c) => {
+                  const tcaMs = parseUtcDate(c.tca).getTime();
+                  return tcaMs > Date.now();
+                });
+
+                if (upcomingConjs.length === 0) {
+                  return (
+                    <div className="p-4 text-center text-slate-500 text-xs bg-space-950/40 rounded-xl border border-space-800">
+                      No critical close approaches detected within current threshold.
+                    </div>
+                  );
+                }
+
+                return upcomingConjs.map((conj) => {
                   const isCrit = conj.risk_level === 'CRITICAL' || conj.miss_distance_km < 5;
                   const isHigh = conj.risk_level === 'HIGH' || conj.miss_distance_km < 15;
                   const tcaCountdown = formatTcaCountdown(conj.tca, simTime);
@@ -1550,8 +1559,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                       </div>
                     </div>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
           )}
 

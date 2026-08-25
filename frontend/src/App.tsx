@@ -82,6 +82,24 @@ export default function App() {
 
   useEffect(() => {
     loadAllData();
+
+    // Auto-refresh conjunctions, alerts, and stats every 25 seconds
+    const interval = setInterval(async () => {
+      try {
+        const [conjsData, alertsData, statsData] = await Promise.all([
+          api.getConjunctions(100, 0).catch(() => []),
+          api.getAlerts(50).catch(() => []),
+          api.getStatistics().catch(() => null)
+        ]);
+        if (conjsData) setConjunctions(conjsData);
+        if (alertsData) setAlerts(alertsData);
+        if (statsData) setStats(statsData);
+      } catch (e) {
+        console.debug('Background poll error:', e);
+      }
+    }, 25000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleSync = async (mode: 'LIVE' | 'DEMO' = 'LIVE') => {
@@ -99,12 +117,14 @@ export default function App() {
   const handleScreenConjunctions = async () => {
     try {
       setIsScreening(true);
-      await api.triggerConjunctionScreening(24, 500.0, 3);
-      const [newConjs, newStats] = await Promise.all([
+      await api.triggerConjunctionScreening(24, 100.0, 3);
+      const [newConjs, newAlerts, newStats] = await Promise.all([
         api.getConjunctions(100, 0),
+        api.getAlerts(50),
         api.getStatistics()
       ]);
       setConjunctions(newConjs);
+      setAlerts(newAlerts);
       setStats(newStats);
     } catch (err: any) {
       setError(err.message || 'Conjunction screening error');

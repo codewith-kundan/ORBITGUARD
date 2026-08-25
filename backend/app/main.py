@@ -82,6 +82,37 @@ async def periodic_sync_worker():
             logger.error(f"Periodic sync worker error: {e}")
 
 
+async def periodic_conjunction_auto_updater():
+    """
+    Background worker running every 5 minutes:
+    1. Automatically prunes all expired conjunction events whose TCA has passed.
+    2. Runs fresh rolling SGP4 conjunction screening into the future (next 24 hours).
+    3. Auto-syncs live collision risk alerts.
+    """
+    while True:
+        await asyncio.sleep(300)  # 5 minutes
+        try:
+            db = SessionLocal()
+            try:
+                # 1. Prune passed conjunctions
+                pruned = ConjunctionService.prune_expired_conjunctions(db)
+                if pruned > 0:
+                    logger.info(f"Auto-pruned {pruned} passed conjunctions past TCA")
+
+                # 2. Run fresh SGP4 screening for next 24h
+                logger.info("Executing 5-minute periodic SGP4 conjunction screening...")
+                ConjunctionService.run_full_conjunction_screening(
+                    db,
+                    window_hours=24,
+                    threshold_km=settings.CONJUNCTION_THRESHOLD_KM or 100.0,
+                    coarse_step_minutes=3.0
+                )
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"5-minute conjunction auto-updater error: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
     """Ensure database has live space catalog data on startup."""
@@ -100,14 +131,17 @@ async def startup_event():
                 else:
                     logger.warning(f"Initial sync failed: {error}")
 
+            # Prune any old conjunctions first
+            ConjunctionService.prune_expired_conjunctions(db)
+
             conj_count = db.query(Conjunction).count()
             if conj_count == 0:
-                logger.info("Running initial conjunction screening...")
+                logger.info("Running initial conjunction screening for next 24h...")
                 ConjunctionService.run_full_conjunction_screening(
                     db,
-                    window_hours=settings.DEFAULT_PREDICTION_WINDOW_HOURS,
-                    threshold_km=settings.CONJUNCTION_THRESHOLD_KM,
-                    coarse_step_minutes=3
+                    window_hours=24,
+                    threshold_km=settings.CONJUNCTION_THRESHOLD_KM or 100.0,
+                    coarse_step_minutes=3.0
                 )
         except Exception as e:
             logger.error(f"Startup sync error: {e}")
@@ -116,6 +150,7 @@ async def startup_event():
 
     asyncio.create_task(initial_sync())
     asyncio.create_task(periodic_sync_worker())
+    asyncio.create_task(periodic_conjunction_auto_updater())
 
 @app.get("/")
 async def root():

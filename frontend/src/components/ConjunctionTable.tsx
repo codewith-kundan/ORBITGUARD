@@ -49,6 +49,10 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
   const [riskFilter, setRiskFilter] = useState<string>('ALL');
 
   const filtered = conjunctions.filter((c) => {
+    // Automatically remove passed conjunctions
+    const tcaMs = parseUtcDate(c.tca).getTime();
+    if (tcaMs <= Date.now()) return false;
+
     if (riskFilter === 'ALL') return true;
     return c.risk_level === riskFilter;
   });

@@ -23,22 +23,31 @@ def trigger_conjunction_screening(
         threshold_km=threshold_km,
         coarse_step_minutes=coarse_step_minutes
     )
+    if not isinstance(result, dict):
+        result = {}
     # Sync alerts automatically
     alerts_created = AlertService.sync_alerts_from_conjunctions(db)
     result["alerts_created"] = alerts_created
     return result
+
+from datetime import datetime
 
 @router.get("", response_model=List[ConjunctionResponse])
 def list_conjunctions(
     risk_level: Optional[RiskLevel] = None,
     min_risk_score: Optional[float] = None,
     max_miss_distance_km: Optional[float] = None,
+    include_passed: bool = False,
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db)
 ):
-    """Retrieves all detected conjunctions sorted by risk score descending."""
+    """Retrieves active upcoming conjunctions sorted by risk score descending."""
+    now = datetime.utcnow()
     query = db.query(Conjunction)
+
+    if not include_passed:
+        query = query.filter(Conjunction.tca > now)
 
     if risk_level:
         query = query.filter(Conjunction.risk_level == risk_level)
@@ -54,15 +63,18 @@ def list_high_risk_conjunctions(
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """Retrieves high and critical risk upcoming conjunctions."""
+    """Retrieves active high and critical risk upcoming conjunctions."""
+    now = datetime.utcnow()
     return db.query(Conjunction).filter(
+        Conjunction.tca > now,
         Conjunction.risk_level.in_([RiskLevel.HIGH, RiskLevel.CRITICAL])
     ).order_by(Conjunction.risk_score.desc()).limit(limit).all()
 
 @router.get("/summary", response_model=ConjunctionSummary)
 def get_conjunction_summary(db: Session = Depends(get_db)):
-    """Provides high-level aggregate summary of conjunction screening results."""
-    conjunctions = db.query(Conjunction).all()
+    """Provides high-level aggregate summary of active upcoming conjunction screening results."""
+    now = datetime.utcnow()
+    conjunctions = db.query(Conjunction).filter(Conjunction.tca > now).all()
     total = len(conjunctions)
     critical_cnt = sum(1 for c in conjunctions if c.risk_level == RiskLevel.CRITICAL)
     high_cnt = sum(1 for c in conjunctions if c.risk_level == RiskLevel.HIGH)
