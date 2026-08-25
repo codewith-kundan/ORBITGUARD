@@ -153,9 +153,10 @@ def get_batch_positions(
 
     debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(800).all()
     rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(400).all()
+    geo_sats = db.query(OrbitalObject).filter(OrbitalObject.apogee_km >= 35000).limit(50).all()
 
     selected_map = {}
-    for obj in list(starlink) + list(oneweb) + list(gps) + list(stations) + list(other_sats) + list(debris) + list(rockets):
+    for obj in list(starlink) + list(oneweb) + list(gps) + list(stations) + list(other_sats) + list(debris) + list(rockets) + list(geo_sats):
         selected_map[obj.id] = obj
 
     objects = list(selected_map.values())

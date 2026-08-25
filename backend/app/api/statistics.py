@@ -56,6 +56,20 @@ def get_system_statistics(db: Session = Depends(get_db)):
     if last_sync_time:
         data_age_min = round((datetime.utcnow() - last_sync_time).total_seconds() / 60.0, 1)
 
+    # Detailed Fleet & Constellation Counts from DB
+    starlink_count = db.query(OrbitalObject).filter(OrbitalObject.name.ilike('%STARLINK%')).count()
+    oneweb_count = db.query(OrbitalObject).filter(OrbitalObject.name.ilike('%ONEWEB%')).count()
+    gps_count = db.query(OrbitalObject).filter(
+        OrbitalObject.name.ilike('%GPS%') | 
+        OrbitalObject.name.ilike('%NAVSTAR%') | 
+        OrbitalObject.name.ilike('%GLONASS%') | 
+        OrbitalObject.name.ilike('%GALILEO%') | 
+        OrbitalObject.name.ilike('%BEIDOU%') |
+        OrbitalObject.name.ilike('%QZSS%') |
+        OrbitalObject.name.ilike('%IRNSS%') |
+        OrbitalObject.name.ilike('%NAVIC%')
+    ).count()
+
     return {
         "tracked_objects": total_objects,
         "active_satellites": satellites_count,
@@ -65,6 +79,18 @@ def get_system_statistics(db: Session = Depends(get_db)):
         "total_conjunctions": total_conjunctions,
         "high_risk_events": critical_conjunctions + high_conjunctions,
         "active_alerts": active_alerts,
+        "fleet_breakdown": {
+            "all": total_objects,
+            "operational": satellites_count,
+            "starlink": starlink_count,
+            "oneweb": oneweb_count,
+            "gps": gps_count,
+            "debris": debris_count,
+            "rocket": rocket_bodies_count,
+            "leo": leo_count,
+            "meo": meo_count,
+            "geo": geo_count
+        },
         "risk_breakdown": {
             "critical": critical_conjunctions,
             "high": high_conjunctions,

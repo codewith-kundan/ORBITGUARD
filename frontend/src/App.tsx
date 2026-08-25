@@ -233,6 +233,7 @@ export default function App() {
               <Map2DView
                 objects={objects}
                 selectedObject={selectedObject}
+                stats={stats}
                 onSelectObject={handleSelectObject}
                 onOpenOverpassModal={handleOpenOverpassModal}
                 onOpenDetailsModal={handleOpenObjectModal}

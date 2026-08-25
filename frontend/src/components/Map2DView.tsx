@@ -15,12 +15,13 @@ import {
   Globe, 
   Info 
 } from 'lucide-react';
-import { OrbitalObject, GroundTrackRibbonResponse, GroundStation } from '../types';
+import { OrbitalObject, GroundTrackRibbonResponse, GroundStation, SystemStatistics } from '../types';
 import { api } from '../services/api';
 
 interface Map2DViewProps {
   objects: OrbitalObject[];
   selectedObject: OrbitalObject | null;
+  stats?: SystemStatistics | null;
   onSelectObject: (obj: OrbitalObject | null) => void;
   onOpenOverpassModal: (obj: OrbitalObject) => void;
   onOpenDetailsModal?: (obj: OrbitalObject) => void;
@@ -42,6 +43,7 @@ interface HoveredEntity {
 export const Map2DView: React.FC<Map2DViewProps> = ({
   objects,
   selectedObject,
+  stats,
   onSelectObject,
   onOpenOverpassModal,
   onOpenDetailsModal
@@ -101,16 +103,20 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
   // Dynamic Fleet & Constellation & Regime Counts
   const fleetCounts = useMemo(() => {
-    let all = objects.length;
-    let payload = 0;
+    if (stats?.fleet_breakdown) {
+      return stats.fleet_breakdown;
+    }
+
+    let all = stats?.tracked_objects || objects.length;
+    let payload = stats?.active_satellites || 0;
     let starlink = 0;
     let oneweb = 0;
     let gps = 0;
-    let debris = 0;
-    let rocket = 0;
-    let leo = 0;
-    let meo = 0;
-    let geo = 0;
+    let debris = stats?.space_debris || 0;
+    let rocket = stats?.rocket_bodies || 0;
+    let leo = stats?.altitude_distribution?.leo || 0;
+    let meo = stats?.altitude_distribution?.meo || 0;
+    let geo = stats?.altitude_distribution?.geo || 0;
 
     objects.forEach((o) => {
       const name = o.name.toUpperCase();
@@ -130,8 +136,8 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       else geo++;
     });
 
-    return { all, payload, starlink, oneweb, gps, debris, rocket, leo, meo, geo };
-  }, [objects]);
+    return { all, operational: payload, payload, starlink, oneweb, gps, debris, rocket, leo, meo, geo };
+  }, [objects, stats]);
 
   // Filter Catalog Objects based on Active Fleet & Regime
   const visibleCatalogObjects = useMemo(() => {
@@ -803,14 +809,14 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
                     Fleet & Constellations
                   </span>
                   <span className="text-[9px] text-cyan-400 font-mono">
-                    {visibleCatalogObjects.length.toLocaleString()} TRACKED
+                    {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : fleetCounts.all.toLocaleString()} TRACKED
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-1 text-[11px]">
                   {[
                     { key: 'ALL', label: 'All Objects', count: fleetCounts.all, color: 'text-white' },
-                    { key: 'PAYLOAD', label: '◆ Operational', count: fleetCounts.payload, color: 'text-cyan-400' },
+                    { key: 'PAYLOAD', label: '◆ Operational', count: fleetCounts.operational, color: 'text-cyan-400' },
                     { key: 'STARLINK', label: '◆ Starlink Fleet', count: fleetCounts.starlink, color: 'text-purple-400' },
                     { key: 'ONEWEB', label: '◆ OneWeb', count: fleetCounts.oneweb, color: 'text-purple-400' },
                     { key: 'GPS', label: '◆ GPS / GNSS', count: fleetCounts.gps, color: 'text-emerald-400' },

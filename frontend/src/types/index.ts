@@ -159,6 +159,19 @@ export interface SystemStatistics {
   total_conjunctions: number;
   high_risk_events: number;
   active_alerts: number;
+  fleet_breakdown?: {
+    all: number;
+    operational: number;
+    payload?: number;
+    starlink: number;
+    oneweb: number;
+    gps: number;
+    debris: number;
+    rocket: number;
+    leo: number;
+    meo: number;
+    geo: number;
+  };
   risk_breakdown: {
     critical: number;
     high: number;
