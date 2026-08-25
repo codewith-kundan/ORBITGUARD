@@ -136,7 +136,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   
   // UI State (LeoLabs Style Multi-Filter & Search Dock)
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(false);
-  const [isRightPanelMinimized, setIsRightPanelMinimized] = useState<boolean>(false);
+  const [isRightPanelMinimized, setIsRightPanelMinimized] = useState<boolean>(true);
   const [rightPanelTab, setRightPanelTab] = useState<'ALERTS' | 'TELEMETRY'>('ALERTS');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
