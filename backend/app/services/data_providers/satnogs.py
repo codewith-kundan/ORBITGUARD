@@ -41,8 +41,8 @@ class SatNOGSProvider(BaseDataProvider):
         """Checks SatNOGS database API availability."""
         start = time.time()
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                res = await client.get("https://db.satnogs.org/api/status/")
+            async with httpx.AsyncClient(timeout=8.0, headers={"User-Agent": "SpaceSentinel-SSA/2.0"}) as client:
+                res = await client.get("https://db.satnogs.org/api/")
                 latency_ms = round((time.time() - start) * 1000, 1)
                 is_healthy = res.status_code == 200
                 return {
@@ -51,7 +51,7 @@ class SatNOGSProvider(BaseDataProvider):
                     "latency_ms": latency_ms,
                     "is_live": True,
                     "requires_auth": False,
-                    "message": "SatNOGS Open Ground Station Network API Online" if is_healthy else f"HTTP {res.status_code}",
+                    "message": "Connected to SatNOGS Open Satellite Network API" if is_healthy else f"HTTP {res.status_code}",
                     "last_checked": datetime.utcnow().isoformat()
                 }
         except Exception as e:
