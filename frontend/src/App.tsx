@@ -90,21 +90,26 @@ export default function App() {
   useEffect(() => {
     loadAllData();
 
-    // Auto-refresh conjunctions, alerts, and stats every 25 seconds
+    // Continuous automatic background live reconnect & polling every 12 seconds
     const interval = setInterval(async () => {
       try {
-        const [conjsData, alertsData, statsData] = await Promise.all([
+        const [conjsData, alertsData, statsData, statusData] = await Promise.all([
           api.getConjunctions(100, 0).catch(() => []),
           api.getAlerts(50).catch(() => []),
-          api.getStatistics().catch(() => null)
+          api.getStatistics().catch(() => null),
+          api.getDataStatus().catch(() => null)
         ]);
         if (conjsData && conjsData.length > 0) setConjunctions(conjsData);
         if (alertsData && alertsData.length > 0) setAlerts(alertsData);
         if (statsData) setStats(statsData);
+        if (statusData) {
+          setDataStatus(statusData);
+          if (statusData.is_live) setError(null); // Auto-clear offline banner once connected
+        }
       } catch (e) {
         console.debug('Background poll error:', e);
       }
-    }, 25000);
+    }, 12000);
 
     return () => clearInterval(interval);
   }, []);
@@ -125,8 +130,9 @@ export default function App() {
       if (objsData && objsData.length > 0) setObjects(objsData);
       if (conjsData && conjsData.length > 0) setConjunctions(conjsData);
       if (alertsData && alertsData.length > 0) setAlerts(alertsData);
+      setError(null);
     } catch (err: any) {
-      setError(err.message || 'Sync failed');
+      console.warn('Sync notice:', err);
     } finally {
       setIsSyncing(false);
     }
@@ -144,8 +150,9 @@ export default function App() {
       setConjunctions(newConjs);
       setAlerts(newAlerts);
       setStats(newStats);
+      setError(null);
     } catch (err: any) {
-      setError(err.message || 'Conjunction screening error');
+      console.warn('Screening notice:', err);
     } finally {
       setIsScreening(false);
     }
