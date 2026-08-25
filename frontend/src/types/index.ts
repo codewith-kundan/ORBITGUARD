@@ -422,3 +422,83 @@ export interface GroundTrackRibbonResponse {
   };
 }
 
+export interface GabbardPoint {
+  fragment_id: number;
+  characteristic_length_m: number;
+  mass_kg: number;
+  area_to_mass_m2_kg: number;
+  delta_v_m_s: number;
+  period_minutes: number;
+  perigee_altitude_km: number;
+  apogee_altitude_km: number;
+  semi_major_axis_km: number;
+  eccentricity: number;
+  inclination_deg: number;
+  is_decayed: boolean;
+}
+
+export interface BreakupFragment {
+  id: number;
+  name: string;
+  characteristic_length_m: number;
+  mass_kg: number;
+  area_to_mass_m2_kg: number;
+  delta_v_m_s: number;
+  orbital_elements: {
+    semi_major_axis_km: number;
+    eccentricity: number;
+    inclination_deg: number;
+    period_minutes: number;
+    perigee_km: number;
+    apogee_km: number;
+  };
+  initial_state_vector: {
+    rx: number; ry: number; rz: number;
+    vx: number; vy: number; vz: number;
+  };
+  position_at_epoch: {
+    x: number; y: number; z: number;
+  };
+}
+
+export interface BreakupSimulateRequest {
+  event_type: string;
+  target_name?: string;
+  target_mass_kg: number;
+  impactor_name?: string;
+  impactor_mass_kg: number;
+  relative_velocity_km_s: number;
+  altitude_km: number;
+  inclination_deg?: number;
+  min_fragment_size_m?: number;
+  max_fragments_to_generate?: number;
+}
+
+export interface BreakupResponse {
+  event_id: string;
+  event_type: string;
+  event_timestamp: string;
+  collision_energy_joules: number;
+  specific_energy_j_per_kg: number;
+  is_catastrophic: boolean;
+  total_mass_kg: number;
+  total_predicted_fragments_gt_min_size: number;
+  sample_fragments_count: number;
+  parent_orbit: {
+    altitude_km: number;
+    velocity_km_s: number;
+    period_minutes: number;
+    inclination_deg: number;
+  };
+  gabbard_points: GabbardPoint[];
+  fragments: BreakupFragment[];
+  cloud_dispersion_stats: {
+    immediate_reentry_count: number;
+    immediate_reentry_percentage: number;
+    min_perigee_km: number;
+    max_apogee_km: number;
+    parent_period_minutes: number;
+  };
+}
+
+

@@ -10,6 +10,7 @@ import { ConjunctionDetailsModal } from './components/ConjunctionDetailsModal';
 import { SystemHealthModal } from './components/SystemHealthModal';
 import { CAMPlannerModal } from './components/CAMPlannerModal';
 import { OverpassModal } from './components/OverpassModal';
+import { BreakupSimulatorModal } from './components/BreakupSimulatorModal';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -35,6 +36,7 @@ export default function App() {
   const [isSystemHealthModalOpen, setIsSystemHealthModalOpen] = useState<boolean>(false);
   const [isCAMModalOpen, setIsCAMModalOpen] = useState<boolean>(false);
   const [isOverpassModalOpen, setIsOverpassModalOpen] = useState<boolean>(false);
+  const [isBreakupModalOpen, setIsBreakupModalOpen] = useState<boolean>(false);
   const [overpassTargetObject, setOverpassTargetObject] = useState<OrbitalObject | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
@@ -128,6 +130,12 @@ export default function App() {
     setSelectedConjunction(conj);
     setIsConjunctionModalOpen(false);
     setIsCAMModalOpen(true);
+  };
+
+  const handleOpenBreakup = (conj: Conjunction) => {
+    setSelectedConjunction(conj);
+    setIsConjunctionModalOpen(false);
+    setIsBreakupModalOpen(true);
   };
 
   const handleOpenOverpassModal = (obj: OrbitalObject) => {
@@ -252,6 +260,7 @@ export default function App() {
           conjunction={selectedConjunction}
           onClose={() => setIsConjunctionModalOpen(false)}
           onOpenCAM={handleOpenCAM}
+          onOpenBreakup={handleOpenBreakup}
         />
       )}
 
@@ -260,6 +269,14 @@ export default function App() {
         <CAMPlannerModal
           conjunction={selectedConjunction}
           onClose={() => setIsCAMModalOpen(false)}
+        />
+      )}
+
+      {/* NASA Standard Satellite Breakup & Fragmentation Simulator Modal */}
+      {isBreakupModalOpen && (
+        <BreakupSimulatorModal
+          conjunction={selectedConjunction}
+          onClose={() => setIsBreakupModalOpen(false)}
         />
       )}
 

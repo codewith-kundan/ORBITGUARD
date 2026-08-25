@@ -17,7 +17,9 @@ import {
   GroundStation,
   OverpassRequest,
   OverpassResponse,
-  GroundTrackRibbonResponse
+  GroundTrackRibbonResponse,
+  BreakupSimulateRequest,
+  BreakupResponse
 } from '../types';
 
 const rawApiUrl = ((import.meta as any).env?.VITE_API_URL as string) || '';
@@ -183,5 +185,17 @@ export const api = {
 
   getGroundTrack: async (noradId: number): Promise<GroundTrackRibbonResponse> => {
     return request<GroundTrackRibbonResponse>(`/overpass/ground-track/${noradId}`);
+  },
+
+  // NASA Standard Satellite Breakup & Fragmentation Simulator
+  simulateBreakup: async (payload: BreakupSimulateRequest): Promise<BreakupResponse> => {
+    return request<BreakupResponse>('/breakup/simulate', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  simulateConjunctionBreakup: async (conjunctionId: number): Promise<BreakupResponse> => {
+    return request<BreakupResponse>(`/breakup/conjunction/${conjunctionId}`);
   }
 };

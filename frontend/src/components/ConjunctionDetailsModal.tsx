@@ -1,18 +1,20 @@
 import React from 'react';
 import { Conjunction } from '../types';
 import { RiskBadge } from './RiskBadge';
-import { X, ShieldAlert, ArrowRightLeft, Clock, Gauge, Layers, Rocket } from 'lucide-react';
+import { X, ShieldAlert, ArrowRightLeft, Clock, Gauge, Layers, Rocket, Atom } from 'lucide-react';
 
 interface ConjunctionDetailsModalProps {
   conjunction: Conjunction | null;
   onClose: () => void;
   onOpenCAM?: (conjunction: Conjunction) => void;
+  onOpenBreakup?: (conjunction: Conjunction) => void;
 }
 
 export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = ({
   conjunction,
   onClose,
-  onOpenCAM
+  onOpenCAM,
+  onOpenBreakup
 }) => {
   if (!conjunction) return null;
 
@@ -139,19 +141,31 @@ export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = (
         </div>
 
         {/* Action Controls */}
-        <div className="mt-4 pt-3 border-t border-space-800 flex items-center justify-between gap-3">
+        <div className="mt-4 pt-3 border-t border-space-800 flex flex-wrap items-center justify-between gap-2">
           <div className="text-[10px] text-slate-500 font-mono">
-            SGP4 Golden Section Conjunction Assessment
+            SGP4 Conjunction Assessment
           </div>
-          {onOpenCAM && (
-            <button
-              onClick={() => onOpenCAM(conjunction)}
-              className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-space-950 rounded-xl text-xs font-bold transition shadow-lg shadow-cyan-500/20"
-            >
-              <Rocket className="w-4 h-4" />
-              PLAN AVOIDANCE MANEUVER (CAM)
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {onOpenBreakup && (
+              <button
+                onClick={() => onOpenBreakup(conjunction)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition"
+              >
+                <Atom className="w-4 h-4" />
+                SIMULATE BREAKUP
+              </button>
+            )}
+
+            {onOpenCAM && (
+              <button
+                onClick={() => onOpenCAM(conjunction)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-space-950 rounded-xl text-xs font-bold transition shadow-lg shadow-cyan-500/20"
+              >
+                <Rocket className="w-4 h-4" />
+                PLAN CAM
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
