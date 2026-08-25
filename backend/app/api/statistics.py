@@ -31,24 +31,14 @@ def get_system_statistics(db: Session = Depends(get_db)):
         Alert.severity.in_([RiskLevel.HIGH, RiskLevel.CRITICAL])
     ).count()
 
-    # Altitude distribution: LEO (<2000 km), MEO (2000-35000 km), GEO (>35000 km)
-    objects = db.query(OrbitalObject.perigee_km, OrbitalObject.apogee_km).all()
-    leo_count = 0
-    meo_count = 0
-    geo_count = 0
-
-    for perigee, apogee in objects:
-        avg_alt = ((perigee or 0) + (apogee or 0)) / 2.0
-        if avg_alt <= 2000:
-            leo_count += 1
-        elif avg_alt <= 35000:
-            meo_count += 1
-        else:
-            geo_count += 1
+    # Altitude distribution: LEO (<=2000 km), MEO (2000-35000 km), GEO (>35000 km)
+    leo_count = db.query(OrbitalObject).filter(OrbitalObject.apogee_km <= 2000).count()
+    meo_count = db.query(OrbitalObject).filter(OrbitalObject.apogee_km > 2000, OrbitalObject.apogee_km <= 35000).count()
+    geo_count = db.query(OrbitalObject).filter(OrbitalObject.apogee_km > 35000).count()
 
     # Fetch last synchronization information
     latest_sync = db.query(SyncLog).order_by(SyncLog.created_at.desc()).first()
-    data_source = latest_sync.source if latest_sync else "CelesTrak"
+    data_source = latest_sync.source if latest_sync else "Space-Track (18th SDS)"
     status_mode = latest_sync.mode if latest_sync else "LIVE"
     last_sync_time = latest_sync.created_at if latest_sync else None
 
