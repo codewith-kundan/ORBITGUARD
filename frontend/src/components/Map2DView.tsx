@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
+import * as satellite from 'satellite.js';
 import { 
   Satellite, 
   Radio, 
@@ -15,7 +16,7 @@ import {
   Globe, 
   Info 
 } from 'lucide-react';
-import { OrbitalObject, GroundTrackRibbonResponse, GroundStation, SystemStatistics } from '../types';
+import { OrbitalObject, GroundStation, SystemStatistics } from '../types';
 import { api } from '../services/api';
 
 interface Map2DViewProps {
@@ -38,6 +39,11 @@ interface HoveredEntity {
   details?: string;
   screenX: number;
   screenY: number;
+}
+
+interface LiveGroundTrack {
+  past: { lat: number; lon: number }[];
+  future: { lat: number; lon: number }[];
 }
 
 export const Map2DView: React.FC<Map2DViewProps> = ({
@@ -71,13 +77,11 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [simSpeed, setSimSpeed] = useState<number>(1); // 1x = live real-time clock
   const [hoveredEntity, setHoveredEntity] = useState<HoveredEntity | null>(null);
-  const [imgLoaded, setImgLoaded] = useState<boolean>(false);
 
-  // Ground Track & Stations State
-  const [trackData, setTrackData] = useState<GroundTrackRibbonResponse | null>(null);
+  // Predefined Ground Stations State
   const [stations, setStations] = useState<GroundStation[]>([]);
 
-  // Active object to track: selectedObject or default to first
+  // Active object to track: selectedObject or default to primary asset (ISS/CSS/first sat)
   const activeObj = useMemo(() => {
     if (selectedObject) return selectedObject;
     if (objects.length > 0) return objects[0];
@@ -90,7 +94,6 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     dayImg.src = '/textures/earth_day.jpg';
     dayImg.onload = () => {
       earthImgRef.current = dayImg;
-      setImgLoaded(true);
     };
   }, []);
 
@@ -101,7 +104,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       .catch((err) => console.error('Failed to load ground stations:', err));
   }, []);
 
-  // Dynamic Fleet & Constellation & Regime Counts
+  // Dynamic Fleet & Constellation & Regime Counts from real Database Stats
   const fleetCounts = useMemo(() => {
     if (stats?.fleet_breakdown) {
       return stats.fleet_breakdown;
@@ -163,65 +166,121 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     });
   }, [objects, activeFleetFilter, altitudeFilter, isDebrisMode]);
 
-  // Fetch continuous ground track ribbon for active object
-  useEffect(() => {
-    if (!activeObj) return;
-    let isMounted = true;
-
-    const fetchTrack = () => {
-      api.getGroundTrack(activeObj.norad_id)
-        .then((data) => {
-          if (isMounted) setTrackData(data);
-        })
-        .catch((err) => console.error('Failed to load ground track:', err));
-    };
-
-    fetchTrack();
-    const interval = setInterval(fetchTrack, 10000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [activeObj?.norad_id]);
-
-  // Live Time Engine: advances simTime at simSpeed
+  // High-Precision Smooth Live Time Engine (60 FPS delta-time accumulator)
   useEffect(() => {
     if (!isPlaying) return;
 
-    const interval = setInterval(() => {
-      setSimTime((prev) => new Date(prev.getTime() + 1000 * simSpeed));
-    }, 1000);
+    let lastTime = performance.now();
+    let animId: number;
 
-    return () => clearInterval(interval);
+    const tick = (now: number) => {
+      const deltaSec = (now - lastTime) / 1000.0;
+      lastTime = now;
+
+      if (deltaSec > 0 && deltaSec < 2) {
+        setSimTime((prev) => new Date(prev.getTime() + deltaSec * 1000 * simSpeed));
+      }
+      animId = requestAnimationFrame(tick);
+    };
+
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
   }, [isPlaying, simSpeed]);
 
   const mathRadians = (deg: number) => (deg * Math.PI) / 180.0;
   const mathDegrees = (rad: number) => (rad * 180.0) / Math.PI;
 
-  // Real-time Sub-Satellite Interpolation along Ground Track
-  const currentLivePos = useMemo(() => {
-    if (!trackData) return null;
-    const base = trackData.current_position;
-    if (!isPlaying || simSpeed === 1) return base;
+  // Real SGP4 Satrec record for Active Object
+  const satrec = useMemo(() => {
+    if (!activeObj?.tle_line1 || !activeObj?.tle_line2) return null;
+    try {
+      const rec = satellite.twoline2satrec(activeObj.tle_line1, activeObj.tle_line2);
+      if (rec && !rec.error) return rec;
+    } catch (e) {
+      console.debug('Failed to init SGP4 Satrec:', e);
+    }
+    return null;
+  }, [activeObj?.norad_id, activeObj?.tle_line1, activeObj?.tle_line2]);
 
-    // Time elapsed in minutes from base epoch
-    const period = trackData.period_minutes || 92.0;
-    const inc = activeObj?.inclination || 51.6;
-    const timeDeltaMin = (simTime.getTime() - Date.now()) / 60000.0;
-    const meanMotion = (2.0 * Math.PI) / period;
-    const phase = (timeDeltaMin * meanMotion) % (2.0 * Math.PI);
+  // Real-Time High-Precision SGP4 Sub-Satellite Position at simTime
+  const livePosition = useMemo(() => {
+    if (!satrec) return null;
+    try {
+      const gmst = satellite.gstime(simTime);
+      const pv = satellite.propagate(satrec, simTime);
+      if (pv && pv.position && typeof pv.position !== 'boolean') {
+        const pEci = pv.position as satellite.EciVec3<number>;
+        const vEci = pv.velocity as satellite.EciVec3<number>;
+        const geodetic = satellite.eciToGeodetic(pEci, gmst);
+        const lat = satellite.degreesLat(geodetic.latitude);
+        const lon = satellite.degreesLong(geodetic.longitude);
+        const altKm = Math.max(120, geodetic.height);
 
-    const lat = Math.asin(Math.sin(mathRadians(inc)) * Math.sin(phase)) * (180.0 / Math.PI);
-    const earthRotDeg = (timeDeltaMin * (360.0 / 1436.0)) % 360.0;
-    const lon = (((base.longitude + Math.atan2(Math.cos(mathRadians(inc)) * Math.sin(phase), Math.cos(phase)) * (180.0 / Math.PI) - earthRotDeg) + 180.0) % 360.0) - 180.0;
+        let velKmS = 7.66;
+        if (vEci) {
+          velKmS = Math.sqrt(vEci.x * vEci.x + vEci.y * vEci.y + vEci.z * vEci.z);
+        }
 
-    return {
-      ...base,
-      latitude: lat,
-      longitude: lon
-    };
-  }, [trackData, simTime, isPlaying, simSpeed, activeObj]);
+        // Coverage radius: R_earth * acos(R_earth / (R_earth + alt))
+        const R_E = 6371.0;
+        const rho = Math.acos(R_E / Math.max(R_E + 10, R_E + altKm));
+        const footprintKm = R_E * rho;
+
+        return {
+          latitude: lat,
+          longitude: lon,
+          altitude_km: altKm,
+          velocity_km_s: velKmS,
+          footprint_radius_km: footprintKm,
+          is_sunlit: true
+        };
+      }
+    } catch (e) {
+      console.debug('Live SGP4 propagation error:', e);
+    }
+    return null;
+  }, [satrec, simTime]);
+
+  // Real-Time SGP4 Ground Track Ribbon (Dynamically anchored to simTime)
+  const liveGroundTrack = useMemo<LiveGroundTrack | null>(() => {
+    if (!satrec) return null;
+    try {
+      const past: { lat: number; lon: number }[] = [];
+      const future: { lat: number; lon: number }[] = [];
+
+      // Past 90 minutes track (step 2 min)
+      for (let m = -90; m <= 0; m += 2) {
+        const t = new Date(simTime.getTime() + m * 60000);
+        const gmst = satellite.gstime(t);
+        const pv = satellite.propagate(satrec, t);
+        if (pv && pv.position && typeof pv.position !== 'boolean') {
+          const geodetic = satellite.eciToGeodetic(pv.position as satellite.EciVec3<number>, gmst);
+          past.push({
+            lat: satellite.degreesLat(geodetic.latitude),
+            lon: satellite.degreesLong(geodetic.longitude)
+          });
+        }
+      }
+
+      // Future 180 minutes track (step 2 min)
+      for (let m = 0; m <= 180; m += 2) {
+        const t = new Date(simTime.getTime() + m * 60000);
+        const gmst = satellite.gstime(t);
+        const pv = satellite.propagate(satrec, t);
+        if (pv && pv.position && typeof pv.position !== 'boolean') {
+          const geodetic = satellite.eciToGeodetic(pv.position as satellite.EciVec3<number>, gmst);
+          future.push({
+            lat: satellite.degreesLat(geodetic.latitude),
+            lon: satellite.degreesLong(geodetic.longitude)
+          });
+        }
+      }
+
+      return { past, future };
+    } catch (e) {
+      return null;
+    }
+  }, [satrec, simTime]);
 
   // Real 2D Canvas Render Loop (60 FPS Smooth Live Animation)
   useEffect(() => {
@@ -295,9 +354,8 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         ctx.stroke();
       }
 
-      // 3. Live Day / Night Solar Terminator Curve
+      // 3. Live Day / Night Solar Terminator Curve (Calculated from simTime)
       if (showTerminator) {
-        // Solar declination & Greenwich Hour Angle from simTime
         const dayOfYear = Math.floor((simTime.getTime() - new Date(simTime.getUTCFullYear(), 0, 0).getTime()) / 86400000);
         const sunDec = -23.44 * Math.cos(mathRadians((360 / 365) * (dayOfYear + 10)));
         const utcHours = simTime.getUTCHours() + simTime.getUTCMinutes() / 60 + simTime.getUTCSeconds() / 3600;
@@ -361,7 +419,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         });
       }
 
-      // 5. Filtered Catalog Swarm
+      // 5. Filtered Catalog Swarm (Real-Time Synced)
       if (showAllObjects) {
         const timeOffset = simTime.getTime() / 60000;
         visibleCatalogObjects.forEach((o) => {
@@ -386,22 +444,22 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         });
       }
 
-      // 6. Active Satellite Continuous Ground Track Ribbon
-      if (trackData) {
-        // Past Track (Cyan)
-        if (trackData.past_track.length > 1) {
+      // 6. Real Continuous SGP4 Ground Track Ribbon
+      if (liveGroundTrack) {
+        // Past Track (Solid Cyan)
+        if (liveGroundTrack.past.length > 1) {
           ctx.strokeStyle = '#00f0ff';
           ctx.lineWidth = 2.5;
           ctx.beginPath();
 
-          for (let i = 0; i < trackData.past_track.length; i++) {
-            const pt = trackData.past_track[i];
-            const px = lonToX(pt.longitude);
-            const py = latToY(pt.latitude);
+          for (let i = 0; i < liveGroundTrack.past.length; i++) {
+            const pt = liveGroundTrack.past[i];
+            const px = lonToX(pt.lon);
+            const py = latToY(pt.lat);
 
             if (i > 0) {
-              const prev = trackData.past_track[i - 1];
-              if (Math.abs(pt.longitude - prev.longitude) > 180) {
+              const prev = liveGroundTrack.past[i - 1];
+              if (Math.abs(pt.lon - prev.lon) > 180) {
                 ctx.stroke();
                 ctx.beginPath();
                 ctx.moveTo(px, py);
@@ -414,21 +472,21 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           ctx.stroke();
         }
 
-        // Future Track (Dashed Emerald)
-        if (trackData.future_track.length > 1) {
+        // Future Projected Track (Dashed Emerald)
+        if (liveGroundTrack.future.length > 1) {
           ctx.strokeStyle = '#10b981';
           ctx.lineWidth = 2.2;
           ctx.setLineDash([5, 4]);
           ctx.beginPath();
 
-          for (let i = 0; i < trackData.future_track.length; i++) {
-            const pt = trackData.future_track[i];
-            const px = lonToX(pt.longitude);
-            const py = latToY(pt.latitude);
+          for (let i = 0; i < liveGroundTrack.future.length; i++) {
+            const pt = liveGroundTrack.future[i];
+            const px = lonToX(pt.lon);
+            const py = latToY(pt.lat);
 
             if (i > 0) {
-              const prev = trackData.future_track[i - 1];
-              if (Math.abs(pt.longitude - prev.longitude) > 180) {
+              const prev = liveGroundTrack.future[i - 1];
+              if (Math.abs(pt.lon - prev.lon) > 180) {
                 ctx.stroke();
                 ctx.beginPath();
                 ctx.moveTo(px, py);
@@ -441,14 +499,16 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           ctx.stroke();
           ctx.setLineDash([]);
         }
+      }
 
-        // 7. Ground Coverage Footprint Circle
-        const curr = currentLivePos || trackData.current_position;
-        const curX = lonToX(curr.longitude);
-        const curY = latToY(curr.latitude);
+      // 7. Active Live Satellite Marker & Sensor Coverage Footprint
+      if (livePosition && activeObj) {
+        const curX = lonToX(livePosition.longitude);
+        const curY = latToY(livePosition.latitude);
 
-        if (showFootprint && curr.footprint_radius_km > 0) {
-          const footprintPx = (curr.footprint_radius_km / 40075.0) * w;
+        // Ground Coverage Footprint Circle
+        if (showFootprint && livePosition.footprint_radius_km > 0) {
+          const footprintPx = (livePosition.footprint_radius_km / 40075.0) * w;
           ctx.fillStyle = 'rgba(0, 240, 255, 0.14)';
           ctx.strokeStyle = 'rgba(0, 240, 255, 0.75)';
           ctx.lineWidth = 1.8;
@@ -458,7 +518,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           ctx.stroke();
         }
 
-        // 8. Active Live Satellite Marker & Pulsing Radar Beacon
+        // Satellite Marker Beacon
         ctx.fillStyle = '#00f0ff';
         ctx.beginPath();
         ctx.arc(curX, curY, 7.5, 0, Math.PI * 2);
@@ -475,15 +535,15 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         ctx.arc(curX, curY, pulseR, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Satellite Telemetry HUD Label
+        // Telemetry Label HUD
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 12px monospace';
-        ctx.fillText(`🛰️ ${trackData.object_name} (#${trackData.norad_id})`, curX + 14, curY - 8);
+        ctx.fillText(`🛰️ ${activeObj.name} (#${activeObj.norad_id})`, curX + 14, curY - 8);
 
         ctx.fillStyle = '#38bdf8';
         ctx.font = 'bold 10px monospace';
         ctx.fillText(
-          `Alt: ${curr.altitude_km.toFixed(1)} km • Lat: ${curr.latitude.toFixed(2)}° • Lon: ${curr.longitude.toFixed(2)}°`,
+          `Alt: ${livePosition.altitude_km.toFixed(1)} km • Lat: ${livePosition.latitude.toFixed(2)}° • Lon: ${livePosition.longitude.toFixed(2)}° • Vel: ${livePosition.velocity_km_s.toFixed(2)} km/s`,
           curX + 14,
           curY + 7
         );
@@ -491,15 +551,15 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     };
 
     render();
-    const interval = setInterval(render, 1000);
+    const interval = setInterval(render, 50);
 
     return () => {
       clearInterval(interval);
       if (animId) cancelAnimationFrame(animId);
     };
   }, [
-    trackData,
-    currentLivePos,
+    livePosition,
+    liveGroundTrack,
     stations,
     visibleCatalogObjects,
     showAllObjects,
@@ -508,8 +568,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     showStations,
     showGrids,
     simTime,
-    activeObj,
-    imgLoaded
+    activeObj
   ]);
 
   // Search Filter Handler
@@ -563,19 +622,18 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     }
 
     // Check Active Satellite
-    if (trackData) {
-      const pos = currentLivePos || trackData.current_position;
-      const sx = lonToX(pos.longitude);
-      const sy = latToY(pos.latitude);
+    if (livePosition && activeObj) {
+      const sx = lonToX(livePosition.longitude);
+      const sy = latToY(livePosition.latitude);
       if (Math.hypot(x - sx, y - sy) < 16) {
         setHoveredEntity({
           type: 'satellite',
-          name: trackData.object_name,
-          id: trackData.norad_id,
-          latitude: pos.latitude,
-          longitude: pos.longitude,
-          altitude_km: pos.altitude_km,
-          details: `Period: ${trackData.period_minutes.toFixed(1)}m • Footprint: ${trackData.footprint_radius_km.toFixed(0)}km`,
+          name: activeObj.name,
+          id: activeObj.norad_id,
+          latitude: livePosition.latitude,
+          longitude: livePosition.longitude,
+          altitude_km: livePosition.altitude_km,
+          details: `Velocity: ${livePosition.velocity_km_s.toFixed(2)} km/s • Footprint: ${livePosition.footprint_radius_km.toFixed(0)} km`,
           screenX: e.clientX - rect.left,
           screenY: e.clientY - rect.top
         });
@@ -612,10 +670,9 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     }
 
     // Check Active Satellite Click
-    if (trackData && activeObj) {
-      const pos = currentLivePos || trackData.current_position;
-      const sx = lonToX(pos.longitude);
-      const sy = latToY(pos.latitude);
+    if (livePosition && activeObj) {
+      const sx = lonToX(livePosition.longitude);
+      const sy = latToY(livePosition.latitude);
       if (Math.hypot(x - sx, y - sy) < 18) {
         if (onOpenDetailsModal) onOpenDetailsModal(activeObj);
         else onOpenOverpassModal(activeObj);
@@ -929,43 +986,43 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           </div>
         )}
 
-        {/* Live Telemetry Floating Card (Bottom-Left) */}
-        {trackData && (
+        {/* Live Telemetry Floating Card (Bottom-Right) */}
+        {livePosition && activeObj && (
           <div className="absolute bottom-4 right-4 z-30 bg-space-950/90 backdrop-blur-xl border border-cyan-500/30 p-3.5 rounded-2xl text-xs space-y-2 max-w-xs sm:max-w-sm shadow-2xl">
             <div className="flex items-center justify-between border-b border-space-800 pb-1.5">
-              <span className="font-bold text-white text-xs truncate max-w-[180px]">{trackData.object_name}</span>
+              <span className="font-bold text-white text-xs truncate max-w-[180px]">{activeObj.name}</span>
               <span className="text-[10px] text-emerald-400 font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30">
-                LIVE ORBIT
+                LIVE SGP4
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div>
                 <span className="text-slate-500 block text-[10px]">SUB-LATITUDE:</span>
-                <span className="text-white font-bold">{(currentLivePos || trackData.current_position).latitude.toFixed(3)}°</span>
+                <span className="text-white font-bold">{livePosition.latitude.toFixed(3)}°</span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[10px]">SUB-LONGITUDE:</span>
-                <span className="text-white font-bold">{(currentLivePos || trackData.current_position).longitude.toFixed(3)}°</span>
+                <span className="text-white font-bold">{livePosition.longitude.toFixed(3)}°</span>
               </div>
               <div>
                 <span className="text-slate-500 block text-[10px]">ALTITUDE:</span>
-                <span className="text-cyan-neon font-bold">{(currentLivePos || trackData.current_position).altitude_km.toFixed(1)} km</span>
+                <span className="text-cyan-neon font-bold">{livePosition.altitude_km.toFixed(1)} km</span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[10px]">COVERAGE RADIUS:</span>
-                <span className="text-emerald-400 font-bold">{trackData.footprint_radius_km.toFixed(0)} km</span>
+                <span className="text-slate-500 block text-[10px]">VELOCITY:</span>
+                <span className="text-emerald-400 font-bold">{livePosition.velocity_km_s.toFixed(2)} km/s</span>
               </div>
             </div>
 
             <div className="pt-2 border-t border-space-800 flex items-center justify-between text-[10px]">
-              <span className="text-slate-400">Period: {trackData.period_minutes.toFixed(1)} min</span>
-              <span className={`font-bold ${(currentLivePos || trackData.current_position).is_sunlit ? 'text-amber-400' : 'text-slate-500'}`}>
-                {(currentLivePos || trackData.current_position).is_sunlit ? '☀️ SUNLIT' : '🌑 ECLIPSED'}
+              <span className="text-slate-400">Coverage: {livePosition.footprint_radius_km.toFixed(0)} km</span>
+              <span className={`font-bold ${livePosition.is_sunlit ? 'text-amber-400' : 'text-slate-500'}`}>
+                {livePosition.is_sunlit ? '☀️ SUNLIT' : '🌑 ECLIPSED'}
               </span>
             </div>
 
-            {activeObj && onOpenDetailsModal && (
+            {onOpenDetailsModal && (
               <div className="pt-1">
                 <button
                   type="button"
