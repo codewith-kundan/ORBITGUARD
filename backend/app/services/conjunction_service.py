@@ -57,12 +57,12 @@ class ConjunctionService:
         high_value_names = ["ISS", "ZARYA", "TIANGONG", "HUBBLE", "HST", "NOAA", "TERRA"]
         high_value = [p for p in primaries if any(hv in (p.name or "").upper() for hv in high_value_names)]
         
-        # Select diverse primary targets (avoid picking 200 Starlinks)
+        # Select diverse primary targets across space stations, scientific missions, and constellations
         selected_primaries = []
         seen_prefixes = set()
         
         # First add high-value targets
-        for p in high_value[:5]:
+        for p in high_value:
             selected_primaries.append(p)
             seen_prefixes.add((p.name or "").split("-")[0].split(" ")[0].upper())
         
@@ -72,13 +72,13 @@ class ConjunctionService:
             if prefix not in seen_prefixes:
                 selected_primaries.append(p)
                 seen_prefixes.add(prefix)
-            if len(selected_primaries) >= 30:
+            if len(selected_primaries) >= 50:
                 break
         
-        # If still need more, add some Starlinks/OneWebs
-        if len(selected_primaries) < 30:
+        # If still need more, add more active satellites
+        if len(selected_primaries) < 50:
             for p in primaries:
-                if len(selected_primaries) >= 30:
+                if len(selected_primaries) >= 50:
                     break
                 if p not in selected_primaries:
                     selected_primaries.append(p)
@@ -257,7 +257,13 @@ class ConjunctionService:
                     "factors": factors
                 })
 
-        return close_events
+        # Return only the single closest approach (TCA Minimum) for this pair
+        # to avoid repeated consecutive rows for identical satellites
+        if close_events:
+            close_events.sort(key=lambda x: x["miss_distance_km"])
+            return [close_events[0]]
+
+        return []
 
     @staticmethod
     def run_full_conjunction_screening(
