@@ -66,8 +66,8 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
   const [isDebrisMode, setIsDebrisMode] = useState<boolean>(false);
 
   // Layer Toggles
-  const [showAllObjects] = useState<boolean>(false);
-  const [showFootprint, setShowFootprint] = useState<boolean>(true);
+  const [showAllObjects] = useState<boolean>(true);
+  const [showFootprint, setShowFootprint] = useState<boolean>(false);
   const [showTerminator, setShowTerminator] = useState<boolean>(true);
   const [showStations, setShowStations] = useState<boolean>(true);
   const [showGrids, setShowGrids] = useState<boolean>(true);
@@ -107,11 +107,36 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     };
   }, []);
 
-  // Fetch Predefined Ground Stations
+  // Initialize SGP4 satrec records from objects' TLEs (client-side, works offline)
+  useEffect(() => {
+    if (objects && objects.length > 0) {
+      objects.forEach((obj) => {
+        if (obj.tle_line1 && obj.tle_line2 && !satrecMapRef.current.has(obj.norad_id)) {
+          try {
+            const rec = satellite.twoline2satrec(obj.tle_line1, obj.tle_line2);
+            if (rec && (rec as any).error === 0) {
+              satrecMapRef.current.set(obj.norad_id, {
+                satrec: rec,
+                name: obj.name,
+                type: obj.object_type,
+                norad_id: obj.norad_id
+              });
+            }
+          } catch (e) {}
+        }
+      });
+    }
+  }, [objects]);
+
+  // Fetch Predefined Ground Stations (with fallback)
   useEffect(() => {
     api.getGroundStations()
-      .then(setStations)
-      .catch((err) => console.error('Failed to load ground stations:', err));
+      .then((data) => {
+        if (data && data.length > 0) setStations(data);
+      })
+      .catch(() => {
+        console.debug('Ground stations API unavailable, using fallback');
+      });
   }, []);
 
   // Fetch Batch Ephemeris Positions from Backend API (4,000+ real assets)
@@ -139,7 +164,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           });
         }
       } catch (err) {
-        console.error('Failed to fetch batch positions in Map2D:', err);
+        console.debug('Batch positions unavailable, using client-side SGP4:', err);
       }
     };
 

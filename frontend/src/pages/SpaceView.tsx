@@ -993,14 +993,39 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       sunMeshRef.current.position.copy(sunDir.clone().multiplyScalar(150));
     }
     if (earthMeshRef.current) {
-      // Earth rotation via GMST
+      // Earth rotation via GMST (Greenwich Mean Sidereal Time)
       const JD = 2440587.5 + simTime.getTime() / 86400000;
       const T = (JD - 2451545.0) / 36525.0;
-      const gmst = (280.46061837 + 360.98564736629 * (JD - 2451545.0) + 0.000387933 * T * T) % 360;
-      earthMeshRef.current.rotation.y = gmst * (Math.PI / 180);
+      const gmstDeg = (280.46061837 + 360.98564736629 * (JD - 2451545.0) + 0.000387933 * T * T) % 360;
+      const gmstRad = gmstDeg * (Math.PI / 180);
+      earthMeshRef.current.rotation.y = gmstRad;
+
+      // Sun direction must be in ECEF (Earth-fixed) frame to match the rotated Earth mesh
+      // Compute sub-solar geographic coordinates (sun's lat/lon on Earth surface)
+      const dayOfYear = Math.floor(
+        (simTime.getTime() - new Date(simTime.getUTCFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      const hour = simTime.getUTCHours() + simTime.getUTCMinutes() / 60 + simTime.getUTCSeconds() / 3600;
+      const sunDecDeg = -23.44 * Math.cos(((2 * Math.PI) / 365) * (dayOfYear + 10));
+      const sunDecRad = sunDecDeg * (Math.PI / 180);
+      // Sub-solar longitude: sun is at local noon at (12 - UTChour) * 15 degrees
+      const sunLonDeg = (12.0 - hour) * 15.0;
+      const sunLonRad = sunLonDeg * (Math.PI / 180);
+
+      // Convert sub-solar lat/lon to ECEF unit vector (matches Earth mesh orientation)
+      // Earth mesh has rotation.y = gmstRad and initial rotation.y = -PI/2 (set during creation)
+      // The shader uses worldNormal of the rotated mesh, so sunDirection must be in world space
+      // after accounting for Earth mesh rotation
+      const totalRotation = gmstRad; // Earth mesh rotation
+      const adjustedLon = sunLonRad + totalRotation + Math.PI / 2; // compensate for initial -PI/2 rotation
+
+      const sunEcefX = Math.cos(sunDecRad) * Math.cos(adjustedLon);
+      const sunEcefY = Math.sin(sunDecRad);
+      const sunEcefZ = -Math.cos(sunDecRad) * Math.sin(adjustedLon);
+
       const mat = earthMeshRef.current.material as THREE.ShaderMaterial;
       if (mat.uniforms?.sunDirection) {
-        mat.uniforms.sunDirection.value.copy(sunDir);
+        mat.uniforms.sunDirection.value.set(sunEcefX, sunEcefY, sunEcefZ).normalize();
       }
     }
     // Update Moon position

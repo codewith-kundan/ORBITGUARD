@@ -240,7 +240,39 @@ export const api = {
 
   // Ground Station Overpass & 2D Ground Track Ribbons
   getGroundStations: async (): Promise<GroundStation[]> => {
-    return request<GroundStation[]>('/overpass/stations');
+    const fallbackStations: GroundStation[] = [
+      { id: 'ISTRAC', name: 'ISTRAC Bangalore', country: 'India', latitude_deg: 13.034, longitude_deg: 77.512, altitude_m: 920, min_elevation_deg: 5 },
+      { id: 'SDSC', name: 'Satish Dhawan SHAR', country: 'India', latitude_deg: 13.72, longitude_deg: 80.23, altitude_m: 20, min_elevation_deg: 5 },
+      { id: 'CNES-TLS', name: 'CNES Toulouse', country: 'France', latitude_deg: 43.428, longitude_deg: 1.498, altitude_m: 150, min_elevation_deg: 5 },
+      { id: 'ESOC-DA', name: 'ESA ESOC Darmstadt', country: 'Germany', latitude_deg: 49.871, longitude_deg: 8.623, altitude_m: 140, min_elevation_deg: 5 },
+      { id: 'GSFC', name: 'NASA GSFC Greenbelt', country: 'United States', latitude_deg: 38.991, longitude_deg: -76.852, altitude_m: 53, min_elevation_deg: 5 },
+      { id: 'JSC', name: 'NASA JSC Houston', country: 'United States', latitude_deg: 29.559, longitude_deg: -95.089, altitude_m: 5, min_elevation_deg: 5 },
+      { id: 'VAND', name: 'Vandenberg SFB', country: 'United States', latitude_deg: 34.756, longitude_deg: -120.542, altitude_m: 112, min_elevation_deg: 5 },
+      { id: 'CAPE', name: 'Cape Canaveral SFS', country: 'United States', latitude_deg: 28.396, longitude_deg: -80.605, altitude_m: 3, min_elevation_deg: 5 },
+      { id: 'BAIK', name: 'Baikonur Cosmodrome', country: 'Kazakhstan', latitude_deg: 45.965, longitude_deg: 63.305, altitude_m: 100, min_elevation_deg: 5 },
+      { id: 'PLST', name: 'Plesetsk Cosmodrome', country: 'Russia', latitude_deg: 62.927, longitude_deg: 40.577, altitude_m: 130, min_elevation_deg: 5 },
+      { id: 'XICH', name: 'Xichang Launch Center', country: 'China', latitude_deg: 28.246, longitude_deg: 102.027, altitude_m: 1825, min_elevation_deg: 5 },
+      { id: 'TNEG', name: 'Tanegashima Space Center', country: 'Japan', latitude_deg: 30.400, longitude_deg: 131.003, altitude_m: 40, min_elevation_deg: 5 },
+      { id: 'KOUR', name: 'Guiana Space Centre', country: 'French Guiana', latitude_deg: 5.236, longitude_deg: -52.768, altitude_m: 15, min_elevation_deg: 5 },
+      { id: 'WOOMER', name: 'Woomera Test Range', country: 'Australia', latitude_deg: -31.168, longitude_deg: 136.826, altitude_m: 168, min_elevation_deg: 5 },
+      { id: 'ALCANT', name: 'Alcântara Launch Center', country: 'Brazil', latitude_deg: -2.373, longitude_deg: -44.396, altitude_m: 10, min_elevation_deg: 5 },
+      { id: 'SVALBARD', name: 'SvalSat Svalbard', country: 'Norway', latitude_deg: 78.229, longitude_deg: 15.408, altitude_m: 440, min_elevation_deg: 5 },
+      { id: 'DSCOVR', name: 'McMurdo Station', country: 'Antarctica', latitude_deg: -77.846, longitude_deg: 166.668, altitude_m: 24, min_elevation_deg: 5 },
+      { id: 'MALINDI', name: 'Malindi Ground Station', country: 'Kenya', latitude_deg: -2.996, longitude_deg: 40.194, altitude_m: 30, min_elevation_deg: 5 },
+      { id: 'HARTS', name: 'HartRAO Hartebeesthoek', country: 'South Africa', latitude_deg: -25.887, longitude_deg: 27.687, altitude_m: 1400, min_elevation_deg: 5 },
+      { id: 'KIRUNA', name: 'Esrange Kiruna', country: 'Sweden', latitude_deg: 67.893, longitude_deg: 21.104, altitude_m: 420, min_elevation_deg: 5 },
+      { id: 'CANBERRA', name: 'CDSCC Canberra', country: 'Australia', latitude_deg: -35.401, longitude_deg: 148.981, altitude_m: 680, min_elevation_deg: 5 },
+      { id: 'MADRID', name: 'MDSCC Robledo', country: 'Spain', latitude_deg: 40.431, longitude_deg: -4.249, altitude_m: 833, min_elevation_deg: 5 },
+      { id: 'GOLDSTONE', name: 'GDSCC Goldstone', country: 'United States', latitude_deg: 35.427, longitude_deg: -116.890, altitude_m: 900, min_elevation_deg: 5 },
+      { id: 'HAWAII', name: 'AMOS Maui', country: 'United States', latitude_deg: 20.7084, longitude_deg: -156.258, altitude_m: 3058, min_elevation_deg: 5 },
+    ];
+    try {
+      const data = await request<GroundStation[]>('/overpass/stations');
+      if (data && data.length > 0) return data;
+      return fallbackStations;
+    } catch {
+      return fallbackStations;
+    }
   },
 
   predictOverpasses: async (payload: OverpassRequest): Promise<OverpassResponse> => {
