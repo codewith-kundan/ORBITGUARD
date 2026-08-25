@@ -139,12 +139,12 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
       });
   }, []);
 
-  // Fetch Batch Ephemeris Positions from Backend API (4,000+ real assets)
+  // Fetch Batch Ephemeris Positions from Backend API (1,800+ real assets)
   useEffect(() => {
     let isMounted = true;
     const fetchPositions = async () => {
       try {
-        const batch = await api.getBatchPositions(simTime.toISOString(), 600);
+        const batch = await api.getBatchPositions(new Date().toISOString(), 1800);
         if (isMounted && batch.positions && batch.positions.length > 0) {
           setPositions(batch.positions);
           batch.positions.forEach((p: OrbitalPosition) => {

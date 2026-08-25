@@ -130,35 +130,38 @@ def get_batch_positions(
     """
     target_time = to_utc(timestamp) if timestamp else datetime.now(timezone.utc)
     
-    # Fast indexed constellation sampling
-    starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(120).all()
-    oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(60).all()
+    # Fast indexed constellation sampling (up to 1800 real space assets)
+    starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(500).all()
+    oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(150).all()
     gps = db.query(OrbitalObject).filter(
         OrbitalObject.name.ilike("%GPS%") | 
         OrbitalObject.name.ilike("%NAVSTAR%") | 
         OrbitalObject.name.ilike("%BEIDOU%") | 
         OrbitalObject.name.ilike("%GALILEO%") | 
-        OrbitalObject.name.ilike("%GLONASS%")
-    ).limit(50).all()
+        OrbitalObject.name.ilike("%GLONASS%") |
+        OrbitalObject.name.ilike("%QZSS%") |
+        OrbitalObject.name.ilike("%IRNSS%")
+    ).limit(120).all()
     
     stations = db.query(OrbitalObject).filter(
         OrbitalObject.name.ilike("%ISS %") | 
         OrbitalObject.name.ilike("%TIANGONG%") | 
-        OrbitalObject.name.ilike("%HUBBLE%")
-    ).limit(10).all()
+        OrbitalObject.name.ilike("%HUBBLE%") |
+        OrbitalObject.name.ilike("%CHANDRAYAAN%")
+    ).limit(20).all()
 
     other_sats = db.query(OrbitalObject).filter(
         OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE
-    ).limit(120).all()
+    ).limit(350).all()
 
-    debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(180).all()
-    rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(60).all()
+    debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(450).all()
+    rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(210).all()
 
     selected_map = {}
     for obj in list(starlink) + list(oneweb) + list(gps) + list(stations) + list(other_sats) + list(debris) + list(rockets):
         selected_map[obj.id] = obj
 
-    objects = list(selected_map.values())[:limit]
+    objects = list(selected_map.values())[:min(limit, 1800)]
 
     positions: List[OrbitalPosition] = []
     for obj in objects:
