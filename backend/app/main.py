@@ -66,20 +66,22 @@ async def periodic_sync_worker():
             logger.info("Starting scheduled periodic synchronization...")
             records, source, mode, error = await TLEService.fetch_tle_data(mode="LIVE")
             if records:
-                db = SessionLocal()
-                try:
-                    if records and isinstance(records[0], dict) and records[0].get('_gp_json'):
-                        TLEService.sync_gp_records_to_database(db, records, source=source)
-                    else:
-                        TLEService.sync_to_database(db, records, mode=mode, source=source)
-                    ConjunctionService.run_full_conjunction_screening(
-                        db,
-                        window_hours=settings.DEFAULT_PREDICTION_WINDOW_HOURS,
-                        threshold_km=settings.CONJUNCTION_THRESHOLD_KM,
-                        coarse_step_minutes=3
-                    )
-                finally:
-                    db.close()
+                def _do_sync():
+                    db = SessionLocal()
+                    try:
+                        if records and isinstance(records[0], dict) and records[0].get('_gp_json'):
+                            TLEService.sync_gp_records_to_database(db, records, source=source)
+                        else:
+                            TLEService.sync_to_database(db, records, mode=mode, source=source)
+                        ConjunctionService.run_full_conjunction_screening(
+                            db,
+                            window_hours=settings.DEFAULT_PREDICTION_WINDOW_HOURS,
+                            threshold_km=settings.CONJUNCTION_THRESHOLD_KM,
+                            coarse_step_minutes=3
+                        )
+                    finally:
+                        db.close()
+                await asyncio.to_thread(_do_sync)
             else:
                 logger.warning(f"Periodic sync: no data received. Error: {error}")
         except Exception as e:
@@ -96,61 +98,74 @@ async def periodic_conjunction_auto_updater():
     while True:
         await asyncio.sleep(300)  # 5 minutes
         try:
-            db = SessionLocal()
-            try:
-                # 1. Prune passed conjunctions
-                pruned = ConjunctionService.prune_expired_conjunctions(db)
-                if pruned > 0:
-                    logger.info(f"Auto-pruned {pruned} passed conjunctions past TCA")
+            def _do_update():
+                db = SessionLocal()
+                try:
+                    pruned = ConjunctionService.prune_expired_conjunctions(db)
+                    if pruned > 0:
+                        logger.info(f"Auto-pruned {pruned} passed conjunctions past TCA")
 
-                # 2. Run fresh SGP4 screening for next 24h
-                logger.info("Executing 5-minute periodic SGP4 conjunction screening...")
-                ConjunctionService.run_full_conjunction_screening(
-                    db,
-                    window_hours=24,
-                    threshold_km=settings.CONJUNCTION_THRESHOLD_KM or 100.0,
-                    coarse_step_minutes=3.0
-                )
-            finally:
-                db.close()
+                    ConjunctionService.run_full_conjunction_screening(
+                        db,
+                        window_hours=24,
+                        threshold_km=settings.CONJUNCTION_THRESHOLD_KM or 100.0,
+                        coarse_step_minutes=3.0
+                    )
+                finally:
+                    db.close()
+            await asyncio.to_thread(_do_update)
         except Exception as e:
             logger.error(f"5-minute conjunction auto-updater error: {e}")
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Ensure database has live space catalog data on startup."""
+    """Ensure database has live space catalog data on startup without blocking HTTP requests."""
     async def initial_sync():
-        db = SessionLocal()
+        await asyncio.sleep(2)  # Yield to allow server to start listening immediately
         try:
-            count = db.query(OrbitalObject).count()
+            def _check_and_init():
+                db = SessionLocal()
+                try:
+                    count = db.query(OrbitalObject).count()
+                    return count
+                finally:
+                    db.close()
+
+            count = await asyncio.to_thread(_check_and_init)
             if count == 0:
-                logger.info("Database empty. Fetching space catalog...")
+                logger.info("Database empty. Fetching space catalog in background...")
                 records, source, mode, error = await TLEService.fetch_tle_data(mode="LIVE")
                 if records:
-                    if isinstance(records[0], dict) and records[0].get('_gp_json'):
-                        TLEService.sync_gp_records_to_database(db, records, source=source)
-                    else:
-                        TLEService.sync_to_database(db, records, mode=mode, source=source)
+                    def _insert_records():
+                        db = SessionLocal()
+                        try:
+                            if isinstance(records[0], dict) and records[0].get('_gp_json'):
+                                TLEService.sync_gp_records_to_database(db, records, source=source)
+                            else:
+                                TLEService.sync_to_database(db, records, mode=mode, source=source)
+                            ConjunctionService.prune_expired_conjunctions(db)
+                            ConjunctionService.run_full_conjunction_screening(
+                                db,
+                                window_hours=24,
+                                threshold_km=settings.CONJUNCTION_THRESHOLD_KM or 100.0,
+                                coarse_step_minutes=3.0
+                            )
+                        finally:
+                            db.close()
+                    await asyncio.to_thread(_insert_records)
                 else:
                     logger.warning(f"Initial sync failed: {error}")
-
-            # Prune any old conjunctions first
-            ConjunctionService.prune_expired_conjunctions(db)
-
-            conj_count = db.query(Conjunction).count()
-            if conj_count == 0:
-                logger.info("Running initial conjunction screening for next 24h...")
-                ConjunctionService.run_full_conjunction_screening(
-                    db,
-                    window_hours=24,
-                    threshold_km=settings.CONJUNCTION_THRESHOLD_KM or 100.0,
-                    coarse_step_minutes=3.0
-                )
+            else:
+                def _quick_prune():
+                    db = SessionLocal()
+                    try:
+                        ConjunctionService.prune_expired_conjunctions(db)
+                    finally:
+                        db.close()
+                await asyncio.to_thread(_quick_prune)
         except Exception as e:
-            logger.error(f"Startup sync error: {e}")
-        finally:
-            db.close()
+            logger.error(f"Startup sync background error: {e}")
 
     asyncio.create_task(initial_sync())
     asyncio.create_task(periodic_sync_worker())
@@ -166,6 +181,7 @@ async def root():
         "health": "/api/health"
     }
 
+@app.get("/health")
 @app.get("/api/health")
 async def health_check(db: Session = Depends(get_db)):
     """System health check and operational service status."""
