@@ -155,10 +155,10 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     }
   }, [selectedObject]);
 
-  // Time Engine State (Default 50X for noticeable real-time orbital revolution)
+  // Time Engine State (Default 1X for true real-time 1:1 orbital speed)
   const [simTime, setSimTime] = useState<Date>(new Date());
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [simSpeed, setSimSpeed] = useState<number>(50);
+  const [simSpeed, setSimSpeed] = useState<number>(1);
   const [trajectoryHours, setTrajectoryHours] = useState<number>(12);
 
   // Ephemeris State
