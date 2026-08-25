@@ -10,7 +10,10 @@ import {
   DataStatus,
   SystemHealth,
   SystemHealthDiagnostics,
-  Alert
+  Alert,
+  CAMPlanResponse,
+  CAMSimulateRequest,
+  CAMSimulateResponse
 } from '../types';
 
 const rawApiUrl = ((import.meta as any).env?.VITE_API_URL as string) || '';
@@ -148,5 +151,17 @@ export const api = {
 
   acknowledgeAlert: async (id: number): Promise<Alert> => {
     return request<Alert>(`/alerts/${id}/acknowledge`, { method: 'POST' });
+  },
+
+  // Collision Avoidance Maneuver (CAM) Planner
+  getCAMPlan: async (conjunctionId: number): Promise<CAMPlanResponse> => {
+    return request<CAMPlanResponse>(`/cam/plan/${conjunctionId}`);
+  },
+
+  simulateCAM: async (payload: CAMSimulateRequest): Promise<CAMSimulateResponse> => {
+    return request<CAMSimulateResponse>('/cam/simulate', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   }
 };

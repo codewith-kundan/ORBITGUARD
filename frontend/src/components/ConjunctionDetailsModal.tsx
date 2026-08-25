@@ -1,16 +1,18 @@
 import React from 'react';
 import { Conjunction } from '../types';
 import { RiskBadge } from './RiskBadge';
-import { X, ShieldAlert, ArrowRightLeft, Clock, Gauge, Layers } from 'lucide-react';
+import { X, ShieldAlert, ArrowRightLeft, Clock, Gauge, Layers, Rocket } from 'lucide-react';
 
 interface ConjunctionDetailsModalProps {
   conjunction: Conjunction | null;
   onClose: () => void;
+  onOpenCAM?: (conjunction: Conjunction) => void;
 }
 
 export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = ({
   conjunction,
-  onClose
+  onClose,
+  onOpenCAM
 }) => {
   if (!conjunction) return null;
 
@@ -134,6 +136,22 @@ export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = (
               </span>
             </div>
           </div>
+        </div>
+
+        {/* Action Controls */}
+        <div className="mt-4 pt-3 border-t border-space-800 flex items-center justify-between gap-3">
+          <div className="text-[10px] text-slate-500 font-mono">
+            SGP4 Golden Section Conjunction Assessment
+          </div>
+          {onOpenCAM && (
+            <button
+              onClick={() => onOpenCAM(conjunction)}
+              className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-space-950 rounded-xl text-xs font-bold transition shadow-lg shadow-cyan-500/20"
+            >
+              <Rocket className="w-4 h-4" />
+              PLAN AVOIDANCE MANEUVER (CAM)
+            </button>
+          )}
         </div>
       </div>
     </div>

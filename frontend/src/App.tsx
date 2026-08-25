@@ -7,6 +7,7 @@ import { ConjunctionTable } from './components/ConjunctionTable';
 import { ObjectDetailsModal } from './components/ObjectDetailsModal';
 import { ConjunctionDetailsModal } from './components/ConjunctionDetailsModal';
 import { SystemHealthModal } from './components/SystemHealthModal';
+import { CAMPlannerModal } from './components/CAMPlannerModal';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -30,6 +31,7 @@ export default function App() {
   const [isObjectModalOpen, setIsObjectModalOpen] = useState<boolean>(false);
   const [isConjunctionModalOpen, setIsConjunctionModalOpen] = useState<boolean>(false);
   const [isSystemHealthModalOpen, setIsSystemHealthModalOpen] = useState<boolean>(false);
+  const [isCAMModalOpen, setIsCAMModalOpen] = useState<boolean>(false);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -116,6 +118,12 @@ export default function App() {
   const handleOpenConjunctionModal = (conj: Conjunction) => {
     setSelectedConjunction(conj);
     setIsConjunctionModalOpen(true);
+  };
+
+  const handleOpenCAM = (conj: Conjunction) => {
+    setSelectedConjunction(conj);
+    setIsConjunctionModalOpen(false);
+    setIsCAMModalOpen(true);
   };
 
   const alertCount = alerts.filter(
@@ -223,6 +231,15 @@ export default function App() {
         <ConjunctionDetailsModal
           conjunction={selectedConjunction}
           onClose={() => setIsConjunctionModalOpen(false)}
+          onOpenCAM={handleOpenCAM}
+        />
+      )}
+
+      {/* Collision Avoidance Maneuver (CAM) Planner Modal */}
+      {isCAMModalOpen && selectedConjunction && (
+        <CAMPlannerModal
+          conjunction={selectedConjunction}
+          onClose={() => setIsCAMModalOpen(false)}
         />
       )}
 

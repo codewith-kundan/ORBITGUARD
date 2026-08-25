@@ -10,6 +10,7 @@ from backend.app.api.objects import router as objects_router
 from backend.app.api.conjunctions import router as conjunctions_router
 from backend.app.api.statistics import router as statistics_router
 from backend.app.api.alerts import router as alerts_router
+from backend.app.api.cam import router as cam_router
 from backend.app.models.base import Base, engine, get_db, SessionLocal
 from backend.app.models.orbital_object import OrbitalObject, SyncLog
 from backend.app.models.conjunction import Conjunction
@@ -42,6 +43,7 @@ app.include_router(objects_router)
 app.include_router(conjunctions_router)
 app.include_router(statistics_router)
 app.include_router(alerts_router)
+app.include_router(cam_router)
 
 async def periodic_sync_worker():
     """Background task running periodic orbital ephemeris synchronization."""
