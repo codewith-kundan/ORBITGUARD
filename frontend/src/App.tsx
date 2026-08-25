@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { Navbar, NavTabKey } from './components/Navbar';
 import { DataStatusBar } from './components/DataStatusBar';
 import { SpaceView } from './pages/SpaceView';
+import { Map2DView } from './components/Map2DView';
 import { ObjectTable } from './components/ObjectTable';
 import { ConjunctionTable } from './components/ConjunctionTable';
 import { ObjectDetailsModal } from './components/ObjectDetailsModal';
 import { ConjunctionDetailsModal } from './components/ConjunctionDetailsModal';
 import { SystemHealthModal } from './components/SystemHealthModal';
 import { CAMPlannerModal } from './components/CAMPlannerModal';
+import { OverpassModal } from './components/OverpassModal';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -32,6 +34,8 @@ export default function App() {
   const [isConjunctionModalOpen, setIsConjunctionModalOpen] = useState<boolean>(false);
   const [isSystemHealthModalOpen, setIsSystemHealthModalOpen] = useState<boolean>(false);
   const [isCAMModalOpen, setIsCAMModalOpen] = useState<boolean>(false);
+  const [isOverpassModalOpen, setIsOverpassModalOpen] = useState<boolean>(false);
+  const [overpassTargetObject, setOverpassTargetObject] = useState<OrbitalObject | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -126,6 +130,11 @@ export default function App() {
     setIsCAMModalOpen(true);
   };
 
+  const handleOpenOverpassModal = (obj: OrbitalObject) => {
+    setOverpassTargetObject(obj);
+    setIsOverpassModalOpen(true);
+  };
+
   const alertCount = alerts.filter(
     (a) => a.status === 'ACTIVE' && (a.severity === 'HIGH' || a.severity === 'CRITICAL')
   ).length;
@@ -195,7 +204,17 @@ export default function App() {
               />
             )}
 
-            {/* 2. OBJECTS CATALOG */}
+            {/* 2. 2D GROUND TRACK & SENSOR FOOTPRINT */}
+            {activeTab === 'map2d' && (
+              <Map2DView
+                objects={objects}
+                selectedObject={selectedObject}
+                onSelectObject={handleSelectObject}
+                onOpenOverpassModal={handleOpenOverpassModal}
+              />
+            )}
+
+            {/* 3. OBJECTS CATALOG */}
             {activeTab === 'catalog' && (
               <ObjectTable
                 selectedObject={selectedObject}
@@ -204,7 +223,7 @@ export default function App() {
               />
             )}
 
-            {/* 3. CONJUNCTION ASSESSMENT */}
+            {/* 4. CONJUNCTION ASSESSMENT */}
             {activeTab === 'conjunctions' && (
               <ConjunctionTable
                 conjunctions={conjunctions}
@@ -223,6 +242,7 @@ export default function App() {
         <ObjectDetailsModal
           object={selectedObject}
           onClose={() => setIsObjectModalOpen(false)}
+          onOpenOverpass={handleOpenOverpassModal}
         />
       )}
 
@@ -240,6 +260,14 @@ export default function App() {
         <CAMPlannerModal
           conjunction={selectedConjunction}
           onClose={() => setIsCAMModalOpen(false)}
+        />
+      )}
+
+      {/* Ground Station Overpass Predictor Modal */}
+      {isOverpassModalOpen && (overpassTargetObject || selectedObject || objects[0]) && (
+        <OverpassModal
+          object={overpassTargetObject || selectedObject || objects[0]}
+          onClose={() => setIsOverpassModalOpen(false)}
         />
       )}
 

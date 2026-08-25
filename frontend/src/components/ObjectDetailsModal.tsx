@@ -6,6 +6,7 @@ import { X, Satellite, Compass, Activity, Terminal, Rocket, Info, Radio } from '
 interface ObjectDetailsModalProps {
   object: OrbitalObject | null;
   onClose: () => void;
+  onOpenOverpass?: (obj: OrbitalObject) => void;
 }
 
 const TYPE_LABELS: Record<string, { label: string; color: string }> = {
@@ -33,7 +34,7 @@ const InfoItem: React.FC<{ label: string; value: string | number | null | undefi
   </div>
 );
 
-export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, onClose }) => {
+export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, onClose, onOpenOverpass }) => {
   const [livePos, setLivePos] = useState<OrbitalPosition | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -55,7 +56,10 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
 
     fetchPos();
     const interval = setInterval(fetchPos, 5000);
-    return () => { isMounted = false; clearInterval(interval); };
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [object]);
 
   if (!object) return null;
@@ -89,20 +93,39 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
                 <span className="text-[10px] px-2 py-0.5 rounded bg-space-800 text-cyan-400 border border-space-700">
                   NORAD #{object.norad_id}
                 </span>
-                <span className={`text-[10px] px-2 py-0.5 rounded border ${typeInfo.color}`}>
+                <span className={`text-[10px] px-2 py-0.5 rounded border font-semibold ${typeInfo.color}`}>
                   {typeInfo.label}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {object.international_designator && <span className="text-slate-300">{object.international_designator} &bull; </span>}
+              <p className="text-xs text-slate-400">
+                {countryName ? `${countryName} • ` : ''}
                 <span className={statusColor}>{missionStatus}</span>
-                {countryName && <span> &bull; {countryName}</span>}
+                {object.international_designator ? ` • COSPAR: ${object.international_designator}` : ''}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg bg-space-800 hover:bg-space-700 text-slate-400 hover:text-white transition">
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2">
+            {onOpenOverpass && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenOverpass(object);
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-space-950 rounded-lg text-xs font-bold transition shadow-md"
+              >
+                <Radio className="w-3.5 h-3.5" />
+                PREDICT OVERPASS
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="p-1.5 hover:bg-space-800 rounded-lg text-slate-400 hover:text-white transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Object Identification */}

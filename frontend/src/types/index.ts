@@ -340,3 +340,85 @@ export interface CAMSimulateResponse {
   secondary_conjunctions_safe: boolean;
   post_burn_trajectory?: Array<{ x: number; y: number; z: number; lat: number; lon: number; alt_km: number }>;
 }
+
+export interface GroundStation {
+  id: string;
+  name: string;
+  country: string;
+  latitude_deg: number;
+  longitude_deg: number;
+  altitude_m: number;
+  min_elevation_deg: number;
+}
+
+export interface SkyPoint {
+  timestamp: string;
+  azimuth_deg: number;
+  elevation_deg: number;
+  range_km: number;
+  range_rate_km_s: number;
+  is_sunlit: boolean;
+}
+
+export interface OverpassEvent {
+  norad_id: number;
+  object_name: string;
+  station_id: string;
+  station_name: string;
+  aos_time: string;
+  peak_time: string;
+  los_time: string;
+  duration_seconds: number;
+  max_elevation_deg: number;
+  aos_azimuth_deg: number;
+  peak_azimuth_deg: number;
+  los_azimuth_deg: number;
+  min_range_km: number;
+  visibility_type: 'OPTICAL_VISIBLE' | 'SUNLIT_DAYLIGHT' | 'ECLIPSED_NIGHT';
+  visibility_label: string;
+  sky_trajectory: SkyPoint[];
+}
+
+export interface OverpassRequest {
+  norad_id: number;
+  station_latitude: number;
+  station_longitude: number;
+  station_altitude_m?: number;
+  station_name?: string;
+  min_elevation_deg?: number;
+  prediction_hours?: number;
+}
+
+export interface OverpassResponse {
+  norad_id: number;
+  object_name: string;
+  station_name: string;
+  station_latitude: number;
+  station_longitude: number;
+  total_passes_found: number;
+  passes: OverpassEvent[];
+}
+
+export interface GroundTrackRibbonPoint {
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  altitude_km: number;
+  footprint_radius_km: number;
+  is_sunlit: boolean;
+}
+
+export interface GroundTrackRibbonResponse {
+  norad_id: number;
+  object_name: string;
+  period_minutes: number;
+  current_position: GroundTrackRibbonPoint;
+  past_track: GroundTrackRibbonPoint[];
+  future_track: GroundTrackRibbonPoint[];
+  footprint_radius_km: number;
+  sub_solar_point: {
+    latitude: number;
+    longitude: number;
+  };
+}
+

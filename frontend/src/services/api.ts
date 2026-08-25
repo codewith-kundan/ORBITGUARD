@@ -13,7 +13,11 @@ import {
   Alert,
   CAMPlanResponse,
   CAMSimulateRequest,
-  CAMSimulateResponse
+  CAMSimulateResponse,
+  GroundStation,
+  OverpassRequest,
+  OverpassResponse,
+  GroundTrackRibbonResponse
 } from '../types';
 
 const rawApiUrl = ((import.meta as any).env?.VITE_API_URL as string) || '';
@@ -163,5 +167,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload)
     });
+  },
+
+  // Ground Station Overpass & 2D Ground Track Ribbons
+  getGroundStations: async (): Promise<GroundStation[]> => {
+    return request<GroundStation[]>('/overpass/stations');
+  },
+
+  predictOverpasses: async (payload: OverpassRequest): Promise<OverpassResponse> => {
+    return request<OverpassResponse>('/overpass/predict', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  getGroundTrack: async (noradId: number): Promise<GroundTrackRibbonResponse> => {
+    return request<GroundTrackRibbonResponse>(`/overpass/ground-track/${noradId}`);
   }
 };

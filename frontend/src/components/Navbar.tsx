@@ -7,11 +7,12 @@ import {
   Menu, 
   X, 
   LucideIcon,
-  Activity
+  Activity,
+  MapPin
 } from 'lucide-react';
 import { SystemStatistics, DataStatus } from '../types';
 
-export type NavTabKey = 'space' | 'catalog' | 'conjunctions';
+export type NavTabKey = 'space' | 'map2d' | 'catalog' | 'conjunctions';
 
 interface NavbarProps {
   activeTab: NavTabKey;
@@ -48,6 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const navItems: NavItemConfig[] = [
     { key: 'space', label: '3D ORBIT TRACKER', icon: Globe, count: null },
+    { key: 'map2d', label: '2D GROUND TRACK', icon: MapPin, count: null },
     { key: 'catalog', label: 'OBJECTS CATALOG', icon: Satellite, count: null },
     { key: 'conjunctions', label: 'CONJUNCTIONS', icon: ShieldAlert, count: (stats?.total_conjunctions ?? 0) > 0 ? stats?.total_conjunctions ?? null : null, isAlert: (stats?.risk_breakdown?.critical ?? 0) > 0 },
   ];
