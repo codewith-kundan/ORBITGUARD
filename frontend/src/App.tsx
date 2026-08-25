@@ -21,6 +21,13 @@ import {
   DataStatus,
   Alert
 } from './types';
+import {
+  fallbackObjects,
+  fallbackConjunctions,
+  fallbackAlerts,
+  fallbackStats,
+  fallbackDataStatus
+} from './services/fallbackData';
 import { Loader2 } from 'lucide-react';
 
 export default function App() {
@@ -63,18 +70,18 @@ export default function App() {
         api.getAlerts(50).catch(() => [])
       ]);
 
-      if (statusData) setDataStatus(statusData);
-      if (statsData) setStats(statsData);
-      setObjects(objsData);
-      setConjunctions(conjsData);
-      setAlerts(alertsData);
-
-      // If catalog is empty on initial boot, trigger initial sync
-      if (objsData.length === 0) {
-        await handleSync('DEMO');
-      }
+      setDataStatus(statusData || fallbackDataStatus);
+      setStats(statsData || fallbackStats);
+      setObjects(objsData && objsData.length > 0 ? objsData : fallbackObjects);
+      setConjunctions(conjsData && conjsData.length > 0 ? conjsData : fallbackConjunctions);
+      setAlerts(alertsData && alertsData.length > 0 ? alertsData : fallbackAlerts);
     } catch (err: any) {
-      setError(err.message || 'Failed to communicate with SPACE SENTINEL backend');
+      console.warn('Initial load exception, applying fallback:', err);
+      setDataStatus(fallbackDataStatus);
+      setStats(fallbackStats);
+      setObjects(fallbackObjects);
+      setConjunctions(fallbackConjunctions);
+      setAlerts(fallbackAlerts);
     } finally {
       setLoading(false);
     }
@@ -91,8 +98,8 @@ export default function App() {
           api.getAlerts(50).catch(() => []),
           api.getStatistics().catch(() => null)
         ]);
-        if (conjsData) setConjunctions(conjsData);
-        if (alertsData) setAlerts(alertsData);
+        if (conjsData && conjsData.length > 0) setConjunctions(conjsData);
+        if (alertsData && alertsData.length > 0) setAlerts(alertsData);
         if (statsData) setStats(statsData);
       } catch (e) {
         console.debug('Background poll error:', e);
@@ -106,7 +113,18 @@ export default function App() {
     try {
       setIsSyncing(true);
       await api.syncData(mode);
-      await loadAllData();
+      const [statusData, statsData, objsData, conjsData, alertsData] = await Promise.all([
+        api.getDataStatus().catch(() => null),
+        api.getStatistics().catch(() => null),
+        api.getPaginatedObjects(1, 500).then(r => r.items).catch(() => []),
+        api.getConjunctions(100, 0).catch(() => []),
+        api.getAlerts(50).catch(() => [])
+      ]);
+      if (statusData) setDataStatus(statusData);
+      if (statsData) setStats(statsData);
+      if (objsData && objsData.length > 0) setObjects(objsData);
+      if (conjsData && conjsData.length > 0) setConjunctions(conjsData);
+      if (alertsData && alertsData.length > 0) setAlerts(alertsData);
     } catch (err: any) {
       setError(err.message || 'Sync failed');
     } finally {

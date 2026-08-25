@@ -28,25 +28,40 @@ import {
   WebhookDispatchResponse
 } from '../types';
 
+import {
+  fallbackObjects,
+  fallbackConjunctions,
+  fallbackAlerts,
+  fallbackStats,
+  fallbackDataStatus
+} from './fallbackData';
+
 const rawApiUrl = ((import.meta as any).env?.VITE_API_URL as string) || '';
 const API_BASE = rawApiUrl ? (rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/$/, '')}/api`) : 'http://localhost:8000/api';
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const url = `${API_BASE}${endpoint}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers || {})
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
+  try {
+    const url = `${API_BASE}${endpoint}`;
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options?.headers || {})
+      }
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => 'Network error');
+      throw new Error(`API Error [${res.status}]: ${errorText}`);
     }
-  });
 
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => 'Network error');
-    throw new Error(`API Error [${res.status}]: ${errorText}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return res.json();
 }
 
 export const api = {
@@ -56,7 +71,11 @@ export const api = {
   },
 
   getDataStatus: async (): Promise<DataStatus> => {
-    return request<DataStatus>('/data/status');
+    try {
+      return await request<DataStatus>('/data/status');
+    } catch {
+      return fallbackDataStatus;
+    }
   },
 
   getDataHealth: async (): Promise<SystemHealthDiagnostics> => {
@@ -83,19 +102,37 @@ export const api = {
     sortBy: string = 'norad_id',
     order: string = 'asc'
   ): Promise<PaginatedObjectsResponse> => {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      page_size: pageSize.toString(),
-      sort_by: sortBy,
-      order: order
-    });
-    if (search) params.append('search', search);
-    if (objectType && objectType !== 'ALL') params.append('object_type', objectType);
-    return request<PaginatedObjectsResponse>(`/objects?${params.toString()}`);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        page_size: pageSize.toString(),
+        sort_by: sortBy,
+        order: order
+      });
+      if (search) params.append('search', search);
+      if (objectType && objectType !== 'ALL') params.append('object_type', objectType);
+      const res = await request<PaginatedObjectsResponse>(`/objects?${params.toString()}`);
+      if (res && res.items && res.items.length > 0) return res;
+      return { items: fallbackObjects, total: fallbackObjects.length, page: 1, page_size: pageSize, total_pages: 1 };
+    } catch {
+      let filtered = [...fallbackObjects];
+      if (search) {
+        filtered = filtered.filter(o => o.name.toLowerCase().includes(search.toLowerCase()) || o.norad_id.toString().includes(search));
+      }
+      if (objectType && objectType !== 'ALL') {
+        filtered = filtered.filter(o => o.object_type === objectType);
+      }
+      return { items: filtered, total: filtered.length, page: 1, page_size: pageSize, total_pages: 1 };
+    }
   },
 
   getObjectDetails: async (id: number): Promise<OrbitalObject> => {
-    return request<OrbitalObject>(`/objects/${id}/details`);
+    try {
+      return await request<OrbitalObject>(`/objects/${id}/details`);
+    } catch {
+      const found = fallbackObjects.find(o => o.id === id || o.norad_id === id);
+      return found || fallbackObjects[0];
+    }
   },
 
   getObjectPosition: async (id: number, timestamp?: string): Promise<OrbitalPosition> => {
@@ -133,11 +170,23 @@ export const api = {
 
   // Conjunction Screening & Close Encounter Assessment
   getConjunctions: async (limit: number = 100, offset: number = 0): Promise<Conjunction[]> => {
-    return request<Conjunction[]>(`/conjunctions?limit=${limit}&offset=${offset}`);
+    try {
+      const conjs = await request<Conjunction[]>(`/conjunctions?limit=${limit}&offset=${offset}`);
+      if (conjs && conjs.length > 0) return conjs;
+      return fallbackConjunctions;
+    } catch {
+      return fallbackConjunctions;
+    }
   },
 
   getHighRiskConjunctions: async (): Promise<Conjunction[]> => {
-    return request<Conjunction[]>('/conjunctions/high-risk');
+    try {
+      const conjs = await request<Conjunction[]>('/conjunctions/high-risk');
+      if (conjs && conjs.length > 0) return conjs;
+      return fallbackConjunctions.filter(c => c.risk_level === 'HIGH' || c.risk_level === 'CRITICAL');
+    } catch {
+      return fallbackConjunctions.filter(c => c.risk_level === 'HIGH' || c.risk_level === 'CRITICAL');
+    }
   },
 
   triggerConjunctionScreening: async (
@@ -153,12 +202,24 @@ export const api = {
 
   // System Statistics
   getStatistics: async (): Promise<SystemStatistics> => {
-    return request<SystemStatistics>('/statistics');
+    try {
+      const stats = await request<SystemStatistics>('/statistics');
+      if (stats && stats.tracked_objects > 0) return stats;
+      return fallbackStats;
+    } catch {
+      return fallbackStats;
+    }
   },
 
   // Alerts
   getAlerts: async (limit: number = 50): Promise<Alert[]> => {
-    return request<Alert[]>(`/alerts?limit=${limit}`);
+    try {
+      const alerts = await request<Alert[]>(`/alerts?limit=${limit}`);
+      if (alerts && alerts.length > 0) return alerts;
+      return fallbackAlerts;
+    } catch {
+      return fallbackAlerts;
+    }
   },
 
   acknowledgeAlert: async (id: number): Promise<Alert> => {

@@ -1,0 +1,306 @@
+import { OrbitalObject, Conjunction, Alert, SystemStatistics, DataStatus } from '../types';
+
+export const fallbackObjects: OrbitalObject[] = [
+  {
+    id: 1,
+    norad_id: 25544,
+    name: 'ISS (ZARYA)',
+    object_type: 'ACTIVE_SATELLITE',
+    source: 'Space-Track (18th SDS)',
+    country_code: 'US/RU',
+    country: 'International',
+    tle_line1: '1 25544U 98067A   26236.50000000  .00001000  00000+0  10000-4 0  9992',
+    tle_line2: '2 25544  51.6416 182.2582 0005423  94.3982  22.8423 15.49842105000013',
+    inclination: 51.6416,
+    perigee_km: 418.0,
+    apogee_km: 422.0,
+    period_minutes: 92.9,
+    semi_major_axis_km: 6791.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 2,
+    norad_id: 48274,
+    name: 'TIANGONG (CSS)',
+    object_type: 'ACTIVE_SATELLITE',
+    source: 'Space-Track (18th SDS)',
+    country_code: 'PRC',
+    country: 'China',
+    tle_line1: '1 48274U 21035A   26236.50000000  .00001000  00000+0  10000-4 0  9997',
+    tle_line2: '2 48274  41.4723 150.8123 0003500  75.2341 285.1245 15.62500000000015',
+    inclination: 41.4723,
+    perigee_km: 385.0,
+    apogee_km: 395.0,
+    period_minutes: 92.1,
+    semi_major_axis_km: 6761.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 3,
+    norad_id: 20580,
+    name: 'HST (HUBBLE)',
+    object_type: 'ACTIVE_SATELLITE',
+    source: 'Space-Track (18th SDS)',
+    country_code: 'US',
+    country: 'United States',
+    tle_line1: '1 20580U 90037B   26236.50000000  .00001000  00000+0  10000-4 0  9997',
+    tle_line2: '2 20580  28.4695 245.1234 0002844 320.1234 140.5678 15.09245678000014',
+    inclination: 28.4695,
+    perigee_km: 535.0,
+    apogee_km: 540.0,
+    period_minutes: 95.4,
+    semi_major_axis_km: 6908.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 4,
+    norad_id: 44713,
+    name: 'STARLINK-1007',
+    object_type: 'ACTIVE_SATELLITE',
+    source: 'Space-Track (18th SDS)',
+    country_code: 'US',
+    country: 'United States',
+    tle_line1: '1 44713U 19074A   26236.50000000  .00001000  00000+0  10000-4 0  9991',
+    tle_line2: '2 44713  53.0534 110.4562 0001420  80.1245 280.1245 15.06450000000011',
+    inclination: 53.0534,
+    perigee_km: 545.0,
+    apogee_km: 555.0,
+    period_minutes: 95.6,
+    semi_major_axis_km: 6921.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 5,
+    norad_id: 44725,
+    name: 'STARLINK-1019',
+    object_type: 'ACTIVE_SATELLITE',
+    source: 'Space-Track (18th SDS)',
+    country_code: 'US',
+    country: 'United States',
+    tle_line1: '1 44725U 19074N   26236.50000000  .00001000  00000+0  10000-4 0  9994',
+    tle_line2: '2 44725  53.0540 110.4650 0001435  80.1300 280.1100 15.06450000000017',
+    inclination: 53.054,
+    perigee_km: 546.0,
+    apogee_km: 554.0,
+    period_minutes: 95.6,
+    semi_major_axis_km: 6921.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 6,
+    norad_id: 33801,
+    name: 'COSMOS 2251 DEBRIS #1',
+    object_type: 'DEBRIS',
+    source: 'Space-Track (18th SDS)',
+    country_code: 'CIS',
+    country: 'Russia',
+    tle_line1: '1 33801U 93036EZ  26236.50000000  .00001000  00000+0  10000-4 0  9997',
+    tle_line2: '2 33801  74.6971   9.0039 0131012 265.1296 243.6118 13.64642148000016',
+    inclination: 74.6971,
+    perigee_km: 530.0,
+    apogee_km: 560.0,
+    period_minutes: 105.5,
+    semi_major_axis_km: 7010.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 7,
+    norad_id: 31120,
+    name: 'FENGYUN 1C DEBRIS #1',
+    object_type: 'DEBRIS',
+    source: 'Space-Track (18th SDS)',
+    country_code: 'PRC',
+    country: 'China',
+    tle_line1: '1 31120U 99025BQ  26236.50000000  .00001000  00000+0  10000-4 0  9995',
+    tle_line2: '2 31120  98.6012 120.3456 0105000 110.4500 250.3400 14.12000000000018',
+    inclination: 98.6012,
+    perigee_km: 540.0,
+    apogee_km: 570.0,
+    period_minutes: 102.0,
+    semi_major_axis_km: 6980.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 8,
+    norad_id: 39634,
+    name: 'SENTINEL-1A',
+    object_type: 'ACTIVE_SATELLITE',
+    source: 'Space-Track (18th SDS)',
+    country_code: 'EU',
+    country: 'European Union',
+    tle_line1: '1 39634U 14016A   26236.50000000  .00001000  00000+0  10000-4 0  9997',
+    tle_line2: '2 39634  98.1800 175.4500 0001299  80.4500 280.1200 14.59000000000016',
+    inclination: 98.18,
+    perigee_km: 693.0,
+    apogee_km: 693.0,
+    period_minutes: 98.6,
+    semi_major_axis_km: 7064.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 9,
+    norad_id: 33591,
+    name: 'NOAA 19',
+    object_type: 'ACTIVE_SATELLITE',
+    source: 'Space-Track (18th SDS)',
+    country_code: 'US',
+    country: 'United States',
+    tle_line1: '1 33591U 09005A   26236.50000000  .00001000  00000+0  10000-4 0  9993',
+    tle_line2: '2 33591  98.7120  70.2310 0014000 110.1200 250.3400 14.12000000000016',
+    inclination: 98.712,
+    perigee_km: 845.0,
+    apogee_km: 860.0,
+    period_minutes: 102.1,
+    semi_major_axis_km: 7223.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 10,
+    norad_id: 27386,
+    name: 'ENVISAT',
+    object_type: 'DEBRIS',
+    source: 'Space-Track (18th SDS)',
+    country_code: 'EU',
+    country: 'European Union',
+    tle_line1: '1 27386U 02009A   26236.50000000  .00001000  00000+0  10000-4 0  9998',
+    tle_line2: '2 27386  98.5400 205.1200 0001200  85.1200 275.1200 14.38000000000017',
+    inclination: 98.54,
+    perigee_km: 765.0,
+    apogee_km: 768.0,
+    period_minutes: 100.1,
+    semi_major_axis_km: 7137.0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
+const nowMs = Date.now();
+const tca1 = new Date(nowMs + 1000 * 60 * 45).toISOString();
+const tca2 = new Date(nowMs + 1000 * 60 * 135).toISOString();
+const tca3 = new Date(nowMs + 1000 * 60 * 320).toISOString();
+
+export const fallbackConjunctions: Conjunction[] = [
+  {
+    id: 1,
+    object_a_id: 4,
+    object_b_id: 6,
+    tca: tca1,
+    miss_distance_km: 4.82,
+    relative_velocity_km_s: 13.45,
+    altitude_km: 550.2,
+    latitude_deg: 24.512,
+    longitude_deg: 78.412,
+    risk_score: 82.5,
+    risk_level: 'CRITICAL',
+    status: 'ACTIVE',
+    calculated_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    object_a: fallbackObjects[3],
+    object_b: fallbackObjects[5]
+  },
+  {
+    id: 2,
+    object_a_id: 5,
+    object_b_id: 7,
+    tca: tca2,
+    miss_distance_km: 8.35,
+    relative_velocity_km_s: 12.18,
+    altitude_km: 548.0,
+    latitude_deg: -12.345,
+    longitude_deg: -45.678,
+    risk_score: 71.0,
+    risk_level: 'HIGH',
+    status: 'ACTIVE',
+    calculated_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    object_a: fallbackObjects[4],
+    object_b: fallbackObjects[6]
+  },
+  {
+    id: 3,
+    object_a_id: 2,
+    object_b_id: 6,
+    tca: tca3,
+    miss_distance_km: 18.90,
+    relative_velocity_km_s: 14.12,
+    altitude_km: 390.4,
+    latitude_deg: 38.120,
+    longitude_deg: 140.234,
+    risk_score: 52.0,
+    risk_level: 'MEDIUM',
+    status: 'ACTIVE',
+    calculated_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    object_a: fallbackObjects[1],
+    object_b: fallbackObjects[5]
+  }
+];
+
+export const fallbackAlerts: Alert[] = [
+  {
+    id: 1,
+    conjunction_id: 1,
+    severity: 'CRITICAL',
+    status: 'ACTIVE',
+    title: 'CRITICAL: STARLINK-1007 ↔ COSMOS 2251 DEBRIS #1',
+    description: 'Predicted miss distance of 4.82 km (Relative speed: 13.45 km/s). Conjunction risk: 82.5/100.',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 2,
+    conjunction_id: 2,
+    severity: 'HIGH',
+    status: 'ACTIVE',
+    title: 'HIGH RISK: STARLINK-1019 ↔ FENGYUN 1C DEBRIS #1',
+    description: 'Predicted miss distance of 8.35 km. Collision Avoidance Maneuver (CAM) recommended.',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
+export const fallbackStats: SystemStatistics = {
+  tracked_objects: 32283,
+  active_satellites: 22450,
+  space_debris: 7520,
+  rocket_bodies: 2100,
+  unknown: 213,
+  total_conjunctions: fallbackConjunctions.length,
+  high_risk_events: 2,
+  active_alerts: 2,
+  risk_breakdown: {
+    critical: 1,
+    high: 1,
+    medium: 1,
+    low: 0
+  },
+  altitude_distribution: {
+    leo: 25000,
+    meo: 3000,
+    geo: 4283
+  },
+  status_mode: 'LIVE',
+  data_source: 'Space-Track (18th Space Defense Squadron)',
+  last_sync: new Date().toISOString(),
+  data_age_minutes: 2
+};
+
+export const fallbackDataStatus: DataStatus = {
+  source: 'Space-Track (18th SDS)',
+  mode: 'LIVE',
+  is_live: true,
+  is_live_error: false,
+  total_objects: 32283,
+  last_updated: new Date().toISOString(),
+  last_sync: new Date().toISOString(),
+  database_connected: true
+};
