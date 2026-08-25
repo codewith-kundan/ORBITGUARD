@@ -16,7 +16,8 @@ import {
   Crosshair,
   FastForward,
   Globe,
-  Sliders
+  Sliders,
+  Radio
 } from 'lucide-react';
 import { 
   OrbitalObject, 
@@ -42,6 +43,16 @@ interface SpaceViewProps {
 }
 
 const EARTH_RADIUS = 6.371; // 1 unit = 1000 km in 3D scene
+
+const formatTcaCountdown = (tcaStr: string, currDate: Date = new Date()) => {
+  const tca = new Date(tcaStr);
+  const diffMs = tca.getTime() - currDate.getTime();
+  if (diffMs <= 0) return 'PASSED';
+  const hours = Math.floor(diffMs / 3600000);
+  const mins = Math.floor((diffMs % 3600000) / 60000);
+  const secs = Math.floor((diffMs % 60000) / 1000);
+  return `T-${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
 
 // Astronomical Solar Declination & Right Ascension Calculator
 function calculateSunDirection(date: Date): THREE.Vector3 {
@@ -112,6 +123,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   
   // UI State (LeoLabs Style Multi-Filter & Search Dock)
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(false);
+  const [isRightPanelMinimized, setIsRightPanelMinimized] = useState<boolean>(false);
+  const [rightPanelTab, setRightPanelTab] = useState<'ALERTS' | 'TELEMETRY'>('ALERTS');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeFleetFilter, setActiveFleetFilter] = useState<string>('ALL');
@@ -120,6 +133,14 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const [isFollowMode, setIsFollowMode] = useState<boolean>(false);
   const [showGroundTrack, setShowGroundTrack] = useState<boolean>(true);
   const [showOrbitRings, setShowOrbitRings] = useState<boolean>(true);
+
+  // Sync right panel tab on selected object
+  useEffect(() => {
+    if (selectedObject) {
+      setRightPanelTab('TELEMETRY');
+      setIsRightPanelMinimized(false);
+    }
+  }, [selectedObject]);
 
   // Time Engine State (Default 50X for noticeable real-time orbital revolution)
   const [simTime, setSimTime] = useState<Date>(new Date());
@@ -1284,168 +1305,315 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         </div>
       </div>
 
-      {/* RIGHT PANEL: Compact Non-Intrusive Telemetry Card */}
-      {selectedObject && (
-        <div className="absolute top-14 sm:top-16 right-3 z-30 w-72 sm:w-80 max-w-[88vw] bg-slate-900/40 backdrop-blur-xl border border-white/10 p-3 rounded-xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-140px)] overflow-y-auto">
-          {/* Header */}
-          <div className="flex items-start justify-between border-b border-space-800 pb-2 mb-2">
-            <div className="pr-2">
-              <div className="font-bold text-cyan-neon text-xs sm:text-sm truncate max-w-[200px]" title={selectedObject.name}>
-                {selectedObject.name}
-              </div>
-              <div className="text-[9px] text-slate-400">
-                NORAD #{selectedObject.norad_id} • <span className="text-cyan-400">{selectedObject.object_type.replace('_', ' ')}</span>
-              </div>
-            </div>
-            <button
-              onClick={() => onSelectObject(null)}
-              className="p-1 hover:bg-space-800 rounded text-slate-400 hover:text-white transition"
-              title="Close Panel"
-            >
-              ✕
-            </button>
+      {/* RIGHT PANEL: Persistent Real-Time Collision Hazards & Hotspots HUD */}
+      {isRightPanelMinimized ? (
+        <button
+          type="button"
+          onClick={() => setIsRightPanelMinimized(false)}
+          className="absolute top-14 sm:top-16 right-3 sm:right-4 z-30 bg-slate-900/90 hover:bg-slate-900 backdrop-blur-xl border border-danger-500/60 shadow-[0_0_25px_rgba(239,68,68,0.4)] px-3.5 py-2 rounded-xl font-mono text-xs text-white flex items-center gap-2.5 transition active:scale-95 group cursor-pointer"
+        >
+          <div className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-danger-500"></span>
           </div>
+          <AlertTriangle className="w-4 h-4 text-danger-400 animate-pulse" />
+          <span className="font-bold tracking-wider text-danger-300 text-xs animate-pulse">
+            {conjunctions.length > 0 ? `${conjunctions.length} HAZARDS` : 'ALERTS HUD'}
+          </span>
+          <ChevronLeft className="w-4 h-4 text-danger-400 group-hover:-translate-x-0.5 transition-transform" />
+        </button>
+      ) : (
+        <div className="absolute top-14 sm:top-16 right-3 sm:right-4 z-30 w-80 sm:w-96 max-w-[92vw] bg-slate-900/80 backdrop-blur-xl border border-white/10 p-3 sm:p-3.5 rounded-2xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-140px)] flex flex-col gap-2.5">
+          
+          {/* Header & Mode Switcher */}
+          <div className="flex items-center justify-between border-b border-space-800 pb-2">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setRightPanelTab('ALERTS')}
+                className={`px-2.5 py-1 rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
+                  rightPanelTab === 'ALERTS'
+                    ? 'bg-danger-500/20 text-danger-neon border border-danger-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <div className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-danger-500"></span>
+                </div>
+                <span>HOTSPOTS ({conjunctions.length})</span>
+              </button>
 
-          {/* Action Toolbar */}
-          <div className="grid grid-cols-2 gap-1.5 mb-2.5">
-            <button
-              onClick={() => setIsFollowMode(!isFollowMode)}
-              className={`py-1 px-2 rounded-lg font-bold text-[10px] border transition flex items-center justify-center gap-1 ${
-                isFollowMode
-                  ? 'bg-cyan-500 text-space-950 border-cyan-400 shadow-md'
-                  : 'bg-space-900 text-cyan-400 border-cyan-500/30 hover:bg-space-800'
-              }`}
-            >
-              <Crosshair className="w-3 h-3" />
-              {isFollowMode ? 'TRACKING' : 'LOCK ORBIT'}
-            </button>
-
-            <button
-              onClick={() => setShowGroundTrack(!showGroundTrack)}
-              className={`py-1 px-2 rounded-lg font-bold text-[10px] border transition flex items-center justify-center gap-1 ${
-                showGroundTrack
-                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                  : 'bg-space-900 text-slate-400 border-space-800 hover:text-slate-200'
-              }`}
-            >
-              <Compass className="w-3 h-3" />
-              TRACK
-            </button>
-          </div>
-
-          {/* Live Real-Time SGP4 Coordinates */}
-          <div className="space-y-1 bg-space-900/80 p-2 rounded-lg border border-space-800 mb-2">
-            <div className="text-[9px] font-bold text-cyan-400 uppercase tracking-wider flex items-center justify-between">
-              <span>LIVE SGP4 TELEMETRY</span>
-              <span className="text-emerald-400 text-[8px]">● REALTIME</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Altitude:</span>
-              <span className="text-white font-bold">{selectedPos ? `${selectedPos.alt_km.toFixed(1)} km` : '—'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Velocity:</span>
-              <span className="text-cyan-400 font-bold">{selectedPos ? `${selectedPos.velocity_km_s.toFixed(2)} km/s` : '7.65 km/s'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Lat / Lon:</span>
-              <span className="text-slate-200">{selectedPos ? `${selectedPos.lat.toFixed(2)}°, ${selectedPos.lon.toFixed(2)}°` : '—'}</span>
-            </div>
-          </div>
-
-          {/* Orbital Parameters */}
-          <div className="space-y-1 bg-space-900/80 p-2 rounded-lg border border-space-800 text-[10px] mb-2">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Inclination:</span>
-              <span className="text-slate-200">{selectedObject.inclination != null ? `${selectedObject.inclination.toFixed(2)}°` : '—'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Perigee / Apogee:</span>
-              <span className="text-slate-200">
-                {selectedObject.perigee_km ? `${selectedObject.perigee_km.toFixed(0)} - ${selectedObject.apogee_km?.toFixed(0)} km` : '—'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Period:</span>
-              <span className="text-slate-200">{selectedObject.period_minutes ? `${selectedObject.period_minutes.toFixed(1)} min` : '—'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Epoch:</span>
-              <span className="text-slate-200">{selectedObject.tle_epoch ? selectedObject.tle_epoch.replace('T', ' ').substring(0, 16) + ' UTC' : 'Recent'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Data Source:</span>
-              <span className="text-cyan-400 font-bold">{selectedObject.source || 'CelesTrak'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Last Update:</span>
-              <span className="text-slate-200">{selectedObject.updated_at ? selectedObject.updated_at.replace('T', ' ').substring(0, 16) + ' UTC' : '—'}</span>
-            </div>
-          </div>
-
-          {/* Trajectory Prediction Horizon */}
-          <div className="pt-1">
-            <div className="text-[9px] text-slate-400 mb-1 flex items-center justify-between">
-              <span>ORBIT RIBBON:</span>
-              <span className="text-cyan-400 font-bold">+{trajectoryHours}H</span>
-            </div>
-            <div className="grid grid-cols-4 gap-1">
-              {[1, 6, 12, 24].map((h) => (
+              {selectedObject && (
                 <button
-                  key={h}
-                  onClick={() => setTrajectoryHours(h)}
-                  className={`py-0.5 rounded text-[9px] font-bold transition ${
-                    trajectoryHours === h
-                      ? 'bg-cyan-500 text-space-950'
-                      : 'bg-space-900 text-slate-400 hover:text-white border border-space-800'
+                  type="button"
+                  onClick={() => setRightPanelTab('TELEMETRY')}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
+                    rightPanelTab === 'TELEMETRY'
+                      ? 'bg-cyan-500/20 text-cyan-neon border border-cyan-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  {h}H
+                  <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="truncate max-w-[90px]">{selectedObject.name}</span>
                 </button>
-              ))}
+              )}
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Conjunction Encounter Overlay */}
-      {selectedConjunction && (
-        <div className="absolute top-14 sm:top-16 right-3 z-30 w-72 sm:w-80 max-w-[88vw] bg-slate-900/40 backdrop-blur-xl border border-white/10 p-3 rounded-xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in">
-          <div className="flex items-center justify-between border-b border-danger-500/30 pb-1.5 mb-1.5">
-            <div className="font-bold text-danger-neon flex items-center gap-1.5 text-xs">
-              <Crosshair className="w-3.5 h-3.5 text-danger-neon" />
-              <span>CONJUNCTION ALERT</span>
-            </div>
-            <button
-              onClick={() => onSelectConjunction(null)}
-              className="p-1 hover:bg-space-800 rounded text-slate-400 hover:text-white transition"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="space-y-1 text-[10px]">
-            <div className="text-white font-semibold truncate">{selectedConjunction.object_a?.name || 'Object A'} ↔ {selectedConjunction.object_b?.name || 'Object B'}</div>
-            <div className="text-slate-400">TCA: <span className="text-white">{selectedConjunction.tca} UTC</span></div>
-            <div className="text-slate-400">Miss Distance: <span className="text-danger-neon font-bold">{selectedConjunction.miss_distance_km} km</span></div>
-            <div className="text-slate-400">Relative Velocity: <span className="text-warning-400">{selectedConjunction.relative_velocity_km_s} km/s</span></div>
-            <div className="text-slate-400">Risk Score: <span className="text-danger-neon font-bold">{selectedConjunction.risk_score} / 100 ({selectedConjunction.risk_level})</span></div>
-            
-            <div className="grid grid-cols-2 gap-1.5 mt-2 pt-1.5 border-t border-danger-500/20">
+            <div className="flex items-center gap-1">
               <button
-                onClick={() => handleJumpToTca(selectedConjunction)}
-                className="py-1 bg-danger-600 hover:bg-danger-500 text-white rounded font-bold text-[10px] flex items-center justify-center gap-1 shadow-lg transition"
+                type="button"
+                onClick={() => setIsRightPanelMinimized(true)}
+                className="p-1 hover:bg-space-800 rounded-lg text-slate-400 hover:text-white transition"
+                title="Minimize Alerts Panel"
               >
-                <FastForward className="w-3 h-3" />
-                JUMP TCA
-              </button>
-              <button
-                onClick={() => onOpenConjunctionDetails(selectedConjunction)}
-                className="py-1 bg-space-900 hover:bg-space-800 text-cyan-400 border border-cyan-500/40 rounded font-bold text-[10px] flex items-center justify-center transition"
-              >
-                ANALYSIS
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
+
+          {/* TAB 1: CONJUNCTION ALERTS & HOTSPOTS */}
+          {rightPanelTab === 'ALERTS' && (
+            <div className="flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-220px)] pr-1 custom-scrollbar">
+              
+              {/* Blinking Critical Hazard Alert Banner */}
+              <div className="bg-danger-950/80 border border-danger-500/50 shadow-[0_0_20px_rgba(239,68,68,0.25)] rounded-xl p-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex h-2.5 w-2.5 flex-shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-danger-500"></span>
+                  </div>
+                  <span className="font-bold text-danger-neon text-xs tracking-wider animate-pulse flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    LIVE COLLISION RISK MONITOR
+                  </span>
+                </div>
+                <div className="text-[10px] text-danger-200/90 mt-1 leading-tight">
+                  {conjunctions.length > 0 ? (
+                    <>
+                      <span className="font-bold text-white underline">{conjunctions.length} close-approach encounters</span> detected via SGP4 propagation. High-urgency collision mitigation required.
+                    </>
+                  ) : (
+                    'Real-time orbital propagation active. Screening 4,000+ objects for close passes.'
+                  )}
+                </div>
+              </div>
+
+              {/* List of All Conjunction Hotspots */}
+              {conjunctions.length === 0 ? (
+                <div className="p-4 text-center text-slate-500 text-xs bg-space-950/40 rounded-xl border border-space-800">
+                  No critical close approaches detected within current threshold.
+                </div>
+              ) : (
+                conjunctions.map((conj) => {
+                  const isCrit = conj.risk_level === 'CRITICAL' || conj.miss_distance_km < 5;
+                  const isHigh = conj.risk_level === 'HIGH' || conj.miss_distance_km < 15;
+                  const tcaCountdown = formatTcaCountdown(conj.tca, simTime);
+                  const isSelected = selectedConjunction?.id === conj.id;
+
+                  return (
+                    <div
+                      key={conj.id}
+                      className={`p-2.5 rounded-xl border transition ${
+                        isSelected
+                          ? 'bg-danger-950/90 border-danger-400 shadow-lg shadow-danger-500/20'
+                          : isCrit
+                          ? 'bg-danger-950/60 border-danger-500/50 hover:border-danger-400'
+                          : isHigh
+                          ? 'bg-amber-950/40 border-amber-500/40 hover:border-amber-400'
+                          : 'bg-space-950/70 border-space-800 hover:border-space-700'
+                      }`}
+                    >
+                      {/* Encounter Header */}
+                      <div className="flex items-start justify-between gap-1.5 mb-1.5">
+                        <div className="truncate pr-1">
+                          <div className="font-bold text-white text-xs truncate">
+                            <span className="text-cyan-400">{conj.object_a?.name || 'Primary'}</span>
+                            <span className="text-slate-400 mx-1">↔</span>
+                            <span className="text-danger-400">{conj.object_b?.name || 'Threat'}</span>
+                          </div>
+                          <div className="text-[9px] text-slate-400">
+                            #{conj.object_a?.norad_id} vs #{conj.object_b?.norad_id}
+                          </div>
+                        </div>
+
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase flex-shrink-0 ${
+                          isCrit
+                            ? 'bg-danger-500 text-white animate-pulse'
+                            : isHigh
+                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                            : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
+                        }`}>
+                          {conj.risk_level} ({conj.risk_score})
+                        </span>
+                      </div>
+
+                      {/* Telemetry Metrics */}
+                      <div className="grid grid-cols-2 gap-1.5 text-[10px] bg-space-950/70 p-2 rounded-lg border border-space-800/80 mb-2 font-mono">
+                        <div>
+                          <span className="text-slate-400">Miss Dist: </span>
+                          <span className={`font-bold ${isCrit ? 'text-danger-neon' : isHigh ? 'text-amber-400' : 'text-cyan-400'}`}>
+                            {conj.miss_distance_km.toFixed(2)} km
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Rel Speed: </span>
+                          <span className="text-white font-bold">{conj.relative_velocity_km_s.toFixed(2)} km/s</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">TCA: </span>
+                          <span className="text-white">{new Date(conj.tca).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} UTC</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Timer: </span>
+                          <span className={`font-bold font-mono ${isCrit ? 'text-danger-400 animate-pulse' : 'text-amber-300'}`}>
+                            {tcaCountdown}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => { onSelectConjunction(conj); handleJumpToTca(conj); }}
+                          className="py-1 px-2 bg-danger-600 hover:bg-danger-500 text-white rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 shadow transition active:scale-95 cursor-pointer"
+                        >
+                          <FastForward className="w-3 h-3" />
+                          FOCUS 3D
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onOpenConjunctionDetails(conj)}
+                          className="py-1 px-2 bg-space-900 hover:bg-space-800 text-cyan-400 border border-cyan-500/40 rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 transition cursor-pointer"
+                        >
+                          <Radio className="w-3 h-3" />
+                          CDM REPORT
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: SELECTED OBJECT TELEMETRY */}
+          {rightPanelTab === 'TELEMETRY' && selectedObject && (
+            <div className="flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-220px)] pr-1 custom-scrollbar">
+              <div className="flex items-start justify-between border-b border-space-800 pb-1.5">
+                <div>
+                  <div className="font-bold text-cyan-neon text-xs truncate max-w-[220px]">{selectedObject.name}</div>
+                  <div className="text-[9px] text-slate-400">
+                    NORAD #{selectedObject.norad_id} • <span className="text-cyan-400">{selectedObject.object_type.replace('_', ' ')}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { onSelectObject(null); setRightPanelTab('ALERTS'); }}
+                  className="p-1 hover:bg-space-800 rounded text-slate-400 hover:text-white"
+                  title="Deselect Satellite"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIsFollowMode(!isFollowMode)}
+                  className={`py-1 px-2 rounded-lg font-bold text-[10px] border transition flex items-center justify-center gap-1 ${
+                    isFollowMode
+                      ? 'bg-cyan-500 text-space-950 border-cyan-400 shadow-md'
+                      : 'bg-space-900 text-cyan-400 border-cyan-500/30 hover:bg-space-800'
+                  }`}
+                >
+                  <Crosshair className="w-3 h-3" />
+                  {isFollowMode ? 'TRACKING' : 'LOCK ORBIT'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowGroundTrack(!showGroundTrack)}
+                  className={`py-1 px-2 rounded-lg font-bold text-[10px] border transition flex items-center justify-center gap-1 ${
+                    showGroundTrack
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                      : 'bg-space-900 text-slate-400 border-space-800 hover:text-slate-200'
+                  }`}
+                >
+                  <Compass className="w-3 h-3" />
+                  GROUND TRACK
+                </button>
+              </div>
+
+              {/* Live Real-Time SGP4 Coordinates */}
+              <div className="space-y-1 bg-space-950/70 p-2 rounded-lg border border-space-800 text-[10px]">
+                <div className="text-[9px] font-bold text-cyan-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>LIVE SGP4 TELEMETRY</span>
+                  <span className="text-emerald-400 text-[8px]">● REALTIME</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Altitude:</span>
+                  <span className="text-white font-bold">{selectedPos ? `${selectedPos.alt_km.toFixed(1)} km` : '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Velocity:</span>
+                  <span className="text-cyan-400 font-bold">{selectedPos ? `${selectedPos.velocity_km_s.toFixed(2)} km/s` : '7.65 km/s'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Lat / Lon:</span>
+                  <span className="text-slate-200">{selectedPos ? `${selectedPos.lat.toFixed(2)}°, ${selectedPos.lon.toFixed(2)}°` : '—'}</span>
+                </div>
+              </div>
+
+              {/* Orbital Elements */}
+              <div className="space-y-1 bg-space-950/70 p-2 rounded-lg border border-space-800 text-[10px]">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Inclination:</span>
+                  <span className="text-slate-200">{selectedObject.inclination != null ? `${selectedObject.inclination.toFixed(2)}°` : '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Perigee / Apogee:</span>
+                  <span className="text-slate-200">
+                    {selectedObject.perigee_km ? `${selectedObject.perigee_km.toFixed(0)} - ${selectedObject.apogee_km?.toFixed(0)} km` : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Period:</span>
+                  <span className="text-slate-200">{selectedObject.period_minutes ? `${selectedObject.period_minutes.toFixed(1)} min` : '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Data Source:</span>
+                  <span className="text-cyan-400 font-bold">{selectedObject.source || 'Space-Track'}</span>
+                </div>
+              </div>
+
+              {/* Orbit Ribbon Controls */}
+              <div className="pt-1">
+                <div className="text-[9px] text-slate-400 mb-1 flex items-center justify-between">
+                  <span>ORBIT RIBBON:</span>
+                  <span className="text-cyan-400 font-bold">+{trajectoryHours}H</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  {[1, 6, 12, 24].map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setTrajectoryHours(h)}
+                      className={`py-0.5 rounded text-[9px] font-bold transition ${
+                        trajectoryHours === h
+                          ? 'bg-cyan-500 text-space-950'
+                          : 'bg-space-900 text-slate-400 hover:text-white border border-space-800'
+                      }`}
+                    >
+                      {h}H
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
