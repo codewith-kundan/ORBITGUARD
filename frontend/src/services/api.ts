@@ -41,7 +41,7 @@ const API_BASE = rawApiUrl ? (rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApi
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout for Render cold starts / large queries
   try {
     const url = `${API_BASE}${endpoint}`;
     const res = await fetch(url, {
@@ -59,6 +59,11 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     }
 
     return await res.json();
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('Connection timed out while waiting for backend response (Render free instance may be waking up). Please retry.');
+    }
+    throw err;
   } finally {
     clearTimeout(timeoutId);
   }
