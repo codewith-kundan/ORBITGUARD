@@ -403,18 +403,18 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     return null;
   }, [satrecB, simTime]);
 
-  // Real-Time SGP4 Ground Track: Exactly 1 Single Clean Orbital Revolution for Object A
+  // Real-Time SGP4 Ground Track: Continuous Full-Orbit Sweep for Object A
   const liveGroundTrack = useMemo<{ lat: number; lon: number }[] | null>(() => {
     if (!satrec) return null;
     try {
       const track: { lat: number; lon: number }[] = [];
       const periodMin = activeObj?.period_minutes || 95.0;
 
-      // Exactly 1 single orbital revolution centered around the satellite (-10 min trailing, remainder ahead)
-      const startMin = -10;
-      const endMin = Math.max(85, Math.min(720, periodMin - 10));
+      // Continuous full orbital sweep from trailing to forward orbits
+      const startMin = -Math.min(45, periodMin * 0.4);
+      const endMin = Math.max(95, periodMin * 1.5);
 
-      for (let m = startMin; m <= endMin; m += 1.5) {
+      for (let m = startMin; m <= endMin; m += 1.0) {
         const t = new Date(simTime.getTime() + m * 60000);
         const gmst = satellite.gstime(t);
         const pv = satellite.propagate(satrec, t);
@@ -674,7 +674,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         primaryGlow = 'rgba(34, 197, 94, 0.7)';
       }
 
-      // 6. Real Single Continuous SGP4 Ground Track (Exactly 1 Clean Revolution)
+      // 6. Real Continuous SGP4 Ground Track with Edge Interpolation at ±180° Antimeridian
       if (liveGroundTrack && liveGroundTrack.length > 1) {
         ctx.save();
         ctx.strokeStyle = primaryColorHex;
@@ -690,12 +690,28 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
           if (i > 0) {
             const prev = liveGroundTrack[i - 1];
-            // Discontinuity split at +/- 180° antimeridian / date line
-            if (Math.abs(pt.lon - prev.lon) > 180) {
-              ctx.stroke();
-              ctx.beginPath();
-              ctx.moveTo(px, py);
-              continue;
+            const dLon = pt.lon - prev.lon;
+
+            // When crossing the ±180° date line / antimeridian
+            if (Math.abs(dLon) > 180) {
+              // Interpolate latitude at exact ±180° boundary
+              const fraction = (180 - Math.min(prev.lon, pt.lon)) / (Math.abs(dLon) - 360);
+              const crossLat = prev.lat + (pt.lat - prev.lat) * Math.max(0, Math.min(1, Math.abs(fraction)));
+              const crossY = latToY(crossLat);
+
+              if (dLon < 0) {
+                // Crossing Left to Right: draw to right edge (w), then resume from left edge (0)
+                ctx.lineTo(w, crossY);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, crossY);
+              } else {
+                // Crossing Right to Left: draw to left edge (0), then resume from right edge (w)
+                ctx.lineTo(0, crossY);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(w, crossY);
+              }
             }
           }
           if (i === 0) ctx.moveTo(px, py);
@@ -721,11 +737,23 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
           if (i > 0) {
             const prev = liveGroundTrackB[i - 1];
-            if (Math.abs(pt.lon - prev.lon) > 180) {
-              ctx.stroke();
-              ctx.beginPath();
-              ctx.moveTo(px, py);
-              continue;
+            const dLon = pt.lon - prev.lon;
+            if (Math.abs(dLon) > 180) {
+              const fraction = (180 - Math.min(prev.lon, pt.lon)) / (Math.abs(dLon) - 360);
+              const crossLat = prev.lat + (pt.lat - prev.lat) * Math.max(0, Math.min(1, Math.abs(fraction)));
+              const crossY = latToY(crossLat);
+
+              if (dLon < 0) {
+                ctx.lineTo(w, crossY);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, crossY);
+              } else {
+                ctx.lineTo(0, crossY);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(w, crossY);
+              }
             }
           }
           if (i === 0) ctx.moveTo(px, py);
