@@ -501,4 +501,59 @@ export interface BreakupResponse {
   };
 }
 
+export interface DecayProfilePoint {
+  days_from_epoch: number;
+  timestamp: string;
+  perigee_altitude_km: number;
+  apogee_altitude_km: number;
+  semi_major_axis_km: number;
+  eccentricity: number;
+  atmospheric_density_kg_m3: number;
+  decay_rate_km_per_day: number;
+}
+
+export interface ReentryPrediction {
+  norad_id: number;
+  object_name: string;
+  object_type: string;
+  country_code?: string;
+  current_perigee_km: number;
+  current_apogee_km: number;
+  current_altitude_km: number;
+  bstar: number;
+  estimated_lifetime_days: number;
+  predicted_reentry_time: string;
+  uncertainty_window_hours: number;
+  is_decay_imminent: boolean;
+  risk_level: 'CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW';
+  reentry_latitude_band: string;
+  estimated_dry_mass_kg: number;
+  estimated_surviving_mass_kg: number;
+  casualty_risk_score: string;
+  decay_profile: DecayProfilePoint[];
+}
+
+export interface DecayWatchlistItem {
+  norad_id: number;
+  object_name: string;
+  object_type: string;
+  country_code?: string;
+  perigee_km: number;
+  apogee_km: number;
+  bstar: number;
+  estimated_lifetime_days: number;
+  predicted_reentry_time: string;
+  risk_level: string;
+}
+
+export interface DecayAssessmentRequest {
+  norad_id?: number;
+  dry_mass_kg?: number;
+  drag_area_m2?: number;
+  drag_coefficient_cd?: number;
+  solar_flux_f107?: number;
+  geomagnetic_ap?: number;
+}
+
+
 

@@ -11,6 +11,7 @@ import { SystemHealthModal } from './components/SystemHealthModal';
 import { CAMPlannerModal } from './components/CAMPlannerModal';
 import { OverpassModal } from './components/OverpassModal';
 import { BreakupSimulatorModal } from './components/BreakupSimulatorModal';
+import { ReentryTrackerModal } from './components/ReentryTrackerModal';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -37,7 +38,9 @@ export default function App() {
   const [isCAMModalOpen, setIsCAMModalOpen] = useState<boolean>(false);
   const [isOverpassModalOpen, setIsOverpassModalOpen] = useState<boolean>(false);
   const [isBreakupModalOpen, setIsBreakupModalOpen] = useState<boolean>(false);
+  const [isReentryModalOpen, setIsReentryModalOpen] = useState<boolean>(false);
   const [overpassTargetObject, setOverpassTargetObject] = useState<OrbitalObject | null>(null);
+  const [reentryTargetObject, setReentryTargetObject] = useState<OrbitalObject | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -141,6 +144,11 @@ export default function App() {
   const handleOpenOverpassModal = (obj: OrbitalObject) => {
     setOverpassTargetObject(obj);
     setIsOverpassModalOpen(true);
+  };
+
+  const handleOpenReentryModal = (obj: OrbitalObject) => {
+    setReentryTargetObject(obj);
+    setIsReentryModalOpen(true);
   };
 
   const alertCount = alerts.filter(
@@ -251,6 +259,7 @@ export default function App() {
           object={selectedObject}
           onClose={() => setIsObjectModalOpen(false)}
           onOpenOverpass={handleOpenOverpassModal}
+          onOpenDecay={handleOpenReentryModal}
         />
       )}
 
@@ -285,6 +294,14 @@ export default function App() {
         <OverpassModal
           object={overpassTargetObject || selectedObject || objects[0]}
           onClose={() => setIsOverpassModalOpen(false)}
+        />
+      )}
+
+      {/* Atmospheric Re-entry & Orbital Lifetime Tracker Modal */}
+      {isReentryModalOpen && (reentryTargetObject || selectedObject || objects[0]) && (
+        <ReentryTrackerModal
+          object={reentryTargetObject || selectedObject || objects[0]}
+          onClose={() => setIsReentryModalOpen(false)}
         />
       )}
 

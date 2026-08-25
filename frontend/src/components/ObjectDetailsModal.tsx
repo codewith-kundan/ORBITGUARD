@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { OrbitalObject, OrbitalPosition } from '../types';
 import { api } from '../services/api';
-import { X, Satellite, Compass, Activity, Terminal, Rocket, Info, Radio } from 'lucide-react';
+import { X, Satellite, Compass, Activity, Terminal, Rocket, Info, Radio, Flame } from 'lucide-react';
 
 interface ObjectDetailsModalProps {
   object: OrbitalObject | null;
   onClose: () => void;
   onOpenOverpass?: (obj: OrbitalObject) => void;
+  onOpenDecay?: (obj: OrbitalObject) => void;
 }
 
 const TYPE_LABELS: Record<string, { label: string; color: string }> = {
@@ -34,7 +35,7 @@ const InfoItem: React.FC<{ label: string; value: string | number | null | undefi
   </div>
 );
 
-export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, onClose, onOpenOverpass }) => {
+export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, onClose, onOpenOverpass, onOpenDecay }) => {
   const [livePos, setLivePos] = useState<OrbitalPosition | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -106,6 +107,19 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
           </div>
 
           <div className="flex items-center gap-2">
+            {onOpenDecay && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenDecay(object);
+                }}
+                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded-lg text-xs font-bold transition"
+              >
+                <Flame className="w-3.5 h-3.5" />
+                RE-ENTRY
+              </button>
+            )}
+
             {onOpenOverpass && (
               <button
                 onClick={() => {
@@ -115,7 +129,7 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-space-950 rounded-lg text-xs font-bold transition shadow-md"
               >
                 <Radio className="w-3.5 h-3.5" />
-                PREDICT OVERPASS
+                OVERPASS
               </button>
             )}
 

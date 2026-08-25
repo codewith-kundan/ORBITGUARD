@@ -19,7 +19,10 @@ import {
   OverpassResponse,
   GroundTrackRibbonResponse,
   BreakupSimulateRequest,
-  BreakupResponse
+  BreakupResponse,
+  ReentryPrediction,
+  DecayWatchlistItem,
+  DecayAssessmentRequest
 } from '../types';
 
 const rawApiUrl = ((import.meta as any).env?.VITE_API_URL as string) || '';
@@ -197,5 +200,21 @@ export const api = {
 
   simulateConjunctionBreakup: async (conjunctionId: number): Promise<BreakupResponse> => {
     return request<BreakupResponse>(`/breakup/conjunction/${conjunctionId}`);
+  },
+
+  // Atmospheric Re-entry & Orbital Lifetime Tracker
+  getDecayAssessment: async (noradId: number, solarFlux: number = 150.0, geomagneticAp: number = 15.0): Promise<ReentryPrediction> => {
+    return request<ReentryPrediction>(`/decay/assess/${noradId}?solar_flux_f107=${solarFlux}&geomagnetic_ap=${geomagneticAp}`);
+  },
+
+  simulateDecay: async (payload: DecayAssessmentRequest): Promise<ReentryPrediction> => {
+    return request<ReentryPrediction>('/decay/simulate', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  getDecayWatchlist: async (maxDays: number = 90.0): Promise<DecayWatchlistItem[]> => {
+    return request<DecayWatchlistItem[]>(`/decay/watchlist?max_days=${maxDays}`);
   }
 };
