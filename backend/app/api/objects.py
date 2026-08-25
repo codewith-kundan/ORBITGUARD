@@ -118,53 +118,81 @@ async def get_data_health(db: Session = Depends(get_db)):
     from backend.app.services.data_providers.manager import provider_manager
     return await provider_manager.get_system_health(db=db)
 
+# In-memory fast cache for high-speed 3D swarm delivery
+_batch_objects_cache = {
+    "objects": [],
+    "last_fetched": datetime.min.replace(tzinfo=timezone.utc),
+    "total_count": 0
+}
+_positions_cache = {
+    "positions": [],
+    "target_time": datetime.min.replace(tzinfo=timezone.utc),
+    "timestamp_str": ""
+}
+
 @router.get("/objects/positions", response_model=PositionsBatchResponse)
 def get_batch_positions(
     timestamp: Optional[datetime] = None,
-    limit: int = Query(600, ge=1, le=2000),
+    limit: int = Query(1800, ge=1, le=2500),
     db: Session = Depends(get_db)
 ):
     """
     High-performance real-time batch propagation endpoint for the 3D space environment.
-    Returns a balanced, stratified selection of active payloads, debris fragments, and rocket stages.
+    Uses in-memory query & SGP4 caching to respond within milliseconds.
     """
-    target_time = to_utc(timestamp) if timestamp else datetime.now(timezone.utc)
-    
-    # Fast indexed constellation sampling (up to 1800 real space assets)
-    starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(500).all()
-    oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(150).all()
-    gps = db.query(OrbitalObject).filter(
-        OrbitalObject.name.ilike("%GPS%") | 
-        OrbitalObject.name.ilike("%NAVSTAR%") | 
-        OrbitalObject.name.ilike("%BEIDOU%") | 
-        OrbitalObject.name.ilike("%GALILEO%") | 
-        OrbitalObject.name.ilike("%GLONASS%") |
-        OrbitalObject.name.ilike("%QZSS%") |
-        OrbitalObject.name.ilike("%IRNSS%")
-    ).limit(120).all()
-    
-    stations = db.query(OrbitalObject).filter(
-        OrbitalObject.name.ilike("%ISS %") | 
-        OrbitalObject.name.ilike("%TIANGONG%") | 
-        OrbitalObject.name.ilike("%HUBBLE%") |
-        OrbitalObject.name.ilike("%CHANDRAYAAN%")
-    ).limit(20).all()
+    now = datetime.now(timezone.utc)
+    target_time = to_utc(timestamp) if timestamp else now
 
-    other_sats = db.query(OrbitalObject).filter(
-        OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE
-    ).limit(350).all()
+    # Refresh cached sample objects every 5 minutes
+    if (now - _batch_objects_cache["last_fetched"]).total_seconds() > 300 or not _batch_objects_cache["objects"]:
+        starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(500).all()
+        oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(150).all()
+        gps = db.query(OrbitalObject).filter(
+            OrbitalObject.name.ilike("%GPS%") | 
+            OrbitalObject.name.ilike("%NAVSTAR%") | 
+            OrbitalObject.name.ilike("%BEIDOU%") | 
+            OrbitalObject.name.ilike("%GALILEO%") | 
+            OrbitalObject.name.ilike("%GLONASS%") |
+            OrbitalObject.name.ilike("%QZSS%") |
+            OrbitalObject.name.ilike("%IRNSS%")
+        ).limit(120).all()
+        
+        stations = db.query(OrbitalObject).filter(
+            OrbitalObject.name.ilike("%ISS %") | 
+            OrbitalObject.name.ilike("%TIANGONG%") | 
+            OrbitalObject.name.ilike("%HUBBLE%") |
+            OrbitalObject.name.ilike("%CHANDRAYAAN%")
+        ).limit(20).all()
 
-    debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(450).all()
-    rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(210).all()
+        other_sats = db.query(OrbitalObject).filter(
+            OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE
+        ).limit(350).all()
 
-    selected_map = {}
-    for obj in list(starlink) + list(oneweb) + list(gps) + list(stations) + list(other_sats) + list(debris) + list(rockets):
-        selected_map[obj.id] = obj
+        debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(450).all()
+        rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(210).all()
 
-    objects = list(selected_map.values())[:min(limit, 1800)]
+        selected_map = {}
+        for obj in list(starlink) + list(oneweb) + list(gps) + list(stations) + list(other_sats) + list(debris) + list(rockets):
+            selected_map[obj.id] = obj
+
+        _batch_objects_cache["objects"] = list(selected_map.values())
+        _batch_objects_cache["last_fetched"] = now
+        _batch_objects_cache["total_count"] = db.query(OrbitalObject).count()
+
+    cached_objs = _batch_objects_cache["objects"][:min(limit, 1800)]
+    total_catalog_count = _batch_objects_cache["total_count"] or len(cached_objs)
+
+    # Return cached propagation if within 4 seconds of last calculation
+    time_diff = abs((target_time - _positions_cache["target_time"]).total_seconds())
+    if time_diff < 4.0 and len(_positions_cache["positions"]) > 0:
+        return PositionsBatchResponse(
+            timestamp=target_time,
+            total_objects=total_catalog_count,
+            positions=_positions_cache["positions"][:limit]
+        )
 
     positions: List[OrbitalPosition] = []
-    for obj in objects:
+    for obj in cached_objs:
         pos = PropagationService.propagate_satellite(
             line1=obj.tle_line1,
             line2=obj.tle_line2,
@@ -177,7 +205,9 @@ def get_batch_positions(
         if pos:
             positions.append(pos)
 
-    total_catalog_count = db.query(OrbitalObject).count()
+    # Store in fast cache
+    _positions_cache["positions"] = positions
+    _positions_cache["target_time"] = target_time
 
     return PositionsBatchResponse(
         timestamp=target_time,
