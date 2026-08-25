@@ -260,30 +260,60 @@ export const api = {
   // Ground Station Overpass & 2D Ground Track Ribbons
   getGroundStations: async (): Promise<GroundStation[]> => {
     const fallbackStations: GroundStation[] = [
-      { id: 'ISTRAC', name: 'ISTRAC Bangalore', country: 'India', latitude_deg: 13.034, longitude_deg: 77.512, altitude_m: 920, min_elevation_deg: 5 },
-      { id: 'SDSC', name: 'Satish Dhawan SHAR', country: 'India', latitude_deg: 13.72, longitude_deg: 80.23, altitude_m: 20, min_elevation_deg: 5 },
-      { id: 'CNES-TLS', name: 'CNES Toulouse', country: 'France', latitude_deg: 43.428, longitude_deg: 1.498, altitude_m: 150, min_elevation_deg: 5 },
-      { id: 'ESOC-DA', name: 'ESA ESOC Darmstadt', country: 'Germany', latitude_deg: 49.871, longitude_deg: 8.623, altitude_m: 140, min_elevation_deg: 5 },
-      { id: 'GSFC', name: 'NASA GSFC Greenbelt', country: 'United States', latitude_deg: 38.991, longitude_deg: -76.852, altitude_m: 53, min_elevation_deg: 5 },
-      { id: 'JSC', name: 'NASA JSC Houston', country: 'United States', latitude_deg: 29.559, longitude_deg: -95.089, altitude_m: 5, min_elevation_deg: 5 },
-      { id: 'VAND', name: 'Vandenberg SFB', country: 'United States', latitude_deg: 34.756, longitude_deg: -120.542, altitude_m: 112, min_elevation_deg: 5 },
-      { id: 'CAPE', name: 'Cape Canaveral SFS', country: 'United States', latitude_deg: 28.396, longitude_deg: -80.605, altitude_m: 3, min_elevation_deg: 5 },
-      { id: 'BAIK', name: 'Baikonur Cosmodrome', country: 'Kazakhstan', latitude_deg: 45.965, longitude_deg: 63.305, altitude_m: 100, min_elevation_deg: 5 },
-      { id: 'PLST', name: 'Plesetsk Cosmodrome', country: 'Russia', latitude_deg: 62.927, longitude_deg: 40.577, altitude_m: 130, min_elevation_deg: 5 },
-      { id: 'XICH', name: 'Xichang Launch Center', country: 'China', latitude_deg: 28.246, longitude_deg: 102.027, altitude_m: 1825, min_elevation_deg: 5 },
-      { id: 'TNEG', name: 'Tanegashima Space Center', country: 'Japan', latitude_deg: 30.400, longitude_deg: 131.003, altitude_m: 40, min_elevation_deg: 5 },
-      { id: 'KOUR', name: 'Guiana Space Centre', country: 'French Guiana', latitude_deg: 5.236, longitude_deg: -52.768, altitude_m: 15, min_elevation_deg: 5 },
-      { id: 'WOOMER', name: 'Woomera Test Range', country: 'Australia', latitude_deg: -31.168, longitude_deg: 136.826, altitude_m: 168, min_elevation_deg: 5 },
-      { id: 'ALCANT', name: 'Alcântara Launch Center', country: 'Brazil', latitude_deg: -2.373, longitude_deg: -44.396, altitude_m: 10, min_elevation_deg: 5 },
-      { id: 'SVALBARD', name: 'SvalSat Svalbard', country: 'Norway', latitude_deg: 78.229, longitude_deg: 15.408, altitude_m: 440, min_elevation_deg: 5 },
-      { id: 'DSCOVR', name: 'McMurdo Station', country: 'Antarctica', latitude_deg: -77.846, longitude_deg: 166.668, altitude_m: 24, min_elevation_deg: 5 },
-      { id: 'MALINDI', name: 'Malindi Ground Station', country: 'Kenya', latitude_deg: -2.996, longitude_deg: 40.194, altitude_m: 30, min_elevation_deg: 5 },
-      { id: 'HARTS', name: 'HartRAO Hartebeesthoek', country: 'South Africa', latitude_deg: -25.887, longitude_deg: 27.687, altitude_m: 1400, min_elevation_deg: 5 },
-      { id: 'KIRUNA', name: 'Esrange Kiruna', country: 'Sweden', latitude_deg: 67.893, longitude_deg: 21.104, altitude_m: 420, min_elevation_deg: 5 },
-      { id: 'CANBERRA', name: 'CDSCC Canberra', country: 'Australia', latitude_deg: -35.401, longitude_deg: 148.981, altitude_m: 680, min_elevation_deg: 5 },
-      { id: 'MADRID', name: 'MDSCC Robledo', country: 'Spain', latitude_deg: 40.431, longitude_deg: -4.249, altitude_m: 833, min_elevation_deg: 5 },
-      { id: 'GOLDSTONE', name: 'GDSCC Goldstone', country: 'United States', latitude_deg: 35.427, longitude_deg: -116.890, altitude_m: 900, min_elevation_deg: 5 },
-      { id: 'HAWAII', name: 'AMOS Maui', country: 'United States', latitude_deg: 20.7084, longitude_deg: -156.258, altitude_m: 3058, min_elevation_deg: 5 },
+      // India (ISRO / ISTRAC / SDSC / IDSN)
+      { id: 'isro_istrac', name: 'ISRO ISTRAC (Bengaluru, India)', country: 'India', latitude_deg: 13.034, longitude_deg: 77.512, altitude_m: 920, min_elevation_deg: 5 },
+      { id: 'isro_shar', name: 'ISRO SDSC SHAR (Sriharikota, India)', country: 'India', latitude_deg: 13.733, longitude_deg: 80.235, altitude_m: 20, min_elevation_deg: 5 },
+      { id: 'isro_lucknow', name: 'ISRO Ground Station (Lucknow, India)', country: 'India', latitude_deg: 26.846, longitude_deg: 80.946, altitude_m: 123, min_elevation_deg: 5 },
+      { id: 'isro_portblair', name: 'ISRO Telemetry Station (Port Blair, Andaman)', country: 'India', latitude_deg: 11.623, longitude_deg: 92.726, altitude_m: 16, min_elevation_deg: 5 },
+      { id: 'isro_byalalu', name: 'ISRO Deep Space Network IDSN (Byalalu, India)', country: 'India', latitude_deg: 12.875, longitude_deg: 77.368, altitude_m: 815, min_elevation_deg: 5 },
+      { id: 'isro_mauritius', name: 'ISRO Tracking Station (Mauritius)', country: 'Mauritius', latitude_deg: -20.244, longitude_deg: 57.574, altitude_m: 420, min_elevation_deg: 5 },
+      { id: 'isro_svalbard', name: 'ISRO Ground Station Svalbard (Norway)', country: 'Norway', latitude_deg: 78.223, longitude_deg: 15.407, altitude_m: 450, min_elevation_deg: 5 },
+      { id: 'isro_antarctica', name: 'ISRO AGEOS Bharati Station (Antarctica)', country: 'Antarctica', latitude_deg: -69.407, longitude_deg: 76.187, altitude_m: 35, min_elevation_deg: 5 },
+
+      // United States (NASA, DSN, Space Force)
+      { id: 'nasa_ksc', name: 'NASA Kennedy Space Center (Florida, USA)', country: 'USA', latitude_deg: 28.572, longitude_deg: -80.649, altitude_m: 3, min_elevation_deg: 5 },
+      { id: 'dsn_goldstone', name: 'NASA DSN Goldstone (California, USA)', country: 'USA', latitude_deg: 35.426, longitude_deg: -116.890, altitude_m: 1036, min_elevation_deg: 5 },
+      { id: 'nasa_gsfc', name: 'NASA Goddard Space Flight Center (Maryland, USA)', country: 'USA', latitude_deg: 38.991, longitude_deg: -76.852, altitude_m: 53, min_elevation_deg: 5 },
+      { id: 'nasa_jsc', name: 'NASA Johnson Space Center (Houston, USA)', country: 'USA', latitude_deg: 29.559, longitude_deg: -95.089, altitude_m: 5, min_elevation_deg: 5 },
+      { id: 'vandenberg_sfb', name: 'Vandenberg Space Force Base (California, USA)', country: 'USA', latitude_deg: 34.756, longitude_deg: -120.542, altitude_m: 112, min_elevation_deg: 5 },
+      { id: 'nasa_wff', name: 'NASA Wallops Flight Facility (Virginia, USA)', country: 'USA', latitude_deg: 37.940, longitude_deg: -75.466, altitude_m: 12, min_elevation_deg: 5 },
+      { id: 'nasa_wsc', name: 'NASA White Sands Complex (New Mexico, USA)', country: 'USA', latitude_deg: 32.541, longitude_deg: -106.609, altitude_m: 1445, min_elevation_deg: 5 },
+      { id: 'amos_maui', name: 'Air Force AMOS Maui (Hawaii, USA)', country: 'USA', latitude_deg: 20.708, longitude_deg: -156.258, altitude_m: 3058, min_elevation_deg: 5 },
+      { id: 'poker_flat', name: 'Poker Flat Research Range (Alaska, USA)', country: 'USA', latitude_deg: 65.119, longitude_deg: -147.433, altitude_m: 200, min_elevation_deg: 5 },
+
+      // Europe (ESA, CNES, DLR)
+      { id: 'esa_esoc', name: 'ESA ESOC (Darmstadt, Germany)', country: 'Germany', latitude_deg: 49.871, longitude_deg: 8.623, altitude_m: 140, min_elevation_deg: 5 },
+      { id: 'dsn_madrid', name: 'NASA/ESA DSN Madrid (Robledo, Spain)', country: 'Spain', latitude_deg: 40.427, longitude_deg: -4.249, altitude_m: 834, min_elevation_deg: 5 },
+      { id: 'esa_kiruna', name: 'ESA ESTRACK Kiruna (Sweden)', country: 'Sweden', latitude_deg: 67.857, longitude_deg: 20.964, altitude_m: 380, min_elevation_deg: 5 },
+      { id: 'cnes_toulouse', name: 'CNES Space Centre (Toulouse, France)', country: 'France', latitude_deg: 43.428, longitude_deg: 1.498, altitude_m: 150, min_elevation_deg: 5 },
+      { id: 'esa_redu', name: 'ESA ESEC Redu (Belgium)', country: 'Belgium', latitude_deg: 50.000, longitude_deg: 5.145, altitude_m: 380, min_elevation_deg: 5 },
+      { id: 'dlr_oberpfaffenhofen', name: 'DLR German Space Ops GSOC (Germany)', country: 'Germany', latitude_deg: 48.083, longitude_deg: 11.283, altitude_m: 580, min_elevation_deg: 5 },
+      { id: 'esa_santa_maria', name: 'ESA ESTRACK Santa Maria (Azores, Portugal)', country: 'Portugal', latitude_deg: 36.997, longitude_deg: -25.136, altitude_m: 275, min_elevation_deg: 5 },
+      { id: 'esa_harwell', name: 'ESA ECSAT / Harwell (Oxfordshire, UK)', country: 'UK', latitude_deg: 51.572, longitude_deg: -1.314, altitude_m: 120, min_elevation_deg: 5 },
+
+      // South America & Caribbean
+      { id: 'esa_kourou', name: 'ESA ESTRACK Kourou (French Guiana)', country: 'France', latitude_deg: 5.251, longitude_deg: -52.805, altitude_m: 15, min_elevation_deg: 5 },
+      { id: 'santiago_chile', name: 'Santiago Satellite Station (Santiago, Chile)', country: 'Chile', latitude_deg: -33.150, longitude_deg: -70.667, altitude_m: 730, min_elevation_deg: 5 },
+      { id: 'alcantara_brazil', name: 'Alcântara Space Center (Maranhão, Brazil)', country: 'Brazil', latitude_deg: -2.373, longitude_deg: -44.396, altitude_m: 10, min_elevation_deg: 5 },
+
+      // Australia & Oceania
+      { id: 'dsn_canberra', name: 'NASA DSN Canberra (Tidbinbilla, Australia)', country: 'Australia', latitude_deg: -35.401, longitude_deg: 148.981, altitude_m: 650, min_elevation_deg: 5 },
+      { id: 'esa_new_norcia', name: 'ESA Deep Space DSA 1 (New Norcia, Australia)', country: 'Australia', latitude_deg: -31.048, longitude_deg: 116.191, altitude_m: 252, min_elevation_deg: 5 },
+      { id: 'woomera_australia', name: 'Woomera Test Range (South Australia)', country: 'Australia', latitude_deg: -31.168, longitude_deg: 136.826, altitude_m: 168, min_elevation_deg: 5 },
+
+      // Asia & Middle East
+      { id: 'jaxa_tsukuba', name: 'JAXA Tsukuba Space Center (Japan)', country: 'Japan', latitude_deg: 36.066, longitude_deg: 140.128, altitude_m: 30, min_elevation_deg: 5 },
+      { id: 'jaxa_tanegashima', name: 'JAXA Tanegashima Space Center (Japan)', country: 'Japan', latitude_deg: 30.400, longitude_deg: 131.003, altitude_m: 40, min_elevation_deg: 5 },
+      { id: 'kari_daejeon', name: 'KARI Korea Satellite Ops (Daejeon, South Korea)', country: 'South Korea', latitude_deg: 36.381, longitude_deg: 127.358, altitude_m: 75, min_elevation_deg: 5 },
+      { id: 'singapore_crisp', name: 'CRISP Satellite Station (Singapore)', country: 'Singapore', latitude_deg: 1.297, longitude_deg: 103.777, altitude_m: 25, min_elevation_deg: 5 },
+
+      // Africa & Arctic / Antarctic Poles
+      { id: 'sansa_hart', name: 'SANSA Space Operations (Hartebeesthoek, South Africa)', country: 'South Africa', latitude_deg: -25.887, longitude_deg: 27.707, altitude_m: 1560, min_elevation_deg: 5 },
+      { id: 'malindi_kenya', name: 'Broglio Space Centre (Malindi, Kenya)', country: 'Kenya', latitude_deg: -2.996, longitude_deg: 40.194, altitude_m: 10, min_elevation_deg: 5 },
+      { id: 'ksat_svalbard', name: 'KSAT Svalbard Satellite Station (Svalbard, Norway)', country: 'Norway', latitude_deg: 78.229, longitude_deg: 15.407, altitude_m: 470, min_elevation_deg: 5 },
+      { id: 'ksat_tromso', name: 'KSAT Tromsø Network Station (Norway)', country: 'Norway', latitude_deg: 69.662, longitude_deg: 18.940, altitude_m: 130, min_elevation_deg: 5 },
+      { id: 'mcmurdo_antarctica', name: 'NASA McMurdo Ground Station (Antarctica)', country: 'Antarctica', latitude_deg: -77.846, longitude_deg: 166.668, altitude_m: 40, min_elevation_deg: 5 },
+      { id: 'troll_antarctica', name: 'KSAT TrollSat Station (Queen Maud Land, Antarctica)', country: 'Antarctica', latitude_deg: -72.012, longitude_deg: 2.534, altitude_m: 1275, min_elevation_deg: 5 }
     ];
     try {
       const data = await request<GroundStation[]>('/overpass/stations');
