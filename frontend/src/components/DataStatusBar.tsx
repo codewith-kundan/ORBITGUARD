@@ -19,7 +19,7 @@ export const DataStatusBar: React.FC<DataStatusBarProps> = ({
 
   const isLiveError = dataStatus.mode === 'LIVE ERROR';
   const isDemo = dataStatus.mode === 'DEMO' || dataStatus.mode === 'DEMO MODE';
-  const totalCount = stats?.tracked_objects || dataStatus.total_objects || 19578;
+  const totalCount = stats?.tracked_objects || dataStatus.total_objects || 0;
   const lastSyncTime = dataStatus.last_updated || dataStatus.last_sync;
 
   if (isLiveError) {
@@ -94,7 +94,7 @@ export const DataStatusBar: React.FC<DataStatusBarProps> = ({
         ) : (
           <div className="flex items-center gap-1.5 text-emerald-400 text-[11px]">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">SYNCHRONIZED WITH CELESTRAK / SPACE-TRACK</span>
+            <span className="hidden sm:inline">SYNCHRONIZED WITH 18TH SDS (SPACE-TRACK.ORG)</span>
             <span className="sm:hidden">LIVE SYNCED</span>
           </div>
         )}

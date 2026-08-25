@@ -4,6 +4,10 @@ import logging
 import time
 from typing import List, Tuple, Optional, Dict, Any
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from backend.app.services.data_providers.base import BaseDataProvider
 
 logger = logging.getLogger(__name__)
@@ -31,22 +35,31 @@ class SpaceTrackProvider(BaseDataProvider):
         "/format/3le"
     )
 
+    def _refresh_credentials(self):
+        from backend.app.config import settings
+        self.username = (settings.SPACE_TRACK_USERNAME or os.getenv("SPACE_TRACK_USERNAME") or os.getenv("SPACETRACK_USER") or "").strip()
+        self.password = (settings.SPACE_TRACK_PASSWORD or os.getenv("SPACE_TRACK_PASSWORD") or os.getenv("SPACETRACK_PASSWORD") or "").strip()
+
     def __init__(self):
-        self.username = os.getenv("SPACE_TRACK_USERNAME", "") or os.getenv("SPACETRACK_USER", "")
-        self.password = os.getenv("SPACE_TRACK_PASSWORD", "") or os.getenv("SPACETRACK_PASSWORD", "")
+        self._refresh_credentials()
 
     async def _authenticate(self, client: httpx.AsyncClient) -> bool:
         """Authenticates with Space-Track.org and stores session cookie."""
+        self._refresh_credentials()
+        if not self.username or not self.password:
+            logger.error("Space-Track: Missing username or password")
+            return False
         try:
             resp = await client.post(
                 self.LOGIN_URL,
                 data={"identity": self.username, "password": self.password},
+                headers={"User-Agent": "ORBITGUARD-SSA/2.0"},
                 timeout=30.0
             )
-            if resp.status_code == 200:
-                logger.info("Space-Track: Authentication successful")
+            if resp.status_code == 200 and "Failed" not in resp.text:
+                logger.info(f"Space-Track: Authentication successful for {self.username}")
                 return True
-            logger.error(f"Space-Track: Auth failed HTTP {resp.status_code}")
+            logger.error(f"Space-Track: Auth failed HTTP {resp.status_code} - {resp.text[:100]}")
             return False
         except Exception as e:
             logger.error(f"Space-Track: Auth exception: {e}")
