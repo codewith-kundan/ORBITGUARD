@@ -157,13 +157,22 @@ async def startup_event():
                 else:
                     logger.warning(f"Initial sync failed: {error}")
             else:
-                def _quick_prune():
+                def _quick_prune_and_screen():
                     db = SessionLocal()
                     try:
                         ConjunctionService.prune_expired_conjunctions(db)
+                        conj_count = db.query(Conjunction).count()
+                        if conj_count == 0:
+                            logger.info("Conjunction table empty. Running initial SGP4 screening...")
+                            ConjunctionService.run_full_conjunction_screening(
+                                db,
+                                window_hours=24,
+                                threshold_km=settings.CONJUNCTION_THRESHOLD_KM or 100.0,
+                                coarse_step_minutes=3.0
+                            )
                     finally:
                         db.close()
-                await asyncio.to_thread(_quick_prune)
+                await asyncio.to_thread(_quick_prune_and_screen)
         except Exception as e:
             logger.error(f"Startup sync background error: {e}")
 

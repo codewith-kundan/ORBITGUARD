@@ -290,7 +290,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     let isMounted = true;
     const fetchPositions = async () => {
       try {
-        const batch = await api.getBatchPositions(simTime.toISOString(), 4000);
+        const batch = await api.getBatchPositions(simTime.toISOString(), 600);
         if (isMounted && batch.positions && batch.positions.length > 0) {
           setPositions(batch.positions);
           livePositionsRef.current = batch.positions.map((p: OrbitalPosition) => ({ ...p }));
