@@ -10,7 +10,9 @@ import {
   Activity,
   MapPin,
   BookOpen,
-  Sun
+  Sun,
+  Rocket,
+  Flame
 } from 'lucide-react';
 import { SystemStatistics, DataStatus } from '../types';
 
@@ -27,6 +29,8 @@ interface NavbarProps {
   onOpenSystemHealth?: () => void;
   onOpenUserGuide?: () => void;
   onOpenSpaceWeather?: () => void;
+  onOpenLaunchRadar?: () => void;
+  onOpenKesslerDensity?: () => void;
 }
 
 interface NavItemConfig {
@@ -47,7 +51,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   isRefreshing,
   onOpenSystemHealth,
   onOpenUserGuide,
-  onOpenSpaceWeather
+  onOpenSpaceWeather,
+  onOpenLaunchRadar,
+  onOpenKesslerDensity
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const isLive = dataStatus?.mode === 'LIVE';
@@ -141,6 +147,30 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Sun className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
               <span>WEATHER</span>
+            </button>
+          )}
+
+          {/* Launch Radar Trigger Button */}
+          {onOpenLaunchRadar && (
+            <button
+              onClick={onOpenLaunchRadar}
+              className="hidden lg:flex items-center gap-1.5 bg-purple-500/10 hover:bg-purple-500/20 px-2.5 py-1 rounded-lg border border-purple-500/30 hover:border-purple-400 text-[11px] sm:text-xs text-purple-300 hover:text-white transition shadow-sm font-bold"
+              title="Open Global Rocket Launch Radar & Decaying Debris Tracker"
+            >
+              <Rocket className="w-3.5 h-3.5 text-purple-400" />
+              <span>LAUNCHES</span>
+            </button>
+          )}
+
+          {/* Kessler Density Heatmap Trigger Button */}
+          {onOpenKesslerDensity && (
+            <button
+              onClick={onOpenKesslerDensity}
+              className="hidden lg:flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 px-2.5 py-1 rounded-lg border border-red-500/30 hover:border-red-400 text-[11px] sm:text-xs text-red-300 hover:text-white transition shadow-sm font-bold"
+              title="Open Kessler Syndrome Spatial Density Heatmap"
+            >
+              <Flame className="w-3.5 h-3.5 text-red-400" />
+              <span>KESSLER</span>
             </button>
           )}
 

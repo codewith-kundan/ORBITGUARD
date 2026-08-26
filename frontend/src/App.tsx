@@ -15,6 +15,8 @@ import { ReentryTrackerModal } from './components/ReentryTrackerModal';
 import { CDMExportModal } from './components/CDMExportModal';
 import { CriticalAlertBanner } from './components/CriticalAlertBanner';
 import { SpaceWeatherModal } from './components/SpaceWeatherModal';
+import { LaunchRadarModal } from './components/LaunchRadarModal';
+import { KesslerDensityModal } from './components/KesslerDensityModal';
 import { UserGuideModal } from './components/UserGuideModal';
 import { api } from './services/api';
 import { 
@@ -47,6 +49,8 @@ export default function App() {
   const [isConjunctionModalOpen, setIsConjunctionModalOpen] = useState<boolean>(false);
   const [isSystemHealthModalOpen, setIsSystemHealthModalOpen] = useState<boolean>(false);
   const [isSpaceWeatherOpen, setIsSpaceWeatherOpen] = useState<boolean>(false);
+  const [isLaunchRadarOpen, setIsLaunchRadarOpen] = useState<boolean>(false);
+  const [isKesslerDensityOpen, setIsKesslerDensityOpen] = useState<boolean>(false);
   const [isCAMModalOpen, setIsCAMModalOpen] = useState<boolean>(false);
   const [isOverpassModalOpen, setIsOverpassModalOpen] = useState<boolean>(false);
   const [isBreakupModalOpen, setIsBreakupModalOpen] = useState<boolean>(false);
@@ -442,6 +446,19 @@ export default function App() {
       <SpaceWeatherModal
         isOpen={isSpaceWeatherOpen}
         onClose={() => setIsSpaceWeatherOpen(false)}
+      />
+
+      {/* Global Rocket Launch & Debris Re-entry Radar Modal */}
+      <LaunchRadarModal
+        isOpen={isLaunchRadarOpen}
+        onClose={() => setIsLaunchRadarOpen(false)}
+      />
+
+      {/* Kessler Syndrome Spatial Density Heatmap Modal */}
+      <KesslerDensityModal
+        isOpen={isKesslerDensityOpen}
+        onClose={() => setIsKesslerDensityOpen(false)}
+        stats={stats}
       />
 
       {/* System & Database Diagnostics Modal */}
