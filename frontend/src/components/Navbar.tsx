@@ -15,7 +15,8 @@ import {
   Flame,
   Bot,
   FileText,
-  Gamepad2
+  Gamepad2,
+  Eye
 } from 'lucide-react';
 import { SystemStatistics, DataStatus } from '../types';
 
@@ -38,6 +39,7 @@ interface NavbarProps {
   onOpenSITREP?: () => void;
   onOpenASAT?: () => void;
   onOpenGame?: () => void;
+  onOpenSpotter?: () => void;
 }
 
 interface NavItemConfig {
@@ -64,7 +66,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAICopilot,
   onOpenSITREP,
   onOpenASAT,
-  onOpenGame
+  onOpenGame,
+  onOpenSpotter
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const isLive = dataStatus?.mode === 'LIVE';
@@ -230,6 +233,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Gamepad2 className="w-3.5 h-3.5 text-emerald-400" />
               <span>SIMULATOR</span>
+            </button>
+          )}
+
+          {/* Naked Eye Sky Spotter */}
+          {onOpenSpotter && (
+            <button
+              onClick={onOpenSpotter}
+              className="hidden sm:flex items-center gap-1.5 bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded-lg border border-blue-500/40 text-[11px] sm:text-xs text-blue-300 hover:text-white transition shadow-sm font-bold"
+              title="View Tonight's Visible Naked-Eye Satellite Passes"
+            >
+              <Eye className="w-3.5 h-3.5 text-blue-400" />
+              <span>SPOTTER</span>
             </button>
           )}
 

@@ -21,6 +21,7 @@ import { AICopilotModal } from './components/AICopilotModal';
 import { SITREPModal } from './components/SITREPModal';
 import { ASATSimulatorModal } from './components/ASATSimulatorModal';
 import { OperatorGameModal } from './components/OperatorGameModal';
+import { SkySpotterModal } from './components/SkySpotterModal';
 import { UserGuideModal } from './components/UserGuideModal';
 import { api } from './services/api';
 import { 
@@ -59,6 +60,7 @@ export default function App() {
   const [isSITREPOpen, setIsSITREPOpen] = useState<boolean>(false);
   const [isASATOpen, setIsASATOpen] = useState<boolean>(false);
   const [isGameOpen, setIsGameOpen] = useState<boolean>(false);
+  const [isSpotterOpen, setIsSpotterOpen] = useState<boolean>(false);
   const [isCAMModalOpen, setIsCAMModalOpen] = useState<boolean>(false);
   const [isOverpassModalOpen, setIsOverpassModalOpen] = useState<boolean>(false);
   const [isBreakupModalOpen, setIsBreakupModalOpen] = useState<boolean>(false);
@@ -494,6 +496,12 @@ export default function App() {
       <OperatorGameModal
         isOpen={isGameOpen}
         onClose={() => setIsGameOpen(false)}
+      />
+
+      {/* Naked-Eye Citizen Sky Spotter Modal */}
+      <SkySpotterModal
+        isOpen={isSpotterOpen}
+        onClose={() => setIsSpotterOpen(false)}
       />
 
       {/* System & Database Diagnostics Modal */}

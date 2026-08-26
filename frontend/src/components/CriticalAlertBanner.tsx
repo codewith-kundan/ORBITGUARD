@@ -1,3 +1,4 @@
+import { voiceService } from '../services/voiceService';
 import React, { useState, useEffect, useRef } from 'react';
 import { Conjunction } from '../types';
 import { 
@@ -75,6 +76,9 @@ export const CriticalAlertBanner: React.FC<CriticalAlertBannerProps> = ({
     if (criticalEvent && !playedAlertIdsRef.current.has(criticalEvent.id)) {
       playedAlertIdsRef.current.add(criticalEvent.id);
       playAlertSound();
+      const satA = criticalEvent.object_a?.name || 'Primary Satellite';
+      const satB = criticalEvent.object_b?.name || 'Debris Object';
+      voiceService.speakAlert(`Warning. Critical close encounter detected between ${satA} and ${satB}. Miss distance is ${criticalEvent.miss_distance_km.toFixed(2)} kilometers.`);
     }
   }, [criticalEvent, isMuted, hasInteracted]);
 
