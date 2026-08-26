@@ -95,10 +95,35 @@ def get_conjunction_summary(db: Session = Depends(get_db)):
         earliest_tca=earliest_tca
     )
 
+from backend.app.services.risk_service import RiskService
+from backend.app.services.history_service import HistoryService
+
 @router.get("/{id}", response_model=ConjunctionResponse)
 def get_conjunction(id: int, db: Session = Depends(get_db)):
-    """Retrieves detailed information for a specific conjunction event."""
+    """Retrieves detailed information for a specific conjunction event with explainable multi-factor risk and historical prediction confidence."""
     conj = db.query(Conjunction).filter(Conjunction.id == id).first()
     if not conj:
         raise HTTPException(status_code=404, detail=f"Conjunction with ID {id} not found")
+    
+    # Calculate explainable factors
+    score, level, factors = RiskService.compute_risk_score(
+        miss_distance_km=conj.miss_distance_km,
+        relative_velocity_km_s=conj.relative_velocity_km_s,
+        tca=conj.tca,
+        approach_angle_deg=conj.approach_angle_deg or 45.0,
+        combined_size_m=conj.combined_size_m or 5.0
+    )
+
+    # Historical prediction pattern
+    if conj.object_a and conj.object_b:
+        hist_analysis = HistoryService.analyze_historical_pattern(
+            db,
+            norad_a=conj.object_a.norad_id,
+            norad_b=conj.object_b.norad_id,
+            current_miss_distance_km=conj.miss_distance_km,
+            current_rel_vel_km_s=conj.relative_velocity_km_s
+        )
+        factors["historical_prediction"] = hist_analysis
+
+    conj.factors = factors
     return conj

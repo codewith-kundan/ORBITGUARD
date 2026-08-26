@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 from backend.app.schemas.orbital_object import OrbitalObjectResponse, ObjectType
@@ -21,6 +21,10 @@ class ConjunctionBase(BaseModel):
     longitude_deg: Optional[float] = Field(None, description="Sub-satellite longitude at TCA in deg [-180, 180]")
     risk_score: float = Field(..., ge=0.0, le=100.0, description="Screening Conjunction Risk Score (0-100)")
     risk_level: RiskLevel
+    collision_probability: Optional[float] = Field(None, description="Scientifically calculated collision probability percentage [0.00% - 100.00%]")
+    probability_method: Optional[str] = Field(None, description="Methodology used (e.g. Foster-2D Isotropic Hard-Body)")
+    approach_angle_deg: Optional[float] = Field(None, description="Angle between orbital velocity vectors at TCA")
+    combined_size_m: Optional[float] = Field(None, description="Estimated combined hard-body diameter in meters")
 
 class ConjunctionCreate(ConjunctionBase):
     pass
@@ -29,7 +33,7 @@ class ConjunctionResponse(ConjunctionBase):
     id: int
     object_a: Optional[OrbitalObjectResponse] = None
     object_b: Optional[OrbitalObjectResponse] = None
-    factors: Optional[dict] = None
+    factors: Optional[Dict[str, Any]] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

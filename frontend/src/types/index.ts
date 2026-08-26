@@ -109,23 +109,49 @@ export interface PaginatedObjectsResponse {
 }
 
 export interface RiskFactors {
-  miss_distance_factor: {
+  miss_distance_factor?: {
     score: number;
-    max: number;
-    contribution: string;
+    weight?: number;
+    description?: string;
+    contribution?: string;
     value_km: number;
   };
-  relative_velocity_factor: {
+  relative_velocity_factor?: {
     score: number;
-    max: number;
-    contribution: string;
+    weight?: number;
+    description?: string;
+    contribution?: string;
     value_km_s: number;
   };
-  time_to_tca_factor: {
+  approach_geometry_factor?: {
     score: number;
-    max: number;
-    contribution: string;
+    weight?: number;
+    description?: string;
+    angle_deg?: number;
+  };
+  object_size_factor?: {
+    score: number;
+    weight?: number;
+    description?: string;
+    size_m?: number;
+  };
+  time_to_tca_factor?: {
+    score: number;
+    weight?: number;
+    description?: string;
+    contribution?: string;
     hours_to_tca: number;
+  };
+  collision_probability?: number;
+  probability_confidence?: string;
+  probability_methodology?: string;
+  historical_prediction?: {
+    has_historical_data: boolean;
+    confidence_score: number;
+    pattern_match: string;
+    historical_events_count: number;
+    historical_avg_miss_km?: number;
+    distance_trend?: string;
   };
   methodology?: string;
 }
@@ -144,6 +170,10 @@ export interface Conjunction {
   longitude_deg?: number;
   risk_score: number;
   risk_level: RiskLevel;
+  collision_probability?: number;
+  probability_method?: string;
+  approach_angle_deg?: number;
+  combined_size_m?: number;
   status: string;
   calculated_at: string;
   created_at: string;

@@ -13,6 +13,7 @@ import { OverpassModal } from './components/OverpassModal';
 import { BreakupSimulatorModal } from './components/BreakupSimulatorModal';
 import { ReentryTrackerModal } from './components/ReentryTrackerModal';
 import { CDMExportModal } from './components/CDMExportModal';
+import { CriticalAlertBanner } from './components/CriticalAlertBanner';
 import { SpaceWeatherModal } from './components/SpaceWeatherModal';
 import { UserGuideModal } from './components/UserGuideModal';
 import { api } from './services/api';
@@ -245,6 +246,17 @@ export default function App() {
         stats={stats}
         onSync={handleSync}
         isSyncing={isSyncing}
+      />
+
+      {/* High-Visibility Imminent Conjunction Warning Audio Banner */}
+      <CriticalAlertBanner
+        conjunctions={conjunctions}
+        onSelectConjunction={handleOpenConjunctionModal}
+        onFocus3D={(conj) => {
+          setSelectedConjunction(conj);
+          if (conj.object_a) setSelectedObject(conj.object_a);
+          setActiveTab('space');
+        }}
       />
 
       {/* Main Container */}

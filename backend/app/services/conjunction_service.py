@@ -232,6 +232,10 @@ class ConjunctionService:
                     "longitude_deg": round(avg_lon, 4),
                     "risk_score": score,
                     "risk_level": level,
+                    "collision_probability": factors.get("collision_probability", 0.01),
+                    "probability_method": factors.get("probability_methodology", "Foster-2D Isotropic Hard-Body"),
+                    "approach_angle_deg": factors.get("approach_geometry_factor", {}).get("angle_deg", 45.0),
+                    "combined_size_m": factors.get("object_size_factor", {}).get("size_m", 5.0),
                     "factors": factors
                 })
 
@@ -295,6 +299,10 @@ class ConjunctionService:
                 longitude_deg=ev["longitude_deg"],
                 risk_score=ev["risk_score"],
                 risk_level=ev["risk_level"],
+                collision_probability=ev.get("collision_probability", 0.01),
+                probability_method=ev.get("probability_method", "Foster-2D Isotropic Hard-Body"),
+                approach_angle_deg=ev.get("approach_angle_deg", 45.0),
+                combined_size_m=ev.get("combined_size_m", 5.0),
                 status="ACTIVE",
                 calculated_at=datetime.utcnow(),
                 created_at=datetime.utcnow()

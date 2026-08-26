@@ -138,7 +138,8 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
               <th className="py-3 px-4">Relative Velocity</th>
               <th className="py-3 px-4">Time of Closest Approach (TCA)</th>
               <th className="py-3 px-4 text-center">TCA Countdown</th>
-              <th className="py-3 px-4 text-center">Collision Risk Score</th>
+              <th className="py-3 px-4 text-center">Risk Level</th>
+              <th className="py-3 px-4 text-center">Collision Probability</th>
               <th className="py-3 px-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -195,6 +196,9 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <RiskBadge level={c.risk_level} score={c.risk_score} size="sm" />
+                    </td>
+                    <td className="py-3.5 px-4 text-center font-bold text-slate-200">
+                      {c.collision_probability != null ? `${c.collision_probability.toFixed(2)}%` : '<0.01%'}
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5 flex-wrap">
