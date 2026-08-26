@@ -267,7 +267,7 @@ class ConjunctionService:
         start_time = datetime.now(timezone.utc)
         end_time = start_time + timedelta(hours=window_hours)
 
-        candidate_pairs = ConjunctionService.broad_phase_filter(objects, max_pairs=80)
+        candidate_pairs = ConjunctionService.broad_phase_filter(objects, max_pairs=350, altitude_buffer_km=75.0)
         logger.info(f"Broad-phase screened {len(candidate_pairs)} candidate pairs from {len(objects)} objects")
 
         detected_events = []
