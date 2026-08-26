@@ -12,7 +12,10 @@ import {
   BookOpen,
   Sun,
   Rocket,
-  Flame
+  Flame,
+  Bot,
+  FileText,
+  Gamepad2
 } from 'lucide-react';
 import { SystemStatistics, DataStatus } from '../types';
 
@@ -31,6 +34,10 @@ interface NavbarProps {
   onOpenSpaceWeather?: () => void;
   onOpenLaunchRadar?: () => void;
   onOpenKesslerDensity?: () => void;
+  onOpenAICopilot?: () => void;
+  onOpenSITREP?: () => void;
+  onOpenASAT?: () => void;
+  onOpenGame?: () => void;
 }
 
 interface NavItemConfig {
@@ -53,7 +60,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenUserGuide,
   onOpenSpaceWeather,
   onOpenLaunchRadar,
-  onOpenKesslerDensity
+  onOpenKesslerDensity,
+  onOpenAICopilot,
+  onOpenSITREP,
+  onOpenASAT,
+  onOpenGame
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const isLive = dataStatus?.mode === 'LIVE';
@@ -171,6 +182,54 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Flame className="w-3.5 h-3.5 text-red-400" />
               <span>KESSLER</span>
+            </button>
+          )}
+
+          {/* AI Flight Copilot */}
+          {onOpenAICopilot && (
+            <button
+              onClick={onOpenAICopilot}
+              className="flex items-center gap-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1 rounded-lg border border-cyan-500/40 text-[11px] sm:text-xs text-cyan-300 hover:text-white transition shadow-sm font-bold"
+              title="Open Autonomous AI Flight Copilot"
+            >
+              <Bot className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+              <span>AI COPILOT</span>
+            </button>
+          )}
+
+          {/* Defense SITREP Dossier */}
+          {onOpenSITREP && (
+            <button
+              onClick={onOpenSITREP}
+              className="hidden xl:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-700 text-[11px] sm:text-xs text-slate-300 hover:text-white transition shadow-sm font-bold"
+              title="Generate Formal Defense Situation Report (SITREP)"
+            >
+              <FileText className="w-3.5 h-3.5 text-slate-400" />
+              <span>SITREP</span>
+            </button>
+          )}
+
+          {/* ASAT Missile & Kessler Cascade Trigger Button */}
+          {onOpenASAT && (
+            <button
+              onClick={onOpenASAT}
+              className="hidden 2xl:flex items-center gap-1.5 bg-orange-500/10 hover:bg-orange-500/20 px-2.5 py-1 rounded-lg border border-orange-500/40 text-[11px] sm:text-xs text-orange-300 hover:text-white transition shadow-sm font-bold"
+              title="Open ASAT Kinetic Missile Intercept & Cascade Simulator"
+            >
+              <Flame className="w-3.5 h-3.5 text-orange-400" />
+              <span>ASAT</span>
+            </button>
+          )}
+
+          {/* Operator Sandbox Game */}
+          {onOpenGame && (
+            <button
+              onClick={onOpenGame}
+              className="hidden xl:flex items-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1 rounded-lg border border-emerald-500/40 text-[11px] sm:text-xs text-emerald-300 hover:text-white transition shadow-sm font-bold"
+              title="Play Satellite Operator Evasion Sandbox Challenge"
+            >
+              <Gamepad2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>SIMULATOR</span>
             </button>
           )}
 

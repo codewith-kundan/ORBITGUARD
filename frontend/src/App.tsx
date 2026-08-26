@@ -17,6 +17,10 @@ import { CriticalAlertBanner } from './components/CriticalAlertBanner';
 import { SpaceWeatherModal } from './components/SpaceWeatherModal';
 import { LaunchRadarModal } from './components/LaunchRadarModal';
 import { KesslerDensityModal } from './components/KesslerDensityModal';
+import { AICopilotModal } from './components/AICopilotModal';
+import { SITREPModal } from './components/SITREPModal';
+import { ASATSimulatorModal } from './components/ASATSimulatorModal';
+import { OperatorGameModal } from './components/OperatorGameModal';
 import { UserGuideModal } from './components/UserGuideModal';
 import { api } from './services/api';
 import { 
@@ -51,6 +55,10 @@ export default function App() {
   const [isSpaceWeatherOpen, setIsSpaceWeatherOpen] = useState<boolean>(false);
   const [isLaunchRadarOpen, setIsLaunchRadarOpen] = useState<boolean>(false);
   const [isKesslerDensityOpen, setIsKesslerDensityOpen] = useState<boolean>(false);
+  const [isAICopilotOpen, setIsAICopilotOpen] = useState<boolean>(false);
+  const [isSITREPOpen, setIsSITREPOpen] = useState<boolean>(false);
+  const [isASATOpen, setIsASATOpen] = useState<boolean>(false);
+  const [isGameOpen, setIsGameOpen] = useState<boolean>(false);
   const [isCAMModalOpen, setIsCAMModalOpen] = useState<boolean>(false);
   const [isOverpassModalOpen, setIsOverpassModalOpen] = useState<boolean>(false);
   const [isBreakupModalOpen, setIsBreakupModalOpen] = useState<boolean>(false);
@@ -459,6 +467,33 @@ export default function App() {
         isOpen={isKesslerDensityOpen}
         onClose={() => setIsKesslerDensityOpen(false)}
         stats={stats}
+      />
+
+      {/* Autonomous AI Flight Copilot Modal */}
+      <AICopilotModal
+        isOpen={isAICopilotOpen}
+        onClose={() => setIsAICopilotOpen(false)}
+        conjunction={selectedConjunction}
+      />
+
+      {/* Executive Defense SITREP Dossier Modal */}
+      <SITREPModal
+        isOpen={isSITREPOpen}
+        onClose={() => setIsSITREPOpen(false)}
+        conjunction={selectedConjunction}
+        stats={stats}
+      />
+
+      {/* ASAT Kinetic Intercept & Collision Cascade Modal */}
+      <ASATSimulatorModal
+        isOpen={isASATOpen}
+        onClose={() => setIsASATOpen(false)}
+      />
+
+      {/* Satellite Operator Evasion Sandbox Challenge */}
+      <OperatorGameModal
+        isOpen={isGameOpen}
+        onClose={() => setIsGameOpen(false)}
       />
 
       {/* System & Database Diagnostics Modal */}
