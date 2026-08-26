@@ -74,6 +74,11 @@ export default function App() {
         api.getAlerts(50).catch(() => [])
       ]);
 
+      if (objsData.length === 0 && (!statusData || statusData.total_objects === 0)) {
+        // Trigger non-blocking live sync
+        api.syncData('LIVE').catch(() => {});
+      }
+
       setDataStatus(statusData || fallbackDataStatus);
       setStats(statsData || fallbackStats);
       setObjects(objsData && objsData.length > 0 ? objsData : fallbackObjects);
@@ -129,6 +134,11 @@ export default function App() {
         api.getConjunctions(100, 0).catch(() => []),
         api.getAlerts(50).catch(() => [])
       ]);
+
+      if (objsData.length === 0 && (!statusData || statusData.total_objects === 0)) {
+        // Trigger non-blocking live sync
+        api.syncData('LIVE').catch(() => {});
+      }
       if (statusData) setDataStatus(statusData);
       if (statsData) setStats(statsData);
       if (objsData && objsData.length > 0) setObjects(objsData);
