@@ -1644,10 +1644,14 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
               {/* List of All Conjunction Hotspots */}
               {(() => {
-                const upcomingConjs = conjunctions.filter((c) => {
-                  const tcaMs = parseUtcDate(c.tca).getTime();
-                  return tcaMs > Date.now();
-                });
+                const nowMs = simTime.getTime();
+                const upcomingConjs = conjunctions
+                  .map(c => ({
+                    ...c,
+                    _tcaMs: parseUtcDate(c.tca).getTime()
+                  }))
+                  .filter((c) => c._tcaMs > nowMs)
+                  .sort((a, b) => a._tcaMs - b._tcaMs);
 
                 if (upcomingConjs.length === 0) {
                   return (
