@@ -561,15 +561,35 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       { alt: 550, color: 0x8b5cf6, label: 'Starlink ~550km' },
       { alt: 800, color: 0x38bdf8, label: 'Sun-sync ~800km' },
       { alt: 20200, color: 0x3b82f6, label: 'MEO/GPS ~20,200km' },
+      { alt: 35786, color: 0xeab308, label: 'GEO Belt ~35,786km' },
     ];
     ringDefs.forEach(({ alt, color }) => {
       const ringRadius = EARTH_RADIUS + alt / 1000;
-      const ringGeom = new THREE.RingGeometry(ringRadius - 0.01, ringRadius + 0.01, 128);
-      const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
+      const ringGeom = new THREE.RingGeometry(ringRadius - 0.015, ringRadius + 0.015, 128);
+      const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18, side: THREE.DoubleSide });
       const ring = new THREE.Mesh(ringGeom, ringMat);
       ring.rotation.x = -Math.PI / 2;
       altRingsGroup.add(ring);
     });
+
+    // LEO Atmospheric Density & Kessler Choke Shell (700-900 km)
+    const leoShellGeom = new THREE.SphereGeometry(EARTH_RADIUS + 0.85, 64, 32);
+    const leoShellMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.035,
+      wireframe: true
+    });
+    const leoShell = new THREE.Mesh(leoShellGeom, leoShellMat);
+    altRingsGroup.add(leoShell);
+
+    // Geostationary Ring Belt Volume (GEO)
+    const geoRingGeom = new THREE.RingGeometry(EARTH_RADIUS + 35.5, EARTH_RADIUS + 36.1, 128);
+    const geoRingMat = new THREE.MeshBasicMaterial({ color: 0xeab308, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
+    const geoRing = new THREE.Mesh(geoRingGeom, geoRingMat);
+    geoRing.rotation.x = -Math.PI / 2;
+    altRingsGroup.add(geoRing);
+
     scene.add(altRingsGroup);
 
     // 12. SPECIALIZED 3D INSTANCED MESHES (Exact Color Specification):
