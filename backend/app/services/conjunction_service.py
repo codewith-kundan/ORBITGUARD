@@ -232,8 +232,8 @@ class ConjunctionService:
                     "longitude_deg": round(avg_lon, 4),
                     "risk_score": score,
                     "risk_level": level,
-                    "collision_probability": factors.get("collision_probability", 0.01),
-                    "probability_method": factors.get("probability_methodology", "Foster-2D Isotropic Hard-Body"),
+                    "collision_probability": factors.get("collision_probability", {}).get("probability_percentage", 0.01) if isinstance(factors.get("collision_probability"), dict) else factors.get("collision_probability", 0.01),
+                    "probability_method": factors.get("collision_probability", {}).get("mathematical_model", "Foster-2D Isotropic Hard-Body") if isinstance(factors.get("collision_probability"), dict) else factors.get("probability_methodology", "Foster-2D Isotropic Hard-Body"),
                     "approach_angle_deg": factors.get("approach_geometry_factor", {}).get("angle_deg", 45.0),
                     "combined_size_m": factors.get("object_size_factor", {}).get("size_m", 5.0),
                     "factors": factors

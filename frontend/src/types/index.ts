@@ -108,6 +108,26 @@ export interface PaginatedObjectsResponse {
   total_pages: number;
 }
 
+export interface BPlaneData {
+  b_dot_t_m: number;
+  b_dot_r_m: number;
+  sigma_radial_m: number;
+  sigma_intrack_m: number;
+  sigma_crosstrack_m: number;
+  combined_hard_body_radius_m: number;
+}
+
+export interface AdvancedBenchmarks {
+  foster_2d_pc_pct: number;
+  akella_alfriend_pc_pct: number;
+  alfano_max_pc_pct: number;
+  monte_carlo_pc_pct: number;
+  monte_carlo_iterations: number;
+  kinetic_energy_mj: number;
+  tnt_equivalent_kg: number;
+  b_plane: BPlaneData;
+}
+
 export interface RiskFactors {
   miss_distance_factor?: {
     score: number;
@@ -145,6 +165,7 @@ export interface RiskFactors {
   collision_probability?: number;
   probability_confidence?: string;
   probability_methodology?: string;
+  advanced_benchmarks?: AdvancedBenchmarks;
   historical_prediction?: {
     has_historical_data: boolean;
     confidence_score: number;
