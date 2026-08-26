@@ -71,7 +71,7 @@ export default function App() {
       const [statusData, statsData, objsData, conjsData, alertsData] = await Promise.all([
         api.getDataStatus().catch(() => null),
         api.getStatistics().catch(() => null),
-        api.getPaginatedObjects(1, 500).then(r => r.items).catch(() => []),
+        api.getPaginatedObjects(1, 2000).then(r => r.items).catch(() => []),
         api.getConjunctions(100, 0).catch(() => []),
         api.getAlerts(50).catch(() => [])
       ]);
@@ -132,7 +132,7 @@ export default function App() {
       const [statusData, statsData, objsData, conjsData, alertsData] = await Promise.all([
         api.getDataStatus().catch(() => null),
         api.getStatistics().catch(() => null),
-        api.getPaginatedObjects(1, 500).then(r => r.items).catch(() => []),
+        api.getPaginatedObjects(1, 2000).then(r => r.items).catch(() => []),
         api.getConjunctions(100, 0).catch(() => []),
         api.getAlerts(50).catch(() => [])
       ]);

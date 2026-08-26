@@ -220,7 +220,7 @@ def list_orbital_objects(
     object_type: Optional[ObjectType] = None,
     search: Optional[str] = None,
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=500),
+    page_size: int = Query(2000, ge=1, le=5000),
     sort_by: Optional[str] = Query("norad_id"),
     order: Optional[str] = Query("asc"),
     db: Session = Depends(get_db)
