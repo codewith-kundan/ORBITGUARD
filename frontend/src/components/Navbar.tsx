@@ -9,7 +9,8 @@ import {
   LucideIcon,
   Activity,
   MapPin,
-  BookOpen
+  BookOpen,
+  Sun
 } from 'lucide-react';
 import { SystemStatistics, DataStatus } from '../types';
 
@@ -25,6 +26,7 @@ interface NavbarProps {
   alertCount?: number;
   onOpenSystemHealth?: () => void;
   onOpenUserGuide?: () => void;
+  onOpenSpaceWeather?: () => void;
 }
 
 interface NavItemConfig {
@@ -44,7 +46,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onRefresh,
   isRefreshing,
   onOpenSystemHealth,
-  onOpenUserGuide
+  onOpenUserGuide,
+  onOpenSpaceWeather
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const isLive = dataStatus?.mode === 'LIVE';
@@ -128,6 +131,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '—')}
             </span>
           </div>
+
+          {/* NOAA Space Weather Trigger Button */}
+          {onOpenSpaceWeather && (
+            <button
+              onClick={onOpenSpaceWeather}
+              className="flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30 hover:border-amber-400 text-[11px] sm:text-xs text-amber-300 hover:text-white transition shadow-sm font-bold"
+              title="Open NOAA Space Weather, Geomagnetic Storm & Solar Flux Monitor"
+            >
+              <Sun className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
+              <span>WEATHER</span>
+            </button>
+          )}
 
           {/* User Guide Interactive Modal Trigger Button */}
           {onOpenUserGuide && (

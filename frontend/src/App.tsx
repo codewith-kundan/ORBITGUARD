@@ -13,6 +13,7 @@ import { OverpassModal } from './components/OverpassModal';
 import { BreakupSimulatorModal } from './components/BreakupSimulatorModal';
 import { ReentryTrackerModal } from './components/ReentryTrackerModal';
 import { CDMExportModal } from './components/CDMExportModal';
+import { SpaceWeatherModal } from './components/SpaceWeatherModal';
 import { UserGuideModal } from './components/UserGuideModal';
 import { api } from './services/api';
 import { 
@@ -44,6 +45,7 @@ export default function App() {
   const [isObjectModalOpen, setIsObjectModalOpen] = useState<boolean>(false);
   const [isConjunctionModalOpen, setIsConjunctionModalOpen] = useState<boolean>(false);
   const [isSystemHealthModalOpen, setIsSystemHealthModalOpen] = useState<boolean>(false);
+  const [isSpaceWeatherOpen, setIsSpaceWeatherOpen] = useState<boolean>(false);
   const [isCAMModalOpen, setIsCAMModalOpen] = useState<boolean>(false);
   const [isOverpassModalOpen, setIsOverpassModalOpen] = useState<boolean>(false);
   const [isBreakupModalOpen, setIsBreakupModalOpen] = useState<boolean>(false);
@@ -422,6 +424,12 @@ export default function App() {
       <UserGuideModal
         isOpen={isUserGuideOpen}
         onClose={() => setIsUserGuideOpen(false)}
+      />
+
+      {/* NOAA Space Weather & Solar Storm Monitor */}
+      <SpaceWeatherModal
+        isOpen={isSpaceWeatherOpen}
+        onClose={() => setIsSpaceWeatherOpen(false)}
       />
 
       {/* System & Database Diagnostics Modal */}
