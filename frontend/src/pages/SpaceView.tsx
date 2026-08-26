@@ -1069,9 +1069,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   // Update Solar Illumination Vector with Simulation Time (Real-Time Sub-Solar Alignment)
   useEffect(() => {
     if (!earthMeshRef.current) return;
-
-    // Sun direction in ECEF frame matching the fixed Earth orientation (rotation.y = -Math.PI / 2)
-    // Sub-solar geographic coordinates:
+      // Sun direction in ECEF frame matching the fixed Earth orientation (rotation.y = -Math.PI / 2)
+      // Sub-solar geographic coordinates:
       const dayOfYear = Math.floor(
         (simTime.getTime() - new Date(simTime.getUTCFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -1085,14 +1084,15 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       const sunLonDeg = (12.0 - hour) * 15.0;
       const sunLonRad = sunLonDeg * (Math.PI / 180);
 
-      // On Earth mesh, geographic (lat, lon) maps to:
-      // x = cos(lat) * cos(lon)
-      // y = sin(lat)
-      // z = -cos(lat) * sin(lon)
+      // On Earth mesh with rotation.y = -PI/2 in world space:
+      // geographic longitude λ corresponds to world space vector:
+      // x_world = cos(lat) * sin(lon)
+      // y_world = sin(lat)
+      // z_world = cos(lat) * cos(lon)
       const sunDirECEF = new THREE.Vector3(
-        Math.cos(sunDecRad) * Math.cos(sunLonRad),
+        Math.cos(sunDecRad) * Math.sin(sunLonRad),
         Math.sin(sunDecRad),
-        -Math.cos(sunDecRad) * Math.sin(sunLonRad)
+        Math.cos(sunDecRad) * Math.cos(sunLonRad)
       ).normalize();
 
       if (sunLightRef.current) {
