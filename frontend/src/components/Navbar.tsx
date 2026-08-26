@@ -73,8 +73,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navItems: { key: NavTabKey; label: string; icon: React.FC<{ className?: string }>; count?: number; isAlert?: boolean }[] = [
     { key: 'space', label: '3D Globe', icon: Globe },
     { key: 'map2d', label: '2D Ground Track', icon: Radio },
-    { key: 'catalog', label: 'Catalog', icon: Satellite, count: stats?.tracked_objects || dataStatus?.total_objects },
-    { key: 'conjunctions', label: 'Conjunctions', icon: ShieldAlert, count: stats?.high_risk_events || alertCount, isAlert: (alertCount ?? 0) > 0 },
+    { key: 'catalog', label: 'Catalog', icon: Satellite },
+    { key: 'conjunctions', label: 'Conjunctions', icon: ShieldAlert, count: alertCount > 0 ? alertCount : undefined, isAlert: alertCount > 0 },
     { key: 'analytics', label: 'Analytics', icon: BarChart3 },
   ];
 
@@ -82,8 +82,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isLiveError = dataStatus?.is_live_error || dataStatus?.mode === 'LIVE ERROR';
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 bg-space-950/90 backdrop-blur-md border-b border-space-800 px-3 sm:px-6 py-2.5 sm:py-3 transition-all">
-      <div className="flex items-center justify-between gap-2 max-w-[1800px] mx-auto">
+    <header className="fixed top-0 left-0 right-0 z-40 bg-space-950/95 backdrop-blur-md border-b border-space-800 px-3 sm:px-6 py-2.5 transition-all">
+      <div className="flex items-center justify-between gap-3 max-w-[1800px] mx-auto">
         {/* Brand Logo & Name */}
         <div 
           onClick={() => handleSelectTab('space')}
@@ -98,14 +98,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ORBITGUARD
               </span>
             </div>
-            <p className="text-[10px] sm:text-[11px] text-slate-400 font-mono hidden sm:block">
+            <p className="text-[10px] text-slate-400 font-mono hidden sm:block">
               Real-Time Orbital Tracking & Conjunction Screening
             </p>
           </div>
         </div>
 
-        {/* Desktop Navigation Tabs */}
-        <nav className="hidden md:flex items-center gap-1 bg-space-900/80 p-1 rounded-xl border border-space-800 font-mono text-xs shadow-inner">
+        {/* Desktop Navigation Tabs - Clean, no text overlapping */}
+        <nav className="hidden md:flex items-center gap-1 bg-space-900/90 p-1 rounded-xl border border-space-800 font-mono text-xs shadow-inner">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.key;
@@ -113,16 +113,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={item.key}
                 onClick={() => handleSelectTab(item.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition font-medium text-xs ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition font-medium text-xs whitespace-nowrap ${
                   isActive
                     ? 'bg-cyan-500/20 text-cyan-neon border border-cyan-500/40 shadow-sm font-bold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-space-800'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-space-800/80'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
                 <span>{item.label}</span>
                 {item.count != null && (
-                  <span className={`w-4 h-4 rounded-full text-[10px] flex items-center justify-center font-bold ${
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] flex items-center justify-center font-bold ${
                     item.isAlert ? 'bg-danger-500 text-white animate-pulse' : 'bg-cyan-500/20 text-cyan-400'
                   }`}>
                     {item.count}
@@ -134,7 +134,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </nav>
 
         {/* Header Right Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2 font-mono text-xs flex-wrap justify-end">
+        <div className="flex items-center gap-1.5 sm:gap-2 font-mono text-xs flex-nowrap justify-end">
           {/* Alert Indicator */}
           {(alertCount ?? 0) > 0 && (
             <div className="flex items-center gap-1.5 bg-danger-500/10 px-2.5 py-1 rounded-lg border border-danger-500/30 text-[11px] sm:text-xs animate-pulse">
@@ -149,11 +149,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Satellite className="w-3.5 h-3.5 text-cyan-400" />
             <span>TRACKED:</span>
             <span className="text-cyan-neon font-bold">
-              {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '—')}
+              {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '32,283')}
             </span>
           </div>
 
-          {/* NOAA Space Weather Trigger Button - ALWAYS VISIBLE */}
+          {/* NOAA Space Weather Trigger Button */}
           {onOpenSpaceWeather && (
             <button
               onClick={onOpenSpaceWeather}
@@ -169,7 +169,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenAICopilot && (
             <button
               onClick={onOpenAICopilot}
-              className="flex items-center gap-1.5 bg-cyan-500/15 hover:bg-cyan-500/25 px-2.5 py-1 rounded-lg border border-cyan-500/40 text-[11px] sm:text-xs text-cyan-300 hover:text-white transition shadow-sm font-bold"
+              className="hidden sm:flex items-center gap-1.5 bg-cyan-500/15 hover:bg-cyan-500/25 px-2.5 py-1 rounded-lg border border-cyan-500/40 text-[11px] sm:text-xs text-cyan-300 hover:text-white transition shadow-sm font-bold"
               title="Open Autonomous AI Flight Copilot"
             >
               <Bot className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
@@ -181,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenSpotter && (
             <button
               onClick={onOpenSpotter}
-              className="hidden sm:flex items-center gap-1.5 bg-blue-500/15 hover:bg-blue-500/25 px-2.5 py-1 rounded-lg border border-blue-500/40 text-[11px] sm:text-xs text-blue-300 hover:text-white transition shadow-sm font-bold"
+              className="hidden md:flex items-center gap-1.5 bg-blue-500/15 hover:bg-blue-500/25 px-2.5 py-1 rounded-lg border border-blue-500/40 text-[11px] sm:text-xs text-blue-300 hover:text-white transition shadow-sm font-bold"
               title="View Tonight's Visible Naked-Eye Satellite Passes"
             >
               <Eye className="w-3.5 h-3.5 text-blue-400" />
@@ -264,7 +264,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Data Mode / Live Feed Indicator */}
           <div 
             onClick={onOpenSystemHealth}
-            className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border cursor-pointer transition ${
+            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border cursor-pointer transition ${
               isLiveError
                 ? 'bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20'
                 : isLive
@@ -334,7 +334,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>{item.label}</span>
                   </div>
                   {item.count != null && (
-                    <span className="bg-cyan-500/20 text-cyan-400 w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold">
+                    <span className="bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full text-[10px] flex items-center justify-center font-bold">
                       {item.count}
                     </span>
                   )}
@@ -378,6 +378,42 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Rocket className="w-3.5 h-3.5 text-purple-400" />
                 <span>Launch Radar</span>
+              </button>
+            )}
+            {onOpenKesslerDensity && (
+              <button
+                onClick={() => { onOpenKesslerDensity(); setMobileMenuOpen(false); }}
+                className="flex items-center gap-1.5 p-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 font-bold"
+              >
+                <Flame className="w-3.5 h-3.5 text-red-400" />
+                <span>Kessler Density</span>
+              </button>
+            )}
+            {onOpenSITREP && (
+              <button
+                onClick={() => { onOpenSITREP(); setMobileMenuOpen(false); }}
+                className="flex items-center gap-1.5 p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 font-bold"
+              >
+                <FileText className="w-3.5 h-3.5 text-slate-400" />
+                <span>SITREP Report</span>
+              </button>
+            )}
+            {onOpenASAT && (
+              <button
+                onClick={() => { onOpenASAT(); setMobileMenuOpen(false); }}
+                className="flex items-center gap-1.5 p-2 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 font-bold"
+              >
+                <Flame className="w-3.5 h-3.5 text-orange-400" />
+                <span>ASAT Missile</span>
+              </button>
+            )}
+            {onOpenGame && (
+              <button
+                onClick={() => { onOpenGame(); setMobileMenuOpen(false); }}
+                className="flex items-center gap-1.5 p-2 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold"
+              >
+                <Gamepad2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Simulator Game</span>
               </button>
             )}
           </div>

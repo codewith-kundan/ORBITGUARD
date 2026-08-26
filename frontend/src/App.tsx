@@ -252,6 +252,14 @@ export default function App() {
         isRefreshing={loading}
         onOpenSystemHealth={() => setIsSystemHealthModalOpen(true)}
         onOpenUserGuide={() => setIsUserGuideOpen(true)}
+        onOpenSpaceWeather={() => setIsSpaceWeatherOpen(true)}
+        onOpenLaunchRadar={() => setIsLaunchRadarOpen(true)}
+        onOpenKesslerDensity={() => setIsKesslerDensityOpen(true)}
+        onOpenAICopilot={() => setIsAICopilotOpen(true)}
+        onOpenSITREP={() => setIsSITREPOpen(true)}
+        onOpenASAT={() => setIsASATOpen(true)}
+        onOpenGame={() => setIsGameOpen(true)}
+        onOpenSpotter={() => setIsSpotterOpen(true)}
       />
 
       {/* Global Data Provider Status Bar */}
