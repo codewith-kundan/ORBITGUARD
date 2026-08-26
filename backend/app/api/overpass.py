@@ -19,6 +19,8 @@ def get_predefined_ground_stations():
     """Returns list of global tracking ground stations (ISRO, NASA, ESA, KSAT, DSN, JAXA)."""
     return OverpassService.get_predefined_stations()
 
+from backend.app.services.tle_service import TLEService
+
 @router.post("/predict", response_model=OverpassResponse)
 def predict_satellite_overpasses(
     payload: OverpassRequest,
@@ -29,8 +31,36 @@ def predict_satellite_overpasses(
     Calculates AOS, TCA/Peak Elevation, LOS, topocentric Azimuth/Elevation angles,
     range rate, and optical telescope visibility conditions (sunlit in dark sky).
     """
-    obj = db.query(OrbitalObject).filter(OrbitalObject.norad_id == payload.norad_id).first()
+    obj = None
+    if payload.tle_line1 and payload.tle_line2:
+        obj = OrbitalObject(
+            norad_id=payload.norad_id,
+            name=payload.object_name or f"NORAD-{payload.norad_id}",
+            object_type="ACTIVE_SATELLITE",
+            tle_line1=payload.tle_line1,
+            tle_line2=payload.tle_line2,
+            source="Direct TLE"
+        )
+    else:
+        obj = db.query(OrbitalObject).filter(OrbitalObject.norad_id == payload.norad_id).first()
+    
+    # Fallback to local verified catalog if not in database
     if not obj:
+        records = TLEService._load_local_fallback()
+        for rec in records:
+            if rec.get("norad_id") == payload.norad_id:
+                obj = OrbitalObject(
+                    norad_id=rec["norad_id"],
+                    name=rec["name"],
+                    object_type=rec.get("object_type", "ACTIVE_SATELLITE"),
+                    tle_line1=rec["tle_line1"],
+                    tle_line2=rec["tle_line2"],
+                    source="Verified Cache"
+                )
+                break
+
+    if not obj:
+        # Create a dynamic satellite object if TLE lines were passed or search first available matching orbital asset
         raise HTTPException(status_code=404, detail=f"Satellite NORAD #{payload.norad_id} not found in catalog")
 
     return OverpassService.predict_overpasses(
@@ -53,6 +83,20 @@ def get_satellite_ground_track(
     instantaneous sensor coverage footprint radius (km), and real-time sub-solar coordinates.
     """
     obj = db.query(OrbitalObject).filter(OrbitalObject.norad_id == norad_id).first()
+    if not obj:
+        records = TLEService._load_local_fallback()
+        for rec in records:
+            if rec.get("norad_id") == norad_id:
+                obj = OrbitalObject(
+                    norad_id=rec["norad_id"],
+                    name=rec["name"],
+                    object_type=rec.get("object_type", "ACTIVE_SATELLITE"),
+                    tle_line1=rec["tle_line1"],
+                    tle_line2=rec["tle_line2"],
+                    source="Verified Cache"
+                )
+                break
+
     if not obj:
         raise HTTPException(status_code=404, detail=f"Satellite NORAD #{norad_id} not found in catalog")
 

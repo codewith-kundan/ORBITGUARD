@@ -430,6 +430,9 @@ export interface OverpassRequest {
   station_name?: string;
   min_elevation_deg?: number;
   prediction_hours?: number;
+  tle_line1?: string;
+  tle_line2?: string;
+  object_name?: string;
 }
 
 export interface OverpassResponse {

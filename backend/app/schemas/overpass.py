@@ -45,6 +45,9 @@ class OverpassRequest(BaseModel):
     station_name: Optional[str] = "Custom Station"
     min_elevation_deg: float = 10.0
     prediction_hours: float = 48.0
+    tle_line1: Optional[str] = None
+    tle_line2: Optional[str] = None
+    object_name: Optional[str] = None
 
 class OverpassResponse(BaseModel):
     norad_id: int

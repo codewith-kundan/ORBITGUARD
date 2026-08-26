@@ -60,7 +60,10 @@ export const OverpassModal: React.FC<OverpassModalProps> = ({
         station_altitude_m: alt,
         station_name: name,
         min_elevation_deg: minElevation,
-        prediction_hours: predictionHours
+        prediction_hours: predictionHours,
+        tle_line1: object.tle_line1,
+        tle_line2: object.tle_line2,
+        object_name: object.name
       });
 
       setOverpassData(data);
