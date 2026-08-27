@@ -1620,7 +1620,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-danger-500"></span>
                 </div>
-                <span>HOTSPOTS ({conjunctions.length})</span>
+                <span>HOTSPOTS ({conjunctions.length > 0 ? conjunctions.length : 0})</span>
               </button>
 
               {selectedObject && (

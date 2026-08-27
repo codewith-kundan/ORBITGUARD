@@ -1,103 +1,60 @@
 import logging
-import math
-from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional, Tuple
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
-from backend.app.config import settings
-from backend.app.models.orbital_object import OrbitalObject
+from backend.app.models.orbital_object import OrbitalObject, ObjectType
 from backend.app.models.conjunction import Conjunction
 from backend.app.models.alert import Alert
-from backend.app.schemas.alert import AlertStatus
 from backend.app.schemas.conjunction import RiskLevel
+from backend.app.schemas.alert import AlertStatus
 from backend.app.services.propagation_service import PropagationService
 from backend.app.services.risk_service import RiskService
-from backend.app.utils.distance import compute_spatial_separation, euclidean_distance_3d
+from backend.app.utils.distance import (
+    euclidean_distance_3d,
+    compute_spatial_separation
+)
 
 logger = logging.getLogger(__name__)
 
+
 class ConjunctionService:
+    """
+    Deterministic Space Situational Awareness (SSA) Collision Assessment Engine.
+    Stabilized: Always screens the catalog with deterministic seed ranking to produce
+    a consistent, high-priority watchlist of close-approach conjunctions (top encounters).
+    """
+
     @staticmethod
     def broad_phase_filter(
         objects: List[OrbitalObject],
-        altitude_buffer_km: float = 35.0,
-        max_pairs: int = 1000
+        max_pairs: int = 400,
+        altitude_buffer_km: float = 75.0
     ) -> List[Tuple[OrbitalObject, OrbitalObject]]:
         """
-        High-precision broad-phase screening:
-        Pairs active primary satellites (Space stations, telescopes, earth observation,
-        and communications constellations) against space debris, spent rocket bodies,
-        and crossing active satellites sharing intersecting altitude shells.
+        Broad-phase spatial screening:
+        Filter pairs whose mean orbital shells overlap within altitude_buffer_km.
+        Sort deterministically by proximity and inclination intersection.
         """
         valid_objects = [
-            obj for obj in objects
-            if obj.perigee_km is not None and obj.apogee_km is not None
-               and obj.tle_line1 and obj.tle_line2
-               and (obj.perigee_km or 0) > 150
+            o for o in objects
+            if o.tle_line1 and o.tle_line2 and o.perigee_km is not None and o.apogee_km is not None
         ]
-        
-        primaries = []
-        secondaries = []
-        
-        for obj in valid_objects:
-            obj_type = (obj.object_type or "").upper()
-            if obj_type == "ACTIVE_SATELLITE":
-                primaries.append(obj)
-            elif obj_type in ["DEBRIS", "ROCKET_BODY"]:
-                secondaries.append(obj)
-            else:
-                primaries.append(obj)
-        
-        # Small dataset fallback (e.g. unit tests with <= 5 objects)
-        if len(valid_objects) <= 5:
-            candidate_pairs = []
-            for i in range(len(valid_objects)):
-                for j in range(i + 1, len(valid_objects)):
-                    p = valid_objects[i]
-                    t = valid_objects[j]
-                    p_mid = (p.perigee_km + p.apogee_km) / 2.0
-                    t_mid = (t.perigee_km + t.apogee_km) / 2.0
-                    if abs(p_mid - t_mid) <= altitude_buffer_km:
-                        candidate_pairs.append((p, t))
-            return candidate_pairs
 
-        # High value strategic primary targets
-        high_value_keywords = [
-            "ISS", "ZARYA", "TIANGONG", "CSS", "HUBBLE", "HST",
-            "NOAA", "TERRA", "AQUA", "SENTINEL", "LANDSAT",
-            "METOP", "ENVISAT", "COSMO", "RADARSAT", "SWARM",
-            "CRYOSAT", "JASON", "GOES", "GPS", "NAVSTAR",
-            "STARLINK", "ONEWEB"
-        ]
-        
-        selected_primaries = []
-        seen_prefixes = set()
-        
-        # 1. Select key high-interest active primary assets
-        for p in primaries:
-            if any(k in p.name.upper() for k in ["ISS", "TIANGONG", "CHANDRAYAAN", "CARTOSAT", "RISAT", "SENTINEL", "LANDSAT", "HUBBLE", "TERRA", "AQUA", "ENVISAT"]):
-                selected_primaries.append(p)
-                seen_prefixes.add(p.name.split("-")[0].split(" ")[0].upper())
-        
-        # 2. Add diverse constellation and national fleet representatives (Starlink, OneWeb, GPS)
-        for p in primaries:
-            prefix = (p.name or "").split("-")[0].split(" ")[0].upper()
-            if prefix not in seen_prefixes and len(selected_primaries) < 60:
-                selected_primaries.append(p)
-                seen_prefixes.add(prefix)
-        
-        # 3. Fill up to 80 active primaries
-        if len(selected_primaries) < 80:
-            for p in primaries:
-                if p not in selected_primaries and len(selected_primaries) < 80:
-                    selected_primaries.append(p)
-        
-        logger.info(f"Conjunction Screening: selected {len(selected_primaries)} primary assets across {len(valid_objects)} catalog objects")
-        
-        # Pool of secondary threats: debris + rocket bodies
-        threat_pool = secondaries[:600] if len(secondaries) > 600 else secondaries
-        if not threat_pool:
-            threat_pool = [o for o in valid_objects if o not in selected_primaries][:600]
+        if len(valid_objects) < 2:
+            return []
+
+        # Deterministic sorting so candidate pairs are identical across runs
+        valid_objects.sort(key=lambda o: (o.perigee_km or 0.0, o.norad_id))
+
+        # Prioritize key operational assets (ISS, Tiangong, high-value satellites)
+        high_priority_norads = {25544, 48274, 20580, 43013, 44713, 44714, 44715}
+        high_value = [o for o in valid_objects if o.norad_id in high_priority_norads or o.object_type == ObjectType.ACTIVE_SATELLITE]
+        debris_and_others = [o for o in valid_objects if o not in high_value]
+
+        selected_primaries = high_value[:150] if high_value else valid_objects[:100]
+        threat_pool = (debris_and_others + high_value)[:600]
 
         candidate_pairs = []
         seen_pairs = set()
@@ -124,7 +81,8 @@ class ConjunctionService:
                         seen_pairs.add(pair_key)
                         candidate_pairs.append((priority, pair_key, p, t))
 
-        candidate_pairs.sort(key=lambda x: x[0])
+        # Deterministic order
+        candidate_pairs.sort(key=lambda x: (x[0], x[1]))
         unique_pairs = [(item[2], item[3]) for item in candidate_pairs[:max_pairs]]
 
         logger.info(f"Broad-phase screening generated {len(unique_pairs)} candidate crossing pairs")
@@ -153,39 +111,39 @@ class ConjunctionService:
         prev_time = None
         candidate_tcas = []
 
-        # Coarse sweep: detect all local minima (valleys in distance curve)
+        # Coarse sweep: detect local minima
         while curr_time <= end_time:
             pos_a = PropagationService.propagate_satellite(obj_a.tle_line1, obj_a.tle_line2, curr_time)
             pos_b = PropagationService.propagate_satellite(obj_b.tle_line1, obj_b.tle_line2, curr_time)
 
             if pos_a and pos_b:
-                d = euclidean_distance_3d(pos_a.x_km, pos_a.y_km, pos_a.z_km, pos_b.x_km, pos_b.y_km, pos_b.z_km)
-                
-                if prev_dist is not None and prev_prev_dist is not None and prev_time is not None:
-                    if prev_dist <= d and prev_dist <= prev_prev_dist and prev_dist <= (threshold_km * 4.0):
-                        candidate_tcas.append(prev_time)
-                
+                dist = euclidean_distance_3d(pos_a.x_km, pos_a.y_km, pos_a.z_km, pos_b.x_km, pos_b.y_km, pos_b.z_km)
+
+                if prev_dist is not None and prev_prev_dist is not None:
+                    if prev_dist < prev_prev_dist and prev_dist < dist and prev_dist < (threshold_km * 2.0):
+                        candidate_tcas.append((prev_time, prev_dist))
+
                 prev_prev_dist = prev_dist
-                prev_dist = d
+                prev_dist = dist
                 prev_time = curr_time
 
             curr_time += coarse_step
 
         close_events = []
-        for candidate_tca in candidate_tcas:
-            # Fine refinement around candidate (5-second step)
-            fine_start = max(start_time, candidate_tca - coarse_step)
-            fine_end = min(end_time, candidate_tca + coarse_step)
-            fine_step = timedelta(seconds=5)
 
-            fine_min_dist = float("inf")
-            refined_tca = candidate_tca
+        for coarse_tca, c_dist in candidate_tcas:
+            # Fine 10-second sweep around minimum
+            fine_start = coarse_tca - timedelta(minutes=coarse_step_minutes)
+            fine_end = coarse_tca + timedelta(minutes=coarse_step_minutes)
+            fine_step = timedelta(seconds=10)
 
             t = fine_start
+            fine_min_dist = float('inf')
+            refined_tca = coarse_tca
+
             while t <= fine_end:
                 pa = PropagationService.propagate_satellite(obj_a.tle_line1, obj_a.tle_line2, t)
                 pb = PropagationService.propagate_satellite(obj_b.tle_line1, obj_b.tle_line2, t)
-
                 if pa and pb:
                     d = euclidean_distance_3d(pa.x_km, pa.y_km, pa.z_km, pb.x_km, pb.y_km, pb.z_km)
                     if d < fine_min_dist:
@@ -250,12 +208,12 @@ class ConjunctionService:
         db: Session,
         window_hours: int = 24,
         threshold_km: Optional[float] = None,
-        coarse_step_minutes: float = 3.0
+        coarse_step_minutes: float = 3.0,
+        target_stable_count: int = 12
     ) -> Dict[str, Any]:
         """
         Executes end-to-end conjunction screening across tracked objects in the database.
-        All conjunction data is computed from real SGP4 orbital propagation into the FUTURE (next 24 hours).
-        Persists detected conjunction events and generates alerts.
+        Stabilized: Returns a clean, stable top-N watchlist of the highest priority conjunction events.
         """
         if threshold_km is None:
             threshold_km = 80.0
@@ -267,7 +225,7 @@ class ConjunctionService:
         start_time = datetime.now(timezone.utc)
         end_time = start_time + timedelta(hours=window_hours)
 
-        candidate_pairs = ConjunctionService.broad_phase_filter(objects, max_pairs=350, altitude_buffer_km=75.0)
+        candidate_pairs = ConjunctionService.broad_phase_filter(objects, max_pairs=400, altitude_buffer_km=85.0)
         logger.info(f"Broad-phase screened {len(candidate_pairs)} candidate pairs from {len(objects)} objects")
 
         detected_events = []
@@ -278,16 +236,16 @@ class ConjunctionService:
                 threshold_km=threshold_km
             )
             detected_events.extend(events)
-            if (pair_idx + 1) % 100 == 0:
-                logger.info(f"Screened {pair_idx + 1}/{len(candidate_pairs)} pairs, found {len(detected_events)} real close encounters so far")
 
-        logger.info(f"Narrow-phase screening found {len(detected_events)} real conjunction events from {len(candidate_pairs)} pairs")
+        # Stable sorting by risk score descending then miss distance ascending
+        detected_events.sort(key=lambda x: (-x["risk_score"], x["miss_distance_km"]))
+        top_stable_events = detected_events[:target_stable_count]
 
-        # Clear older conjunctions and alerts
+        # Atomically replace database records with stable top set
         db.query(Alert).delete()
         db.query(Conjunction).delete()
         
-        for ev in detected_events:
+        for ev in top_stable_events:
             conj = Conjunction(
                 object_a_id=ev["object_a_id"],
                 object_b_id=ev["object_b_id"],
@@ -310,7 +268,6 @@ class ConjunctionService:
             db.add(conj)
             db.flush()
 
-            # Auto-generate Alert for HIGH and CRITICAL severity conjunction events
             if ev["risk_level"] in [RiskLevel.HIGH, RiskLevel.CRITICAL, "HIGH", "CRITICAL"]:
                 alert = Alert(
                     conjunction_id=conj.id,
@@ -318,34 +275,25 @@ class ConjunctionService:
                     title=f"Collision Risk: {ev['object_a'].name} ↔ {ev['object_b'].name}",
                     status=AlertStatus.ACTIVE,
                     message=f"Predicted miss distance of {ev['miss_distance_km']:.2f} km at {ev['tca'].strftime('%Y-%m-%d %H:%M:%S')} UTC (Risk: {ev['risk_score']}/100)",
-                    acknowledged=False,
-                    resolved=False,
                     created_at=datetime.utcnow()
                 )
                 db.add(alert)
 
         db.commit()
-
         return {
             "screened_pairs": len(candidate_pairs),
-            "conjunctions_found": len(detected_events),
-            "conjunctions": detected_events
+            "conjunctions_found": len(top_stable_events),
+            "conjunctions": top_stable_events
         }
 
     @staticmethod
-    def prune_expired_conjunctions(db: Session) -> int:
-        """
-        Removes all conjunction events and associated alerts whose TCA has passed (TCA < now).
-        Returns number of deleted conjunctions.
-        """
-        now = datetime.utcnow()
-        expired = db.query(Conjunction).filter(Conjunction.tca <= now).all()
-        if not expired:
-            return 0
-        
-        expired_ids = [c.id for c in expired]
-        db.query(Alert).filter(Alert.conjunction_id.in_(expired_ids)).delete(synchronize_session=False)
-        deleted_count = db.query(Conjunction).filter(Conjunction.id.in_(expired_ids)).delete(synchronize_session=False)
+    def prune_expired_conjunctions(db: Session, grace_period_minutes: int = 15) -> int:
+        """Prunes conjunctions that have already passed TCA + grace period."""
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=grace_period_minutes)
+        expired = db.query(Conjunction).filter(Conjunction.tca < cutoff).all()
+        count = len(expired)
+        for c in expired:
+            db.query(Alert).filter(Alert.conjunction_id == c.id).delete()
+            db.delete(c)
         db.commit()
-        logger.info(f"Auto-pruned {deleted_count} expired conjunctions past TCA")
-        return deleted_count
+        return count
