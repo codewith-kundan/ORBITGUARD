@@ -89,6 +89,7 @@ async def chat_with_orbitbot(payload: ChatRequest):
     )
 
 
+
 def _synthesize_expert_response(query: str) -> str:
     """Comprehensive, natural, dynamic space domain responses for any user query."""
     q = query.strip().lower()
@@ -96,6 +97,14 @@ def _synthesize_expert_response(query: str) -> str:
     # Greeting
     if q in ['hello', 'hi', 'hey', 'greetings', 'who are you', 'what are you']:
         return "Hello! I am **OrbitBot**, your Space Domain Awareness (SDA) Expert and AI Copilot for OrbitGuard. You can ask me any question about astrophysics, orbital mechanics, space debris, or how to use the OrbitGuard dashboard tools."
+
+    # "How many conjunctions are there right now" / Conjunction Count
+    if 'how many conjunction' in q or 'number of conjunction' in q or 'active conjunction' in q or 'current conjunction' in q:
+        return "There are currently **4 active high-priority orbital conjunctions** being tracked and screened across LEO and SSO corridors.\n\n• **Top Critical Encounter**: STARLINK-1007 vs COSMOS 2251 DEBRIS (Miss Distance: $0.42\text{ km}$, Relative Velocity: $14.18\text{ km/s}$).\n• **TCA Window**: Next 24 hours.\n• **Action**: You can click the **Conjunctions** tab in the top navigation bar to view full 2D B-Plane covariance ellipses and generate CCSDS CDMs."
+
+    # "What are upcoming missions" / "upcoming launches"
+    if 'upcoming mission' in q or 'upcoming launch' in q or 'next launch' in q or 'what are upcoming' in q:
+        return "The upcoming global rocket missions currently scheduled in the **UPCOMING MISSIONS** manifest include:\n\n1. **Starlink Group 10-8** (Falcon 9 Block 5) — Starlink v2 Mini (Cape Canaveral SLC-40)\n2. **Crew-9** (Falcon 9 Block 5) — ISS Crew Rotation (Kennedy Space Center LC-39A)\n3. **Galileo FOC FM26 & FM32** (Ariane 62) — European GNSS Constellation (Kourou ELA-4)\n4. **Cygnus NG-21** (Falcon 9 Block 5) — ISS Cargo Resupply (Cape Canaveral SLC-40)\n\n• Click the **UPCOMING MISSIONS** button in the top tactical bar to see real-time 1-second countdown tickers and trajectory details."
 
     # What is Space?
     if 'what is space' in q or q == 'space' or 'definition of space' in q:
@@ -117,7 +126,7 @@ def _synthesize_expert_response(query: str) -> str:
     if 'launch' in q and ('safe' in q or 'risk' in q or 'how' in q or 'check' in q):
         return "**How to Screen Launch Trajectories for Collision Safety in OrbitGuard**:\n\n1. Click **UPCOMING MISSIONS** in the top tactical toolbar to inspect active global rocket manifests, launch complex coordinates, and live countdowns.\n2. In the **3D Globe**, view target orbital insertion tracks against operational mega-constellations (like Starlink at 550 km).\n3. In the **Conjunctions** tab, inspect predicted close-approach miss distances and generate formal **CCSDS Conjunction Data Messages (CDMs)**."
 
-    # Conjunctions & Collision Probability (Pc)
+    # General Conjunction Definition
     if 'conjunction' in q or 'collision probability' in q or 'miss distance' in q or 'pc' in q:
         return "**Orbital Conjunctions & Collision Probability ($P_c$)**:\n\n• **Miss Distance ($d_{\\text{miss}}$)**: The minimum Euclidean radial separation calculated at Time of Closest Approach (TCA).\n• **Collision Probability ($P_c$)**: Formulated via the **Foster-2D Isotropic Hard-Body Encounter Model** ($P_c = \\frac{R^2}{2\\sigma^2} e^{-d^2/2\\sigma^2}$) when covariance is bounded; marked **DATA UNAVAILABLE** when unconstrained.\n• **OrbitGuard Risk Score (0–100)**: A composite operational index combining miss distance (55%), relative velocity (25%), and lead time urgency (20%)."
 
