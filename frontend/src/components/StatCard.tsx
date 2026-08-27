@@ -31,10 +31,10 @@ export const StatCard: React.FC<StatCardProps> = ({
   };
 
   return (
-    <div className="bg-space-900/80 border border-space-800 hover:border-space-700 rounded-xl p-5 backdrop-blur-md transition-all duration-200 shadow-xl relative overflow-hidden group">
+    <div className="glass-panel bg-space-dark/80 border border-space-border hover:border-cyan-400/50 rounded-xl p-5 backdrop-blur-md transition-all duration-300 shadow-xl relative overflow-hidden group shadow-cyan-inner hover:shadow-cyan-glow">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">{title}</span>
-        <div className={`p-2 rounded-lg border ${getGlow()}`}>
+        <span className="text-xs font-mono text-slate-300 uppercase tracking-wider font-semibold">{title}</span>
+        <div className={`p-2 rounded-lg border transition-all duration-300 ${getGlow()}`}>
           <Icon className="w-4 h-4" />
         </div>
       </div>

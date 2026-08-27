@@ -68,7 +68,7 @@ export default function App() {
   const [isReentryModalOpen, setIsReentryModalOpen] = useState<boolean>(false);
   const [isCDMModalOpen, setIsCDMModalOpen] = useState<boolean>(false);
   const [isUserGuideOpen, setIsUserGuideOpen] = useState<boolean>(() => {
-    return localStorage.getItem('orbitguard_user_guide_seen') !== 'true';
+    return localStorage.getItem('orbitguard_welcome_modal_stitch_v1') !== 'true';
   });
   const [overpassTargetObject, setOverpassTargetObject] = useState<OrbitalObject | null>(null);
   const [reentryTargetObject, setReentryTargetObject] = useState<OrbitalObject | null>(null);

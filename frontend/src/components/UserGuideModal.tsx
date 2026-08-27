@@ -249,7 +249,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
 
   const handleClose = () => {
     if (dontShowAgain) {
-      localStorage.setItem('orbitguard_user_guide_seen', 'true');
+      localStorage.setItem('orbitguard_welcome_modal_stitch_v1', 'true');
     }
     onClose(dontShowAgain);
   };
