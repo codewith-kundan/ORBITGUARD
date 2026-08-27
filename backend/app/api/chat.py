@@ -8,7 +8,8 @@ from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/chat", tags=["AI Copilot Chat Proxy"])
+# Supporting both /api/chat and /api/orbitbot for backward compatibility and clean API design
+router = APIRouter(tags=["AI Copilot Chat Proxy"])
 
 class ChatMessage(BaseModel):
     role: str  # "system" | "user" | "assistant"
@@ -27,32 +28,40 @@ class ChatResponse(BaseModel):
 ORBITBOT_SYSTEM_PROMPT = """You are OrbitBot, an intelligent Space Domain Awareness (SDA) Expert and the internal AI Navigation Copilot for OrbitGuard (https://orbitguard-six.vercel.app/).
 
 BEHAVIORAL RULES:
-1. ALWAYS answer the user's specific question dynamically and accurately.
-2. If asked about general space, science, or astrophysics, give a clear, direct, and engaging explanation.
-3. If asked about OrbitGuard, guide the user on how to use the 3D Radar, Speed Sliders (1x-1000x), Conjunction Hotspots, UPCOMING MISSIONS, or Citizen Sky Spotter.
+1. ALWAYS answer the user's specific question dynamically, directly, and accurately.
+2. When answering general space, astrophysics, satellite dynamics, or orbital mechanics questions, provide deep, engaging, and technically rigorous explanations.
+3. If asked about OrbitGuard platform features, explain how to navigate the tools:
+   - 3D Orbital Radar & Catalog Search (top-left dock)
+   - Dynamic Speed Multipliers (1x-1000x) & 24h Timeline Horizon Scrubber (bottom dock)
+   - Conjunction & Collision Screener (Conjunctions tab with 2D B-Plane covariance and TCA timers)
+   - UPCOMING MISSIONS live rocket manifest & launch countdowns
+   - Citizen Sky Spotter for naked-eye optical passes
+   - Atmospheric Re-entry & King-Hele decay predictions
 4. Keep responses structured, concise, and scannable with bold highlights and bullet points where helpful."""
 
-@router.post("", response_model=ChatResponse)
-async def chat_with_orbitbot(payload: ChatRequest):
+
+async def _handle_chat_logic(payload: ChatRequest) -> ChatResponse:
     """
-    Proxies user chat prompts with priority:
-    1. Google Gemini 1.5 Flash (100% Free API Key)
+    Handles user chat prompts with priority:
+    1. Google Gemini 2.5 Flash (gemini-2.5-flash) via Google AI Studio API
     2. OpenAI ChatGPT (gpt-4o-mini)
-    3. Built-in OrbitBot Astrodynamics Engine (Zero-cost fallback)
+    3. Built-in OrbitBot Astrodynamics Fallback
     """
     gemini_key = (os.getenv("GEMINI_API_KEY") or settings.GEMINI_API_KEY or "").strip().strip("'\"")
     openai_key = (os.getenv("OPENAI_API_KEY") or settings.OPENAI_API_KEY or "").strip().strip("'\"")
 
     last_user_msg = payload.messages[-1].content if payload.messages else ""
+    logger.info(f"[OrbitBot] Request received. Total messages: {len(payload.messages)}. Last query preview: {last_user_msg[:60]}...")
 
     # =========================================================================
-    # 1. GOOGLE GEMINI 1.5 FLASH (OFFICIAL REST API)
+    # 1. GOOGLE GEMINI 2.5 FLASH (gemini-2.5-flash)
     # =========================================================================
     if gemini_key:
         try:
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+            logger.info("[OrbitBot] Gemini request started (model: gemini-2.5-flash)...")
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}"
             
-            # Format contents array
+            # Format contents turns for Gemini API
             contents = []
             for msg in payload.messages:
                 role = "user" if msg.role == "user" else "model"
@@ -72,38 +81,38 @@ async def chat_with_orbitbot(payload: ChatRequest):
                 }
             }
 
-            async with httpx.AsyncClient(timeout=20.0) as client:
+            async with httpx.AsyncClient(timeout=25.0) as client:
                 resp = await client.post(gemini_url, json=req_body)
+                logger.info(f"[OrbitBot] Gemini response received. HTTP status: {resp.status_code}")
+
                 if resp.status_code == 200:
                     data = resp.json()
-                    bot_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                    return ChatResponse(
-                        response=bot_text,
-                        model="Gemini 1.5 Flash (Google AI)",
-                        status="LIVE_GEMINI"
-                    )
+                    candidates = data.get("candidates", [])
+                    if candidates and "content" in candidates[0]:
+                        parts = candidates[0]["content"].get("parts", [])
+                        if parts and "text" in parts[0]:
+                            bot_text = parts[0]["text"]
+                            logger.info("[OrbitBot] Gemini response successfully returned.")
+                            return ChatResponse(
+                                response=bot_text,
+                                model="Gemini 2.5 Flash (Google AI)",
+                                status="LIVE_GEMINI"
+                            )
                 else:
                     error_json = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
                     err_msg = error_json.get("error", {}).get("message", resp.text)
-                    logger.error(f"Gemini API Error {resp.status_code}: {err_msg}")
-                    return ChatResponse(
-                        response=f"Gemini API Error ({resp.status_code}): {err_msg}",
-                        model="Gemini Diagnostics",
-                        status="GEMINI_ERROR"
-                    )
+                    logger.error(f"[OrbitBot] Gemini API Error HTTP {resp.status_code}: {err_msg}")
+        except httpx.TimeoutException:
+            logger.error("[OrbitBot] Gemini API request timed out (25s limit).")
         except Exception as e:
-            logger.error(f"Gemini exception: {e}")
-            return ChatResponse(
-                response=f"Gemini Connection Error: {str(e)}",
-                model="Gemini Diagnostics",
-                status="GEMINI_ERROR"
-            )
+            logger.error(f"[OrbitBot] Gemini request exception: {e}")
 
     # =========================================================================
-    # 2. OPENAI CHATGPT (if configured)
+    # 2. OPENAI CHATGPT (gpt-4o-mini fallback if configured)
     # =========================================================================
     if openai_key:
         try:
+            logger.info("[OrbitBot] OpenAI request started (model: gpt-4o-mini)...")
             url = "https://api.openai.com/v1/chat/completions"
             headers = {
                 "Authorization": f"Bearer {openai_key}",
@@ -129,31 +138,38 @@ async def chat_with_orbitbot(payload: ChatRequest):
                 if resp.status_code == 200:
                     data = resp.json()
                     bot_text = data["choices"][0]["message"]["content"]
+                    logger.info("[OrbitBot] OpenAI response successfully returned.")
                     return ChatResponse(
                         response=bot_text,
                         model="gpt-4o-mini (OpenAI)",
                         status="LIVE_OPENAI"
                     )
                 else:
-                    err_msg = resp.text
-                    return ChatResponse(
-                        response=f"OpenAI Error ({resp.status_code}): {err_msg}",
-                        model="OpenAI Diagnostics",
-                        status="OPENAI_ERROR"
-                    )
+                    logger.error(f"[OrbitBot] OpenAI Error HTTP {resp.status_code}: {resp.text}")
         except Exception as e:
-            logger.error(f"OpenAI exception: {e}")
+            logger.error(f"[OrbitBot] OpenAI request exception: {e}")
 
     # =========================================================================
-    # 3. BUILT-IN ORBITBOT ASTRODYNAMICS ENGINE (Zero-cost fallback)
+    # 3. BUILT-IN ORBITBOT ENGINE (Friendly fallback)
     # =========================================================================
+    logger.info("[OrbitBot] Serving request via built-in OrbitBot SDA engine.")
     direct_reply = _answer_directly_without_templates(last_user_msg)
 
     return ChatResponse(
         response=direct_reply,
-        model="OrbitBot SDA Engine (Add GEMINI_API_KEY for Live AI)",
+        model="OrbitBot SDA Engine",
         status="ACTIVE"
     )
+
+
+@router.post("/api/chat", response_model=ChatResponse)
+async def chat_api_route(payload: ChatRequest):
+    return await _handle_chat_logic(payload)
+
+
+@router.post("/api/orbitbot", response_model=ChatResponse)
+async def orbitbot_api_route(payload: ChatRequest):
+    return await _handle_chat_logic(payload)
 
 
 def _answer_directly_without_templates(query: str) -> str:
@@ -190,10 +206,13 @@ def _answer_directly_without_templates(query: str) -> str:
     if 'kessler' in q:
         return "**Kessler Syndrome** is a cascading collision chain-reaction in Low Earth Orbit (LEO) where high-velocity fragmentation debris multiplies exponentially, eventually making whole orbital altitude bands (especially 700–900 km) unusable."
 
+    if 'conjunction' in q and ('how' in q or 'prediction' in q or 'work' in q or 'screen' in q):
+        return "**Conjunction Prediction Pipeline** in OrbitGuard:\n\n1. **Broad-Phase Spatial Filter**: Filters thousands of satellites into candidate pairs whose orbital altitude bands and inclination planes intersect.\n2. **Numerical SGP4 Propagation**: Propagates state vectors forward in time (up to 24–72 hours) with fine-step Golden-Section refinement to pinpoint the exact Time of Closest Approach (TCA).\n3. **Covariance & Probability**: Computes minimum 3D Euclidean miss distance, relative velocity vector, and collision probability via the **Foster-2D Isotropic Hard-Body Encounter Model**."
+
     if 'speed slider' in q or 'slider' in q or 'time control' in q:
         return "The **Speed Multiplier** (1x–1000x in the bottom dock) accelerates numerical SGP4 propagation forward in time so you can simulate future constellation motion and predict upcoming close-approach conjunctions."
 
     if 'launch' in q and ('safe' in q or 'risk' in q or 'how' in q):
         return "To screen launch trajectories: Click **UPCOMING MISSIONS** in the top bar, monitor target ascent corridors on the 3D globe against mega-constellations (like Starlink at 550 km), and inspect predicted miss distances in the **Conjunctions** tab."
 
-    return f"In orbital operations, space sustainability relies on continuous SGP4 ephemeris tracking, automated conjunction screening, and timely collision avoidance maneuvers. You can explore OrbitGuard's 3D Radar, Conjunction screener, and Sky Spotter to analyze live orbital data."
+    return "OrbitBot is ready to assist you. In orbital operations, space sustainability relies on continuous SGP4 ephemeris tracking, automated conjunction screening, and timely collision avoidance maneuvers. You can explore OrbitGuard's 3D Radar, Conjunction screener, and Sky Spotter to analyze live orbital data."

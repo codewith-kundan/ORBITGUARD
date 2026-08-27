@@ -97,8 +97,9 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
       const errorMsg: Message = {
         id: `ai-err-${Date.now()}`,
         sender: 'ai',
-        text: `Regarding "${userText}": I encountered a communication delay with the astrodynamics neural engine. You can monitor active conjunctions directly in the **Conjunctions** tab or search any satellite via NORAD ID in the **3D Globe**.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        text: 'OrbitBot is temporarily unavailable. Please try again.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        modelBadge: 'OrbitBot'
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {

@@ -411,21 +411,29 @@ export const api = {
     }
   },
 
-  // OrbitBot AI Copilot Chat Endpoint
+  // OrbitBot AI Copilot Chat Endpoint (routes to secure backend /api/orbitbot with failover)
   sendChatMessage: async (messages: { role: string; content: string }[]): Promise<{ response: string; model: string; status: string }> => {
     try {
-      return await request<{ response: string; model: string; status: string }>('/chat', {
+      // Primary route: /orbitbot
+      return await request<{ response: string; model: string; status: string }>('/orbitbot', {
         method: 'POST',
         body: JSON.stringify({ messages })
       });
     } catch (e) {
-      console.warn('Chat API failed, using client fallback:', e);
-      const lastMsg = messages[messages.length - 1]?.content || '';
-      return {
-        response: `Regarding "${lastMsg}": OrbitGuard continuously calculates SGP4 state vectors, Time of Closest Approach (TCA), and B-plane covariance ellipses. (Connect OPENAI_API_KEY in backend environment to enable full live ChatGPT processing).`,
-        model: 'OrbitBot Client Fallback',
-        status: 'CLIENT_FALLBACK'
-      };
+      try {
+        // Fallback route: /chat
+        return await request<{ response: string; model: string; status: string }>('/chat', {
+          method: 'POST',
+          body: JSON.stringify({ messages })
+        });
+      } catch (err) {
+        console.warn('OrbitBot API call failed, using client fallback:', err);
+        return {
+          response: 'OrbitBot is temporarily unavailable. Please try again in a few moments.',
+          model: 'OrbitBot Service',
+          status: 'UNAVAILABLE'
+        };
+      }
     }
   },
 
