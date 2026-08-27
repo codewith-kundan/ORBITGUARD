@@ -27,10 +27,10 @@ class ChatResponse(BaseModel):
 ORBITBOT_SYSTEM_PROMPT = """You are OrbitBot, an intelligent Space Domain Awareness (SDA) Expert and the internal AI Navigation Copilot for OrbitGuard (https://orbitguard-six.vercel.app/).
 
 BEHAVIORAL RULES:
-1. ALWAYS answer the specific question asked dynamically and directly (e.g. if asked 'what is astrophysics?', explain astrophysics clearly and accurately without preamble).
-2. When asked about OrbitGuard features, explain how to navigate the platform using tools like the 3D Radar (top-left search/fleet dock), Speed Slider (1x-1000x in bottom time control dock), Conjunction / Collision Screener (Conjunctions tab with 2D B-Plane covariance), UPCOMING MISSIONS live rocket manifest, and Citizen Sky Spotter.
-3. Keep answers concise, scannable, engaging, and structured with bold highlights and bullet points when explaining multi-step workflows.
-4. If the user asks about active conjunctions or collision avoidance maneuvers (CAM), provide precise orbital mechanics guidance (e.g. burns 1.5 orbits prior to TCA at nodal lines)."""
+1. ALWAYS answer the user's specific question dynamically and accurately.
+2. If asked about general space, science, or astrophysics, give a clear, direct, and engaging explanation.
+3. If asked about OrbitGuard, guide the user on how to use the 3D Radar, Speed Sliders (1x-1000x), Conjunction Hotspots, UPCOMING MISSIONS, or Citizen Sky Spotter.
+4. Keep responses structured, concise, and scannable with bold highlights and bullet points where helpful."""
 
 @router.post("", response_model=ChatResponse)
 async def chat_with_orbitbot(payload: ChatRequest):
@@ -46,62 +46,58 @@ async def chat_with_orbitbot(payload: ChatRequest):
     last_user_msg = payload.messages[-1].content if payload.messages else ""
 
     # =========================================================================
-    # 1. GOOGLE GEMINI (100% FREE TIER - v1beta & v1 endpoints)
+    # 1. GOOGLE GEMINI 1.5 FLASH (OFFICIAL REST API)
     # =========================================================================
     if gemini_key:
-        # Try gemini-1.5-flash first, then fallback to gemini-pro if needed
-        for model_name in ["gemini-1.5-flash", "gemini-pro"]:
-            try:
-                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
-                
-                # Format conversation turns for Gemini
-                gemini_contents = []
-                for msg in payload.messages:
-                    role_mapped = "user" if msg.role == "user" else "model"
-                    gemini_contents.append({
-                        "role": role_mapped,
-                        "parts": [{"text": msg.content}]
-                    })
+        try:
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+            
+            # Format contents array
+            contents = []
+            for msg in payload.messages:
+                role = "user" if msg.role == "user" else "model"
+                contents.append({
+                    "role": role,
+                    "parts": [{"text": msg.content}]
+                })
 
-                gemini_body: Dict[str, Any] = {
-                    "contents": gemini_contents,
-                    "generationConfig": {
-                        "temperature": payload.temperature or 0.7,
-                        "maxOutputTokens": payload.max_tokens or 800
-                    }
+            req_body = {
+                "system_instruction": {
+                    "parts": [{"text": ORBITBOT_SYSTEM_PROMPT}]
+                },
+                "contents": contents,
+                "generationConfig": {
+                    "temperature": payload.temperature or 0.7,
+                    "maxOutputTokens": payload.max_tokens or 800
                 }
-                
-                # system_instruction is supported in 1.5
-                if "1.5" in model_name:
-                    gemini_body["system_instruction"] = {
-                        "parts": [{"text": ORBITBOT_SYSTEM_PROMPT}]
-                    }
+            }
 
-                async with httpx.AsyncClient(timeout=25.0) as client:
-                    resp = await client.post(gemini_url, json=gemini_body)
-                    logger.info(f"Gemini {model_name} response status: {resp.status_code}")
-                    
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        candidates = data.get("candidates", [])
-                        if candidates and "content" in candidates[0]:
-                            bot_text = candidates[0]["content"]["parts"][0]["text"]
-                            return ChatResponse(
-                                response=bot_text,
-                                model="Gemini 1.5 Flash (Google AI)",
-                                status="LIVE_GEMINI"
-                            )
-                    else:
-                        logger.warning(f"Gemini {model_name} returned {resp.status_code}: {resp.text}")
-                        # If invalid key or quota, return informative diagnostic
-                        if resp.status_code in (400, 403, 429):
-                            return ChatResponse(
-                                response=f"Google Gemini API Notice ({resp.status_code}): {resp.json().get('error', {}).get('message', resp.text)}",
-                                model="Google AI Diagnostics",
-                                status="GEMINI_ERROR"
-                            )
-            except Exception as e:
-                logger.error(f"Gemini {model_name} invocation error: {e}")
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                resp = await client.post(gemini_url, json=req_body)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    bot_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    return ChatResponse(
+                        response=bot_text,
+                        model="Gemini 1.5 Flash (Google AI)",
+                        status="LIVE_GEMINI"
+                    )
+                else:
+                    error_json = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                    err_msg = error_json.get("error", {}).get("message", resp.text)
+                    logger.error(f"Gemini API Error {resp.status_code}: {err_msg}")
+                    return ChatResponse(
+                        response=f"Gemini API Error ({resp.status_code}): {err_msg}",
+                        model="Gemini Diagnostics",
+                        status="GEMINI_ERROR"
+                    )
+        except Exception as e:
+            logger.error(f"Gemini exception: {e}")
+            return ChatResponse(
+                response=f"Gemini Connection Error: {str(e)}",
+                model="Gemini Diagnostics",
+                status="GEMINI_ERROR"
+            )
 
     # =========================================================================
     # 2. OPENAI CHATGPT (if configured)
@@ -118,7 +114,7 @@ async def chat_with_orbitbot(payload: ChatRequest):
             for msg in payload.messages:
                 api_messages.append({"role": msg.role, "content": msg.content})
 
-            async with httpx.AsyncClient(timeout=25.0) as client:
+            async with httpx.AsyncClient(timeout=20.0) as client:
                 resp = await client.post(
                     url,
                     headers=headers,
@@ -139,9 +135,14 @@ async def chat_with_orbitbot(payload: ChatRequest):
                         status="LIVE_OPENAI"
                     )
                 else:
-                    logger.warning(f"OpenAI error {resp.status_code}: {resp.text}")
+                    err_msg = resp.text
+                    return ChatResponse(
+                        response=f"OpenAI Error ({resp.status_code}): {err_msg}",
+                        model="OpenAI Diagnostics",
+                        status="OPENAI_ERROR"
+                    )
         except Exception as e:
-            logger.error(f"OpenAI API call failed: {e}")
+            logger.error(f"OpenAI exception: {e}")
 
     # =========================================================================
     # 3. BUILT-IN ORBITBOT ASTRODYNAMICS ENGINE (Zero-cost fallback)
@@ -150,7 +151,7 @@ async def chat_with_orbitbot(payload: ChatRequest):
 
     return ChatResponse(
         response=direct_reply,
-        model="OrbitBot SDA Engine",
+        model="OrbitBot SDA Engine (Add GEMINI_API_KEY for Live AI)",
         status="ACTIVE"
     )
 
@@ -161,6 +162,9 @@ def _answer_directly_without_templates(query: str) -> str:
 
     if any(g in q for g in ['hello', 'hi', 'hey', 'heello', 'hlo', 'greetings']):
         return "Hello! I am **OrbitBot**, your Space Domain Awareness (SDA) Expert. How can I assist you with orbital mechanics, satellite tracking, or navigating OrbitGuard today?"
+
+    if 'speed of light' in q:
+        return "The **speed of light in a vacuum** is exactly **$299,792,458\\text{ meters per second}$** ($~300,000\\text{ km/s}$ or $~186,282\\text{ miles/s}$), denoted by the constant $c$. In space communications, light takes $~1.3\\text{ seconds}$ to reach the Moon and $~8.3\\text{ minutes}$ to reach Earth from the Sun."
 
     if 'who are you' in q or 'how are you responding' in q or 'what is your name' in q:
         return "I am **OrbitBot**, the built-in astrodynamics copilot for OrbitGuard. I synthesize orbital physics (SGP4 propagation, WGS-84 coordinate transforms, Foster-2D collision probability) and direct platform telemetry into real-time operational guidance."
