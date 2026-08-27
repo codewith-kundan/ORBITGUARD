@@ -50,6 +50,7 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
   isScreening
 }) => {
   const [riskFilter, setRiskFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentTimeMs, setCurrentTimeMs] = useState<number>(Date.now());
 
   // Dynamic 1-second interval keeps countdown live and ensures events stay until completed
@@ -60,16 +61,26 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Filter out expired conjunctions and sort chronologically (soonest TCA first)
+  // Filter conjunctions and sort chronologically (soonest TCA first)
   const validUpcoming = conjunctions
     .map(c => ({
       ...c,
       _tcaMs: parseUtcDate(c.tca)
     }))
     .filter(c => {
-      // Stay visible until encounter time has passed
-      if (c._tcaMs <= currentTimeMs) return false;
+      // Keep events visible during monitoring (up to 30 min post TCA)
+      if (c._tcaMs <= currentTimeMs - 30 * 60 * 1000) return false;
       if (riskFilter !== 'ALL' && c.risk_level !== riskFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const nameA = (c.object_a?.name || '').toLowerCase();
+        const nameB = (c.object_b?.name || '').toLowerCase();
+        const idA = (c.object_a?.norad_id || c.object_a_id || '').toString();
+        const idB = (c.object_b?.norad_id || c.object_b_id || '').toString();
+        if (!nameA.includes(q) && !nameB.includes(q) && !idA.includes(q) && !idB.includes(q)) {
+          return false;
+        }
+      }
       return true;
     })
     .sort((a, b) => a._tcaMs - b._tcaMs);
@@ -104,13 +115,22 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
                 </span>
               </h2>
               <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
-                Real-Time SGP4 Encounters • Sorted Chronologically in Ascending Order
+                Real-Time SGP4 Close Approaches • Filter by Risk Severity or Asset Name
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Search bar */}
+          <input
+            type="text"
+            placeholder="Search Starlink, Cosmos, ISS..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="bg-space-950 border border-space-800 rounded-xl px-3 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 w-44 sm:w-56"
+          />
+
           {/* Risk Level Tabs */}
           <div className="flex items-center gap-1 bg-space-950 p-1 rounded-xl border border-space-800 text-xs">
             {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((lvl) => (
@@ -133,10 +153,10 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
             <button
               onClick={onScreenNew}
               disabled={isScreening}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-neon border border-cyan-500/40 rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-neon border border-cyan-500/40 rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isScreening ? 'animate-spin' : ''}`} />
-              <span>{isScreening ? 'SCREENING...' : 'RUN CONJUNCTION SCREEN'}</span>
+              <span>{isScreening ? 'SCREENING...' : 'RUN SCREENING'}</span>
             </button>
           )}
         </div>

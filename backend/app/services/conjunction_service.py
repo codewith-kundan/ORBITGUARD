@@ -209,14 +209,14 @@ class ConjunctionService:
         window_hours: int = 24,
         threshold_km: Optional[float] = None,
         coarse_step_minutes: float = 3.0,
-        target_stable_count: int = 12
+        target_stable_count: int = 48
     ) -> Dict[str, Any]:
         """
         Executes end-to-end conjunction screening across tracked objects in the database.
-        Stabilized: Returns a clean, stable top-N watchlist of the highest priority conjunction events.
+        Stabilized: Returns a clean, extensive watchlist of the highest priority conjunction events.
         """
         if threshold_km is None:
-            threshold_km = 80.0
+            threshold_km = 120.0
 
         objects = db.query(OrbitalObject).all()
         if len(objects) < 2:
@@ -225,7 +225,7 @@ class ConjunctionService:
         start_time = datetime.now(timezone.utc)
         end_time = start_time + timedelta(hours=window_hours)
 
-        candidate_pairs = ConjunctionService.broad_phase_filter(objects, max_pairs=400, altitude_buffer_km=85.0)
+        candidate_pairs = ConjunctionService.broad_phase_filter(objects, max_pairs=800, altitude_buffer_km=110.0)
         logger.info(f"Broad-phase screened {len(candidate_pairs)} candidate pairs from {len(objects)} objects")
 
         detected_events = []
