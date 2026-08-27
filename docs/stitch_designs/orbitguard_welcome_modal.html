@@ -1,0 +1,191 @@
+Title: Live Content
+
+Description: Fetched live
+
+Source: https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sXzAwMDY1YTBhZWQ1ZjZiNjgwN2M0ZWI1NDc1MWI2ZDYxEgsSBxCdlfX3zRAYAZIBJAoKcHJvamVjdF9pZBIWQhQxMzA3OTgwMzA0NDU2MzQ4MTUxOQ&filename=&opi=89354086
+
+---
+
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OrbitGuard - Welcome Guide</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'space-dark': '#0a1128',
+            'space-blue': '#1a2b4c',
+            'space-cyan': '#00f2ff',
+            'space-cyan-glow': 'rgba(0, 242, 255, 0.4)',
+            'space-border': '#2d4b73',
+          },
+          fontFamily: {
+            sans: ['Inter', 'Roboto', 'sans-serif'],
+          },
+          boxShadow: {
+            'cyan-glow': '0 0 15px rgba(0, 242, 255, 0.3)',
+            'cyan-inner': 'inset 0 0 10px rgba(0, 242, 255, 0.2)',
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-utilities">@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+body {
+    background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuCiy2hSsV48jeKWJWjMqzFFegwVS5NR0aKrrKAz7lFpQ7ZkN8995mUZ0VezyAGPfBK1aB67ITakD3sUGxf_q2M-0DqTuOqGshrxsELy3OtuH4lqP98VPDYiTLK3xGzWfJfe_iFwY6358iFALGpF0Qt00gEiSaTaJPeLMPDGv1cxOpBVXjq3jSURbNAj7BrnGSbq8xmcLnyQP8fvP_NoHOdtdkQYGzbTA0MlNiWbFcZ2hi2-wpIzDgJJEQ);
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed
+    }
+.glass-panel {
+    background: rgba(10, 17, 40, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px)
+    }
+.progress-segment {
+    flex: 1;
+    height: 4px;
+    background-color: #2d4b73;
+    border-radius: 2px;
+    margin: 0 2px
+    }
+.progress-segment.active {
+    background-color: #00f2ff;
+    box-shadow: 0 0 8px #00f2ff
+    }
+.nav-tab {
+    color: #8fa3c0;
+    position: relative;
+    padding-bottom: 8px;
+    transition: color 0.3s ease
+    }
+.nav-tab:hover {
+    color: #e2e8f0
+    }
+.nav-tab.active {
+    color: #00f2ff
+    }
+.nav-tab.active::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: #00f2ff;
+    box-shadow: 0 0 8px #00f2ff
+    }
+.custom-checkbox {
+    appearance: none;
+    background-color: transparent;
+    margin: 0;
+    font: inherit;
+    color: currentColor;
+    width: 1.15em;
+    height: 1.15em;
+    border: 1px solid #2d4b73;
+    border-radius: 0.15em;
+    display: grid;
+    place-content: center
+    }
+.custom-checkbox::before {
+    content: "";
+    width: 0.65em;
+    height: 0.65em;
+    transform: scale(0);
+    transition: 120ms transform ease-in-out;
+    box-shadow: inset 1em 1em #00f2ff;
+    background-color: #00f2ff;
+    transform-origin: bottom left;
+    clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%)
+    }
+.custom-checkbox:checked::before {
+    transform: scale(1)
+    }
+.custom-checkbox:checked {
+    border-color: #00f2ff
+    }</style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 font-sans text-white">
+<!-- BEGIN: Main Modal Container -->
+<main class="w-full max-w-4xl glass-panel rounded-2xl border border-space-border shadow-2xl overflow-hidden flex flex-col relative z-10">
+<!-- BEGIN: Header Section -->
+<header class="pt-8 px-8 pb-4">
+<!-- Progress Bar -->
+<div class="flex items-center justify-center mb-6">
+<div class="flex items-center w-full max-w-lg">
+<div class="progress-segment active"></div>
+<div class="progress-segment active"></div>
+<div class="progress-segment active"></div>
+<div class="progress-segment"></div>
+<div class="progress-segment"></div>
+<div class="progress-segment"></div>
+</div>
+<span class="ml-4 text-sm text-gray-400 whitespace-nowrap">Step 3 of 6</span>
+</div>
+<!-- Navigation Tabs -->
+<nav class="flex justify-between items-center border-b border-space-border pb-1">
+<a class="nav-tab text-sm font-medium" href="#">Welcome</a>
+<a class="nav-tab text-sm font-medium" href="#">Conjunction</a>
+<a class="nav-tab text-sm font-medium active" href="#">3D</a>
+<a class="nav-tab text-sm font-medium" href="#">2D</a>
+<a class="nav-tab text-sm font-medium" href="#">Conjunction (Analysis)</a>
+<a class="nav-tab text-sm font-medium" href="#">NASA</a>
+</nav>
+</header>
+<!-- END: Header Section -->
+<!-- BEGIN: Content Section -->
+<section class="flex-grow px-8 py-4 flex flex-col items-center">
+<div class="w-full text-left mb-6">
+<h1 class="text-3xl font-bold tracking-wide mb-6">IMMERSIVE 3D VISUALIZATION</h1>
+<p class="text-gray-300 text-base max-w-2xl leading-relaxed">
+          Users can rotate, zoom, and track satellites in real-time within a 3D space, providing a comprehensive view of the orbital environment.
+        </p>
+</div>
+<!-- Central Earth Visualization Image -->
+<div class="w-full max-w-2xl h-64 md:h-80 relative mb-8 rounded-lg overflow-hidden border border-space-border/50">
+<!-- Using a placeholder for the 3D earth visualization -->
+<img alt="3D Earth Visualization with Satellites" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCoLSvRgedntD9DWHexRsnpHRRXqN74MpEDrqzG52C3KzKYfh-H_rGIp4N95fNd-HuyPGgKX2cPcfzcmxyb-UmEjlouVc-nd7Kfvp-VpLJpPJ56oD-kXZ8XDSNHvQHqOrsIQn90iAnegBC4JpkWoG4TU3fHEsPG9FMXr6DI3v1cP0v1sd8-TkSG3ege22e0c7r8RcUrJDoQQyM8gIPuX2R43y1pT9YwUnSLdFuwcn-AJFzsCLoRkZD1Gw"/>
+</div>
+<!-- Action Cards -->
+<div class="w-full flex flex-col md:flex-row gap-6 justify-center">
+<!-- Card 1 -->
+<button class="flex-1 bg-space-blue/50 border border-space-cyan/40 rounded-xl p-5 flex items-center gap-4 hover:bg-space-blue hover:border-space-cyan transition-all shadow-cyan-inner group cursor-pointer text-left">
+<div class="w-12 h-12 rounded-lg border border-space-cyan/50 flex items-center justify-center bg-space-dark/50 group-hover:shadow-cyan-glow transition-all">
+<!-- Joystick Icon Placeholder -->
+<svg class="w-6 h-6 text-space-cyan" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 11V7a4 4 0 10-8 0v4M4 11h16v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><circle cx="12" cy="7" fill="currentColor" r="2"></circle></svg>
+</div>
+<span class="font-semibold text-lg text-white">Interactive Camera</span>
+</button>
+<!-- Card 2 -->
+<button class="flex-1 bg-space-blue/50 border border-space-cyan/40 rounded-xl p-5 flex items-center gap-4 hover:bg-space-blue hover:border-space-cyan transition-all shadow-cyan-inner group cursor-pointer text-left">
+<div class="w-12 h-12 rounded-lg border border-space-cyan/50 flex items-center justify-center bg-space-dark/50 group-hover:shadow-cyan-glow transition-all">
+<!-- Trajectory Icon Placeholder -->
+<svg class="w-6 h-6 text-space-cyan" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 21c3-8 8-12 18-12m0 0v5m0-5h-5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><circle cx="3" cy="21" fill="currentColor" r="1"></circle></svg>
+</div>
+<span class="font-semibold text-lg text-white">Trajectory Prediction</span>
+</button>
+</div>
+</section>
+<!-- END: Content Section -->
+<!-- BEGIN: Footer Section -->
+<footer class="px-8 py-6 flex justify-between items-center mt-auto">
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="custom-checkbox" type="checkbox"/>
+<span class="text-gray-300 text-sm group-hover:text-white transition-colors">Don't show this guide on startup</span>
+</label>
+<button class="bg-space-cyan text-space-dark font-bold py-2.5 px-6 rounded-full flex items-center gap-2 hover:bg-white hover:shadow-cyan-glow transition-all duration-300">
+        Next
+        <svg class="w-6 h-6 text-space-cyan" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 21c3-8 8-12 18-12m0 0v5m0-5h-5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><circle cx="3" cy="21" fill="currentColor" r="1"></circle></svg>
+</button>
+</footer>
+<!-- END: Footer Section -->
+</main>
+<!-- END: Main Modal Container -->
+</body></html>
+
