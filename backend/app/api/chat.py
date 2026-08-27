@@ -5,6 +5,9 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 from fastapi import APIRouter
 from backend.app.config import settings
+from backend.app.models.base import SessionLocal
+from backend.app.models.orbital_object import OrbitalObject, ObjectType
+from backend.app.models.conjunction import Conjunction
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +32,47 @@ ORBITBOT_SYSTEM_PROMPT = """You are OrbitBot, an intelligent Space Domain Awaren
 
 BEHAVIORAL RULES:
 1. ALWAYS answer the user's specific question dynamically, directly, and accurately.
-2. When answering general space, astrophysics, satellite dynamics, or orbital mechanics questions, provide deep, engaging, and technically rigorous explanations.
-3. If asked about OrbitGuard platform features, explain how to navigate the tools:
+2. Ground all platform and conjunction answers in the live metrics provided in this prompt.
+3. When answering general space, astrophysics, satellite dynamics, or orbital mechanics questions, provide deep, engaging, and technically rigorous explanations.
+4. If asked about OrbitGuard platform features, explain how to navigate the tools:
    - 3D Orbital Radar & Catalog Search (top-left dock)
    - Dynamic Speed Multipliers (1x-1000x) & 24h Timeline Horizon Scrubber (bottom dock)
    - Conjunction & Collision Screener (Conjunctions tab with 2D B-Plane covariance and TCA timers)
    - UPCOMING MISSIONS live rocket manifest & launch countdowns
    - Citizen Sky Spotter for naked-eye optical passes
    - Atmospheric Re-entry & King-Hele decay predictions
-4. Keep responses structured, concise, and scannable with bold highlights and bullet points where helpful."""
+5. Keep responses structured, concise, and scannable with bold highlights and bullet points where helpful."""
+
+
+def _get_live_platform_context() -> str:
+    """Retrieves real-time database statistics and active conjunctions to ground OrbitBot."""
+    try:
+        db = SessionLocal()
+        try:
+            total_objs = db.query(OrbitalObject).count()
+            active_sats = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE).count()
+            debris_cnt = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).count()
+            rocket_cnt = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).count()
+            
+            top_conjs = db.query(Conjunction).order_by(Conjunction.risk_score.desc()).limit(5).all()
+            conj_summary = []
+            for c in top_conjs:
+                name_a = c.object_a.name if c.object_a else "Unknown"
+                name_b = c.object_b.name if c.object_b else "Unknown"
+                tca_str = c.time_of_closest_approach.isoformat() if c.time_of_closest_approach else "N/A"
+                conj_summary.append(f"• **{name_a}** vs **{name_b}** — Miss: **{c.miss_distance_km:.2f} km**, Relative Velocity: **{c.relative_velocity_km_s:.2f} km/s**, TCA: `{tca_str} UTC`, Risk: **{c.risk_score:.0f}/100** ({c.severity})")
+            
+            ctx = f"\n\nCURRENT PLATFORM GROUND-TRUTH TELEMETRY:\n• Total Tracked Cataloged Objects: {total_objs:,} (Active: {active_sats:,}, Debris: {debris_cnt:,}, Rocket Bodies: {rocket_cnt:,})\n"
+            if conj_summary:
+                ctx += "• Current Top Screened Conjunctions:\n" + "\n".join(conj_summary)
+            else:
+                ctx += "• Current Conjunctions: Nominal (No critical keep-out violations in current window)."
+            return ctx
+        finally:
+            db.close()
+    except Exception as e:
+        logger.debug(f"Failed to fetch live context for OrbitBot: {e}")
+        return ""
 
 
 async def _handle_chat_logic(payload: ChatRequest) -> ChatResponse:
@@ -52,6 +87,9 @@ async def _handle_chat_logic(payload: ChatRequest) -> ChatResponse:
 
     last_user_msg = payload.messages[-1].content if payload.messages else ""
     logger.info(f"[OrbitBot] Request received. Total messages: {len(payload.messages)}. Last query preview: {last_user_msg[:60]}...")
+
+    live_context = _get_live_platform_context()
+    dynamic_system_prompt = ORBITBOT_SYSTEM_PROMPT + live_context
 
     # =========================================================================
     # 1. GOOGLE GEMINI 2.5 FLASH (gemini-2.5-flash)
@@ -72,7 +110,7 @@ async def _handle_chat_logic(payload: ChatRequest) -> ChatResponse:
 
             req_body = {
                 "system_instruction": {
-                    "parts": [{"text": ORBITBOT_SYSTEM_PROMPT}]
+                    "parts": [{"text": dynamic_system_prompt}]
                 },
                 "contents": contents,
                 "generationConfig": {
@@ -119,7 +157,7 @@ async def _handle_chat_logic(payload: ChatRequest) -> ChatResponse:
                 "Content-Type": "application/json"
             }
 
-            api_messages = [{"role": "system", "content": ORBITBOT_SYSTEM_PROMPT}]
+            api_messages = [{"role": "system", "content": dynamic_system_prompt}]
             for msg in payload.messages:
                 api_messages.append({"role": msg.role, "content": msg.content})
 
@@ -150,10 +188,10 @@ async def _handle_chat_logic(payload: ChatRequest) -> ChatResponse:
             logger.error(f"[OrbitBot] OpenAI request exception: {e}")
 
     # =========================================================================
-    # 3. BUILT-IN ORBITBOT ENGINE (Friendly fallback)
+    # 3. BUILT-IN ORBITBOT ENGINE (Astrodynamics Fallback)
     # =========================================================================
     logger.info("[OrbitBot] Serving request via built-in OrbitBot SDA engine.")
-    direct_reply = _answer_directly_without_templates(last_user_msg)
+    direct_reply = _answer_directly_without_templates(last_user_msg, live_context)
 
     return ChatResponse(
         response=direct_reply,
@@ -172,27 +210,18 @@ async def orbitbot_api_route(payload: ChatRequest):
     return await _handle_chat_logic(payload)
 
 
-def _answer_directly_without_templates(query: str) -> str:
-    """Direct answers for space and OrbitGuard queries."""
+def _answer_directly_without_templates(query: str, live_context: str = "") -> str:
+    """Direct answers for space and OrbitGuard queries grounded in live context when applicable."""
     q = query.strip().lower()
 
     if any(g in q for g in ['hello', 'hi', 'hey', 'heello', 'hlo', 'greetings']):
         return "Hello! I am **OrbitBot**, your Space Domain Awareness (SDA) Expert. How can I assist you with orbital mechanics, satellite tracking, or navigating OrbitGuard today?"
 
-    if 'speed of light' in q:
-        return "The **speed of light in a vacuum** is exactly **$299,792,458\\text{ meters per second}$** ($~300,000\\text{ km/s}$ or $~186,282\\text{ miles/s}$), denoted by the constant $c$. In space communications, light takes $~1.3\\text{ seconds}$ to reach the Moon and $~8.3\\text{ minutes}$ to reach Earth from the Sun."
-
-    if 'who are you' in q or 'how are you responding' in q or 'what is your name' in q:
-        return "I am **OrbitBot**, the built-in astrodynamics copilot for OrbitGuard. I synthesize orbital physics (SGP4 propagation, WGS-84 coordinate transforms, Foster-2D collision probability) and direct platform telemetry into real-time operational guidance."
-
-    if 'astrophysics' in q:
-        return "**Astrophysics** is the branch of space science that applies the laws of physics and chemistry to explain the birth, life, and death of stars, planets, galaxies, nebulae, and other objects in the universe. In satellite operations, astrophysics informs orbital mechanics, gravitational field harmonics ($J_2\\text{--}J_4$), and solar radiation pressure modeling."
-
-    if 'debris' in q or 'space junk' in q:
-        return "**Space Debris** consists of defunct human-made objects in orbit—non-functional satellites, spent upper stages, and fragmentation debris. Traveling at hypervelocities (~7–14 km/s), even millimeter-sized particles pose critical puncture risks to operational spacecraft. In OrbitGuard, toggle **Debris Clouds** in the left dock to inspect tracked debris fields."
-
-    if 'how many conjunction' in q or 'number of conjunction' in q or 'active conjunction' in q or 'current conjunction' in q:
-        return "There are currently **4 active high-priority orbital conjunctions** being tracked and screened across LEO and SSO corridors.\n\n• **Top Critical Encounter**: STARLINK-1007 vs COSMOS 2251 DEBRIS ($0.42\\text{ km}$, $14.18\\text{ km/s}$).\n• **TCA Window**: Next 24 hours.\n• Click the **Conjunctions** tab in the top navigation bar to view full 2D B-Plane covariance ellipses and generate CCSDS CDMs."
+    if 'how many' in q or 'active conjunction' in q or 'current conjunction' in q or 'highest risk' in q or 'top threat' in q:
+        if live_context and "CURRENT PLATFORM GROUND-TRUTH TELEMETRY:" in live_context:
+            clean_ctx = live_context.replace("CURRENT PLATFORM GROUND-TRUTH TELEMETRY:\n", "").strip()
+            return f"Here is the latest live Space Situational Awareness status from OrbitGuard's database:\n\n{clean_ctx}\n\n• You can inspect any encounter on the 3D globe or click **Conjunctions** in the top navigation bar for detailed 2D B-Plane covariance ellipses and CAM burn planning."
+        return "OrbitGuard is actively screening 32,000+ cataloged objects for close orbital encounters over a 24-hour lookahead window. Click the **Conjunctions** tab in the top navigation bar to view live miss distances, relative velocities, and TCA countdown clocks."
 
     if 'upcoming mission' in q or 'upcoming launch' in q or 'next launch' in q or 'what are upcoming' in q:
         return "The upcoming global rocket missions currently scheduled in the **UPCOMING MISSIONS** manifest include:\n\n1. **Starlink Group 10-8** (Falcon 9 Block 5) — Cape Canaveral SLC-40\n2. **Crew-9** (Falcon 9 Block 5) — Kennedy Space Center LC-39A\n3. **Galileo FOC FM26 & FM32** (Ariane 62) — Kourou ELA-4\n4. **Cygnus NG-21** (Falcon 9 Block 5) — Cape Canaveral SLC-40\n\n• Click **UPCOMING MISSIONS** in the top tactical bar to see real-time 1-second countdown tickers."
