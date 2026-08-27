@@ -22,7 +22,7 @@ from backend.app.api.compliance import router as compliance_router
 from backend.app.api.launches import router as launches_router
 from backend.app.api.spotter import router as spotter_router
 from backend.app.api.chat import router as chat_router
-from backend.app.models.base import Base, engine, get_db, SessionLocal
+from backend.app.models.base import Base, engine, get_db, SessionLocal, auto_migrate_schema
 from backend.app.models.orbital_object import OrbitalObject, SyncLog
 from backend.app.models.conjunction import Conjunction
 from backend.app.services.tle_service import TLEService
@@ -30,6 +30,7 @@ from backend.app.services.conjunction_service import ConjunctionService
 
 # Initialize database schema & indexes
 Base.metadata.create_all(bind=engine)
+auto_migrate_schema()
 
 logger = logging.getLogger(__name__)
 
