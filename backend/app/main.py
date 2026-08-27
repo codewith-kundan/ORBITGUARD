@@ -20,6 +20,7 @@ from backend.app.api.breakup import router as breakup_router
 from backend.app.api.decay import router as decay_router
 from backend.app.api.compliance import router as compliance_router
 from backend.app.api.launches import router as launches_router
+from backend.app.api.spotter import router as spotter_router
 from backend.app.models.base import Base, engine, get_db, SessionLocal
 from backend.app.models.orbital_object import OrbitalObject, SyncLog
 from backend.app.models.conjunction import Conjunction
@@ -58,6 +59,7 @@ app.include_router(breakup_router)
 app.include_router(decay_router)
 app.include_router(compliance_router)
 app.include_router(launches_router)
+app.include_router(spotter_router)
 
 async def periodic_sync_worker():
     """Background task running periodic orbital ephemeris synchronization."""
