@@ -88,7 +88,7 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
         sender: 'ai',
         text: res.response || 'I am ready to assist with your orbital tracking and collision screening queries.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        modelBadge: res.status === 'LIVE_OPENAI' ? 'GPT-4o (OpenAI)' : 'OrbitBot SDA AI'
+        modelBadge: res.model
       };
 
       setMessages(prev => [...prev, aiMsg]);
