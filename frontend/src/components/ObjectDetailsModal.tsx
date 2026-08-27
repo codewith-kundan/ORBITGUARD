@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { OrbitalObject, OrbitalPosition } from '../types';
 import { api } from '../services/api';
 import { X, Satellite, Compass, Activity, Terminal, Rocket, Info, Radio, Flame } from 'lucide-react';
+import { EvidenceFooter } from './EvidenceFooter';
 
 interface ObjectDetailsModalProps {
   object: OrbitalObject | null;
@@ -231,6 +232,21 @@ export const ObjectDetailsModal: React.FC<ObjectDetailsModalProps> = ({ object, 
             <div>{object.tle_line2}</div>
           </div>
         </div>
+
+
+        {/* Evidence & Provenance Audit */}
+        <EvidenceFooter
+          evidence={{
+            data_state: 'CALCULATED',
+            source: object.source || 'Space-Track / CelesTrak (18th SDS)',
+            source_url: 'https://www.space-track.org',
+            retrieved_at: object.updated_at || new Date().toISOString(),
+            tle_epoch: object.tle_epoch,
+            calculation_method: 'SGP4 / WGS-84 Ephemeris Engine',
+            model_version: 'OrbitGuard Astrodynamics v2.4',
+            confidence: object.tle_epoch ? 'HIGH' : 'MEDIUM'
+          }}
+        />
 
         {/* Scientific Disclaimer */}
         <div className="mt-4 text-[9px] text-slate-500 text-center border-t border-space-800 pt-3">

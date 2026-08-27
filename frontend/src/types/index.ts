@@ -1,3 +1,16 @@
+
+export type DataState = 'LIVE' | 'CALCULATED' | 'PREDICTED' | 'SIMULATED' | 'UNAVAILABLE';
+
+export interface CalculationEvidence {
+  data_state: DataState;
+  source: string;
+  source_url?: string;
+  retrieved_at: string;
+  tle_epoch?: string;
+  calculation_method: string;
+  model_version: string;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNAVAILABLE';
+}
 export type ObjectType = 'ACTIVE_SATELLITE' | 'DEBRIS' | 'ROCKET_BODY' | 'UNKNOWN';
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';

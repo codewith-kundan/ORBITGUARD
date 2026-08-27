@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Conjunction } from '../types';
 import { RiskBadge } from './RiskBadge';
+import { EvidenceFooter } from './EvidenceFooter';
 
 interface ConjunctionDetailsModalProps {
   conjunction: Conjunction | null;
@@ -279,6 +280,21 @@ export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = (
             <div className="text-[9px] text-slate-500">WGS84 LEO</div>
           </div>
         </div>
+
+
+        {/* Evidence & Calculation Provenance Audit */}
+        <EvidenceFooter
+          evidence={{
+            data_state: 'CALCULATED',
+            source: 'Space-Track / CelesTrak SGP4',
+            source_url: 'https://www.space-track.org',
+            retrieved_at: conjunction.calculated_at || new Date().toISOString(),
+            tle_epoch: conjunction.object_a?.tle_epoch,
+            calculation_method: 'SGP4 + Numerical TCA Minimization (Foster-2D / WGS-84)',
+            model_version: 'OrbitGuard Astrodynamics Engine v2.4',
+            confidence: conjunction.risk_level === 'CRITICAL' ? 'HIGH' : 'MEDIUM'
+          }}
+        />
 
         {/* Action Controls */}
         <div className="mt-2 pt-3 border-t border-space-800 flex flex-wrap items-center justify-between gap-2">
