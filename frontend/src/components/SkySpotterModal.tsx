@@ -11,53 +11,25 @@ import {
   Globe2,
   Calendar,
   Navigation,
+  LocateFixed
 } from 'lucide-react';
 import { api } from '../services/api';
+import { calculateDynamicPasses, SPOTTER_CITIES, SpotterCity, SpotterPass } from '../services/skySpotterEngine';
 
 interface SkySpotterModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface VisiblePass {
-  satelliteName: string;
-  noradId: number;
-  cityName: string;
-  cityId: string;
-  magnitude: string;
-  magValue?: number;
-  startTime: string;
-  peakTime?: string;
-  endTime?: string;
-  startTimeMs: number;
-  maxElevation: string;
-  maxElevationDeg?: number;
-  duration: string;
-  durationSec?: number;
-  startDirection: string;
-  peakDirection?: string;
-  endDirection: string;
-  skyPath?: string;
-  brightnessRank: 'Extremely Bright' | 'Bright' | 'Moderate';
-  visibilityCondition?: string;
-  minRangeKm?: number;
-}
-
-interface AvailableCity {
-  id: string;
-  name: string;
-  lat: number;
-  lon: number;
-  alt_m: number;
-}
-
 export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClose }) => {
   const [selectedCityId, setSelectedCityId] = useState<string>('ALL');
-  const [passes, setPasses] = useState<VisiblePass[]>([]);
-  const [availableCities, setAvailableCities] = useState<AvailableCity[]>([]);
+  const [passes, setPasses] = useState<SpotterPass[]>([]);
+  const [availableCities, setAvailableCities] = useState<SpotterCity[]>(SPOTTER_CITIES);
   const [loading, setLoading] = useState<boolean>(true);
   const [nowMs, setNowMs] = useState<number>(Date.now());
-  const [minElevationFilter, setMinElevationFilter] = useState<number>(15);
+  const [minElevationFilter, setMinElevationFilter] = useState<number>(10);
+  const [customLocation, setCustomLocation] = useState<{ lat: number; lon: number; name: string } | null>(null);
+  const [isGeolocating, setIsGeolocating] = useState<boolean>(false);
 
   // 1-second live countdown ticker
   useEffect(() => {
@@ -68,37 +40,87 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
     return () => clearInterval(timer);
   }, [isOpen]);
 
-  const loadPasses = async (cityFilter?: string) => {
+  const loadPasses = async (cityFilter?: string, customLoc?: { lat: number; lon: number; name: string } | null) => {
     try {
       setLoading(true);
+      if (customLoc) {
+        // Direct client SGP4 calculation for custom GPS
+        const dynamicRes = calculateDynamicPasses({
+          lat: customLoc.lat,
+          lon: customLoc.lon,
+          name: customLoc.name,
+          id: 'custom_gps'
+        }, minElevationFilter, 48.0);
+        setPasses(dynamicRes.passes);
+        return;
+      }
+
       const queryCity = cityFilter && cityFilter !== 'ALL' ? cityFilter : undefined;
       const res = await api.getVisiblePasses(queryCity);
-      if (res && res.passes) {
+      if (res && res.passes && res.passes.length > 0) {
         setPasses(res.passes);
         if (res.available_cities && res.available_cities.length > 0) {
           setAvailableCities(res.available_cities);
         }
+      } else {
+        // Always fall back to local dynamic SGP4 engine so passes are never empty or static
+        const dynamicRes = calculateDynamicPasses(queryCity, minElevationFilter, 48.0);
+        setPasses(dynamicRes.passes);
+        setAvailableCities(dynamicRes.available_cities);
       }
     } catch (e) {
-      console.error('Sky Spotter load error:', e);
+      console.warn('Sky Spotter load exception, applying dynamic SGP4:', e);
+      const dynamicRes = calculateDynamicPasses(cityFilter && cityFilter !== 'ALL' ? cityFilter : undefined, minElevationFilter, 48.0);
+      setPasses(dynamicRes.passes);
+      setAvailableCities(dynamicRes.available_cities);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+    setIsGeolocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsGeolocating(false);
+        const loc = {
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          name: `My GPS (${pos.coords.latitude.toFixed(2)}°, ${pos.coords.longitude.toFixed(2)}°)`
+        };
+        setCustomLocation(loc);
+        setSelectedCityId('custom_gps');
+        loadPasses('custom_gps', loc);
+      },
+      (err) => {
+        setIsGeolocating(false);
+        alert(`Could not get location: ${err.message}. Please select a city from the list.`);
+      },
+      { timeout: 10000 }
+    );
+  };
+
   useEffect(() => {
     if (isOpen) {
-      loadPasses(selectedCityId);
+      if (selectedCityId === 'custom_gps' && customLocation) {
+        loadPasses('custom_gps', customLocation);
+      } else {
+        loadPasses(selectedCityId, null);
+      }
     }
-  }, [isOpen, selectedCityId]);
+  }, [isOpen, selectedCityId, minElevationFilter]);
 
   if (!isOpen) return null;
 
-  // Filter out expired passes and filter by location and elevation
+  // Filter out passes that ended more than 10 minutes ago
   const activePasses = passes
     .filter((p) => {
-      const isFuture = p.startTimeMs > nowMs - 600000; // Keep for 10 min past start while in transit
-      const matchesCity = selectedCityId === 'ALL' || p.cityId === selectedCityId;
+      const isFuture = p.startTimeMs > nowMs - 600000;
+      const matchesCity = selectedCityId === 'ALL' || p.cityId === selectedCityId || (selectedCityId === 'custom_gps' && p.cityId === 'custom_gps');
       const matchesElevation = (p.maxElevationDeg || 20) >= minElevationFilter;
       return isFuture && matchesCity && matchesElevation;
     })
@@ -174,15 +196,28 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
             <select
               value={selectedCityId}
               onChange={(e) => setSelectedCityId(e.target.value)}
-              className="bg-space-950 border border-cyan-500/40 rounded-lg px-3 py-1 text-cyan-300 font-bold focus:outline-none focus:border-cyan-400 text-xs cursor-pointer"
+              className="bg-space-950 border border-cyan-500/40 rounded-lg px-3 py-1 text-cyan-300 font-bold focus:outline-none focus:border-cyan-400 text-xs cursor-pointer max-w-[260px] sm:max-w-none"
             >
               <option value="ALL">🌐 All Global Visible Passes ({passes.length} Overpasses)</option>
+              {customLocation && (
+                <option value="custom_gps">📍 {customLocation.name}</option>
+              )}
               {availableCities.map((city) => (
                 <option key={city.id} value={city.id}>
                   📍 {city.name} ({city.lat.toFixed(1)}°N, {city.lon.toFixed(1)}°E)
                 </option>
               ))}
             </select>
+
+            <button
+              onClick={handleUseMyLocation}
+              disabled={isGeolocating}
+              className="flex items-center gap-1 px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 hover:text-white rounded-lg border border-cyan-400/50 transition text-xs font-bold disabled:opacity-50 cursor-pointer shadow-cyan-inner"
+              title="Use your device GPS coordinates to calculate real optical passes directly overhead"
+            >
+              <LocateFixed className={`w-3.5 h-3.5 ${isGeolocating ? 'animate-spin text-cyan-400' : 'text-cyan-400'}`} />
+              <span>{isGeolocating ? 'Locating...' : 'My GPS Location'}</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-2 text-[10px] flex-wrap">
@@ -260,7 +295,7 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
                             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                             : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
                         }`}>
-                          Mag {p.magnitude}
+                          {p.magnitude.startsWith('Mag') ? p.magnitude : `Mag ${p.magnitude}`}
                         </span>
                       </div>
                     </div>
