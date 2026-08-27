@@ -6,7 +6,6 @@ import {
   BarChart3, 
   RefreshCw, 
   Radio, 
-  Sparkles, 
   Sun,
   Bot,
   Eye,
@@ -29,7 +28,6 @@ interface NavbarProps {
   stats?: SystemStatistics | null;
   onRefresh?: () => void;
   isRefreshing?: boolean;
-  onOpenUserGuide?: () => void;
   onOpenSystemHealth?: () => void;
   onOpenSpaceWeather?: () => void;
   onOpenLaunchRadar?: () => void;
@@ -50,7 +48,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   stats,
   onRefresh,
   isRefreshing = false,
-  onOpenUserGuide,
   onOpenSystemHealth,
   onOpenSpaceWeather,
   onOpenLaunchRadar,
@@ -151,18 +148,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '32,340')}
             </span>
           </div>
-
-          {/* User Guide Interactive Modal Trigger Button */}
-          {onOpenUserGuide && (
-            <button
-              onClick={onOpenUserGuide}
-              className="flex items-center gap-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 px-3 py-1 rounded-lg border border-cyan-400/60 hover:border-cyan-300 text-[10px] sm:text-xs text-cyan-stitch hover:text-white transition shadow-cyan-inner hover:shadow-cyan-glow font-bold animate-pulse"
-              title="Open Interactive Operator User Guide"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-cyan-stitch" />
-              <span className="inline">GUIDE</span>
-            </button>
-          )}
 
           {/* Live Data Feed Mode Indicator */}
           <div 

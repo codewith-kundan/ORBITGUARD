@@ -23,7 +23,6 @@ import { SITREPModal } from './components/SITREPModal';
 import { ASATSimulatorModal } from './components/ASATSimulatorModal';
 import { OperatorGameModal } from './components/OperatorGameModal';
 import { SkySpotterModal } from './components/SkySpotterModal';
-import { UserGuideModal } from './components/UserGuideModal';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -67,7 +66,6 @@ export default function App() {
   const [isBreakupModalOpen, setIsBreakupModalOpen] = useState<boolean>(false);
   const [isReentryModalOpen, setIsReentryModalOpen] = useState<boolean>(false);
   const [isCDMModalOpen, setIsCDMModalOpen] = useState<boolean>(false);
-  const [isUserGuideOpen, setIsUserGuideOpen] = useState<boolean>(false);
   const [overpassTargetObject, setOverpassTargetObject] = useState<OrbitalObject | null>(null);
   const [reentryTargetObject, setReentryTargetObject] = useState<OrbitalObject | null>(null);
 
@@ -250,7 +248,6 @@ export default function App() {
         onRefresh={loadAllData}
         isRefreshing={loading}
         onOpenSystemHealth={() => setIsSystemHealthModalOpen(true)}
-        onOpenUserGuide={() => setIsUserGuideOpen(true)}
         onOpenSpaceWeather={() => setIsSpaceWeatherOpen(true)}
         onOpenLaunchRadar={() => setIsLaunchRadarOpen(true)}
         onOpenKesslerDensity={() => setIsKesslerDensityOpen(true)}
@@ -467,12 +464,6 @@ export default function App() {
           onClose={() => setIsCDMModalOpen(false)}
         />
       )}
-
-      {/* Interactive Comprehensive User Guide Modal */}
-      <UserGuideModal
-        isOpen={isUserGuideOpen}
-        onClose={() => setIsUserGuideOpen(false)}
-      />
 
       {/* NOAA Space Weather & Solar Storm Monitor */}
       <SpaceWeatherModal
