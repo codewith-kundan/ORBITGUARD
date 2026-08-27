@@ -53,6 +53,7 @@ async def chat_with_orbitbot(payload: ChatRequest):
             for msg in payload.messages:
                 api_messages.append({"role": msg.role, "content": msg.content})
 
+            logger.info(f"Dispatching request to OpenAI with key starting: {openai_api_key[:8]}...")
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.post(
                     url,
@@ -65,6 +66,7 @@ async def chat_with_orbitbot(payload: ChatRequest):
                     }
                 )
 
+                logger.info(f"OpenAI response status: {resp.status_code}")
                 if resp.status_code == 200:
                     data = resp.json()
                     bot_text = data["choices"][0]["message"]["content"]
@@ -74,7 +76,13 @@ async def chat_with_orbitbot(payload: ChatRequest):
                         status="LIVE_OPENAI"
                     )
                 else:
-                    logger.warning(f"OpenAI API error {resp.status_code}: {resp.text}")
+                    error_detail = resp.text
+                    logger.error(f"OpenAI API error {resp.status_code}: {error_detail}")
+                    return ChatResponse(
+                        response=f"OpenAI API returned status {resp.status_code}: {error_detail}",
+                        model="OpenAI Error Diagnostics",
+                        status="OPENAI_ERROR"
+                    )
         except Exception as e:
             logger.error(f"OpenAI API call failed: {e}")
 
