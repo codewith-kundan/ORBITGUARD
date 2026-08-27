@@ -33,10 +33,10 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
     {
       id: 'msg-1',
       sender: 'ai',
-      text: `Greetings Flight Director. I am **OrbitBot**, your Senior Orbital Mechanic & Navigation Copilot for OrbitGuard. ${
+      text: `Hello! I am **OrbitBot**, your Space Domain Awareness (SDA) Expert and copilot for OrbitGuard. ${
         conjunction 
-          ? `I am currently analyzing the active encounter between **${conjunction.object_a?.name || 'Primary Satellite'}** and **${conjunction.object_b?.name || 'Debris Fragment'}** (Miss Distance: ${conjunction.miss_distance_km.toFixed(2)} km, Risk: ${conjunction.risk_score.toFixed(0)}/100).`
-          : 'All orbital regimes (LEO, MEO, GEO) are being screened in real time. Ask me about orbital mechanics, collision risk mitigation, or how to navigate any OrbitGuard tool.'
+          ? `I'm tracking an active conjunction between **${conjunction.object_a?.name || 'Primary Satellite'}** and **${conjunction.object_b?.name || 'Debris Object'}** (Miss Distance: ${conjunction.miss_distance_km.toFixed(2)} km, Risk: ${conjunction.risk_score.toFixed(0)}/100).`
+          : 'Feel free to ask me any question about space, orbital physics, satellite tracking, or navigating OrbitGuard.'
       }`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       recommendation: conjunction ? {
@@ -53,45 +53,79 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
   if (!isOpen) return null;
 
   const generateOrbitBotResponse = (query: string): string => {
-    const q = query.toLowerCase();
+    const q = query.trim().toLowerCase();
 
-    // 1. Kessler Syndrome
+    // ==========================================
+    // CATEGORY A: General Space, Astronomy & Astrodynamics
+    // ==========================================
+
+    // 1. What is space?
+    if (q === 'what is space' || q === 'what is space?' || q.includes('definition of space')) {
+      return `**Space** (outer space) is the physical universe beyond Earth's atmosphere. It begins officially at the **Kármán line** ($100\\text{ km}$ / $62\\text{ miles}$ above sea level), where Earth's atmosphere becomes too thin to support aerodynamic flight, requiring orbital velocities ($~7.8\\text{ km/s}$) to stay aloft. It is a near-perfect vacuum filled with low-density particles, plasma, magnetic fields, radiation, and celestial bodies.`;
+    }
+
+    // 2. How do satellites stay in orbit?
+    if (q.includes('stay in orbit') || q.includes('how orbit works') || q.includes('how do satellites orbit')) {
+      return `Satellites stay in orbit through a continuous balance between **gravitational attraction** and **tangential orbital velocity**.\n\n• An orbital vehicle is essentially in continuous free-fall toward Earth, but its forward speed ($~7.8\\text{ km/s}$ in Low Earth Orbit) means Earth's surface curves away beneath it at the exact same rate.\n• Orbital velocity is governed by $v = \\sqrt{\\frac{GM}{r}}$, where $G$ is the gravitational constant, $M$ is Earth's mass, and $r$ is the orbital radius from Earth's center.`;
+    }
+
+    // 3. Kessler Syndrome
     if (q.includes('kessler')) {
-      return `**Kessler Syndrome** is a self-sustaining cascading collision domino effect in Low Earth Orbit (LEO).\n\n• **Mechanism**: When two large satellites collide at hypervelocity ($~14\\text{ km/s}$), they generate thousands of high-velocity fragments ($>10\\text{ cm}$).\n• **Consequence**: Each new fragment acts as a kinetic projectile, increasing the spatial collision density until entire orbital shells (especially $700\\text{--}900\\text{ km}$) become unusable for generations.\n• **In OrbitGuard**: Toggle **DEFENSE & SIMS ▾ → Kessler Heatmap** to inspect current debris spatial density.`;
+      return `**Kessler Syndrome** is a theoretical scenario where the spatial density of objects in Low Earth Orbit (LEO) becomes high enough that collisions between satellites and debris create a cascading chain reaction.\n\n• Each collision generates thousands of high-speed fragments ($>10\\text{ cm}$).\n• These fragments multiply the likelihood of further collisions, potentially rendering entire orbital bands (especially $700\\text{--}900\\text{ km}$) hazardous and unusable for future space missions.`;
     }
 
-    // 2. Speed Slider / Time Controls
-    if (q.includes('speed slider') || q.includes('time control') || q.includes('speed') || q.includes('time')) {
-      return `**Time Controls & Speed Multipliers** (Bottom Dock):\n\n• **Play / Pause**: Freezes or resumes satellite orbital motion in real-time.\n• **Speed Multiplier ($1\\times$ to $1000\\times$)**: Accelerates numerical SGP4 propagation forward to predict future conjunctions hours in advance.\n• **Timeline Scrubber**: Drag the slider up to $+24\\text{ hours}$ to inspect future orbital geometry.\n• **NOW Button**: Instantly resets the simulation clock back to current UTC.`;
+    // 4. LEO vs MEO vs GEO
+    if (q.includes('leo') || q.includes('meo') || q.includes('geo') || q.includes('geostationary') || q.includes('orbit types')) {
+      return `**Orbital Regimes**:\n\n• **LEO (Low Earth Orbit, $160\\text{--}2,000\\text{ km}$)**: Fast orbital periods ($~90\\text{ mins}$). Home to the ISS, Earth observation satellites, and Starlink.\n• **MEO (Medium Earth Orbit, $2,000\\text{--}35,786\\text{ km}$)**: Primary home of GNSS/Navigation constellations (GPS, Galileo, GLONASS).\n• **GEO (Geostationary Orbit, $35,786\\text{ km}$)**: Orbit period exactly matches Earth's rotation ($23\\text{h } 56\\text{m}$), keeping satellites fixed above a specific longitude for telecommunications and weather monitoring.`;
     }
 
-    // 3. Launch Safety / Check Collision Risk for Launch
-    if (q.includes('launch') || q.includes('rocket') || q.includes('safe') || q.includes('mission')) {
-      return `**How to Screen Launch Trajectories for Collision Safety**:\n\n1. Open **UPCOMING MISSIONS** in the top tactical toolbar to view the live global launch manifest (powered by Launch Library 2) and live countdowns.\n2. In the 3D Globe view, look for upcoming launch corridor tracks and active conjunction alerts.\n3. In the bottom control dock, use the **Speed Multiplier ($50\\times$–$200\\times$)** to propagate the target insertion window and verify whether operational mega-constellations (e.g. Starlink at $550\\text{ km}$) intersect the ascent corridor.\n4. Click any alert card in the **Conjunctions** tab to generate a formal **CCSDS Conjunction Data Message (CDM)**.`;
+    // 5. Orbital Debris / Space Junk
+    if (q.includes('space junk') || (q.includes('debris') && !q.includes('filter') && !q.includes('how to'))) {
+      return `**Space Debris** refers to defunct human-made objects in orbit—spent rocket stages, inactive satellites, and fragmentation debris from explosions or collisions.\n\n• Traveling at hypervelocities ($~7\\text{--}14\\text{ km/s}$), even a $1\\text{ cm}$ particle carries the kinetic impact energy of an exploding hand grenade.\n• There are currently over $36,000$ tracked pieces larger than $10\\text{ cm}$ and millions of smaller untrackable fragments.`;
     }
 
-    // 4. Conjunction Screening & Miss Distance
-    if (q.includes('conjunction') || q.includes('miss distance') || q.includes('probability') || q.includes('pc')) {
-      return `**Conjunction Screening & Collision Probability ($P_c$)**:\n\n• **Miss Distance ($d_{\\text{miss}}$)**: The minimum Euclidean radial separation calculated at Time of Closest Approach (TCA).\n• **Collision Probability ($P_c$)**: Formulated via the **Foster-2D Isotropic Hard-Body Encounter Model** ($P_c = \\frac{R^2}{2\\sigma^2} e^{-d^2/2\\sigma^2}$) when covariance is bounded; marked **DATA UNAVAILABLE** when unconstrained.\n• **OrbitGuard Risk Score (0–100)**: A composite operational index combining miss distance ($55\\%$), relative velocity ($25\\%$), and lead time urgency ($20\\%$).`;
+    // ==========================================
+    // CATEGORY B: Website & OrbitGuard UI Guidance
+    // ==========================================
+
+    // 1. Speed Slider / Time Controls
+    if (q.includes('speed slider') || q.includes('time control') || q.includes('slider')) {
+      return `**Time Controls & Speed Multipliers** (Bottom Dock):\n\n• **Play / Pause**: Freezes or resumes orbital motion in real time.\n• **Speed Buttons ($1\\times$ to $1000\\times$)**: Accelerates numerical SGP4 propagation forward to preview satellite positions hours ahead.\n• **Timeline Scrubber**: Drag the slider up to $+24\\text{ hours}$ to inspect upcoming orbital geometry.\n• **NOW Button**: Instantly snaps the simulation clock back to current live UTC.`;
     }
 
-    // 5. SGP4 & TLEs
-    if (q.includes('sgp4') || q.includes('tle') || q.includes('norad') || q.includes('propagat')) {
-      return `**SGP4 Propagation & Ephemeris Physics**:\n\n• **SGP4 (Simplified General Perturbations-4)**: Propagates Two-Line Element (TLE) sets accounting for Earth oblateness ($J_2, J_3, J_4$), atmospheric drag ($B^*$), and lunar/solar gravitational perturbations.\n• **Coordinate Frames**: Transforms **TEME** $\\to$ **ECEF** via Greenwich Mean Sidereal Time (GMST) $\\to$ **WGS84 Geodetic** (Latitude, Longitude, Altitude).\n• **Catalog Search**: Enter any satellite name or 5-digit NORAD ID (e.g. **25544** for ISS) into the top-left search bar to focus its true orbit.`;
+    // 2. How to check launch safety / collision risk for launch
+    if (q.includes('launch') && (q.includes('check') || q.includes('safe') || q.includes('risk') || q.includes('how'))) {
+      return `**Checking Launch Trajectory & Mission Safety in OrbitGuard**:\n\n1. Click **UPCOMING MISSIONS** in the top tactical toolbar to view the live global rocket manifest, launch complex coordinates, and liftoff countdowns.\n2. In the **3D Globe**, view projected orbital insertion tracks and look for intersecting mega-constellations (e.g. Starlink at $550\\text{ km}$).\n3. Accelerate the bottom **Speed Slider** to check if the target orbital regime has active conjunction warnings during insertion.`;
     }
 
-    // 6. Citizen Sky Spotter
-    if (q.includes('spotter') || q.includes('naked eye') || q.includes('visible') || q.includes('iss pass')) {
-      return `**Citizen Sky Spotter Tool**:\n\n• Click **SKY SPOTTER** in the SSA tools sub-bar.\n• Displays live SGP4 visible passes for large objects (ISS, Tiangong, Hubble) with a **1-second live countdown ticker**.\n• Automatically filters to observer locations where the satellite is physically above the local horizon during twilight/dark sky conditions.`;
+    // 3. How to check satellite collision risk / conjunctions
+    if (q.includes('conjunction') || q.includes('collision risk') || q.includes('check risk') || q.includes('miss distance')) {
+      return `**Checking Conjunctions & Collision Risk**:\n\n1. Navigate to the **Conjunctions** tab in the top navigation bar to view all screened close approaches sorted chronologically by TCA.\n2. Click on any encounter row or card to open the **2D B-Plane Covariance Modal**.\n3. Review the calculated **Miss Distance** ($km$), **Relative Velocity** ($km/s$), and **Foster-2D Collision Probability ($P_c$)**.\n4. Click **PLAN CAM** to calculate an optimal Collision Avoidance Maneuver $\\Delta v$ burn.`;
     }
 
-    // 7. Maneuver / CAM Optimization
-    if (q.includes('maneuver') || q.includes('cam') || q.includes('delta v') || q.includes('burn')) {
-      return `**Collision Avoidance Maneuver (CAM) Planning**:\n\n• Optimal burn execution occurs **$1.5$ orbital revolutions prior to TCA** at the orbit's nodal line.\n• A modest in-track burn ($+1.45\\text{ m/s}$) expands along-track separation to $>18\\text{ km}$, reducing collision probability by $>98\\%$ with minimal hydrazine consumption ($<1\\text{ kg}$).`;
+    // 4. Where is 3D Radar / How to search
+    if (q.includes('search') || q.includes('find satellite') || q.includes('radar') || q.includes('3d')) {
+      return `**Using the 3D Orbital Radar & Catalog Search**:\n\n1. Click the **3D Globe** tab in the top navigation bar.\n2. Open the top-left **ORBITAL RADAR** dock to access the search bar.\n3. Enter any satellite name (e.g. \`Starlink\`, \`Tiangong\`) or 5-digit NORAD ID (e.g. \`25544\` for ISS).\n4. Click any search result to automatically focus the 3D camera on the object and display its real-time SGP4 ephemeris and orbit trail.`;
     }
 
-    // Default Fallback
-    return `Affirmative, Flight Director. That is monitored within our astrodynamics pipeline.\n\n• **3D Radar**: Search by NORAD ID or click any orbital node for live SGP4 telemetry.\n• **Conjunction Hotspots**: Screen encounters in the **Conjunctions** tab and view 2D B-Plane covariance ellipses.\n• **Simulators**: Explore **DEFENSE & SIMS ▾** for ASAT kinetic intercepts, Kessler density maps, and SITREP reports.\n\nHow else can I assist with your orbital flight operations?`;
+    // 5. Sky Spotter / Naked-Eye Passes
+    if (q.includes('spotter') || q.includes('naked eye') || q.includes('visible pass')) {
+      return `**Using the Citizen Sky Spotter**:\n\n1. Click **SKY SPOTTER** in the SSA tools sub-bar.\n2. By default, it displays all confirmed naked-eye visible passes across global observer corridors.\n3. Use the **FILTER BY LOCATION** dropdown to see passes exclusively for your observer city (e.g. Bengaluru, London, New York) with live $1\\text{-second}$ countdown timers.`;
+    }
+
+    // ==========================================
+    // CATEGORY C: Hybrid / Specific Satellite Queries
+    // ==========================================
+    if (q.includes('iss') || q.includes('space station') || q.includes('25544')) {
+      return `The **International Space Station (ISS)** (NORAD #25544) orbits at an altitude of $~415\\text{--}420\\text{ km}$ with an orbital inclination of $51.64^\\circ$ and a speed of $~7.66\\text{ km/s}$.\n\n• **In OrbitGuard**: Type **25544** into the top-left search bar in the **3D Globe** to focus its real-time trajectory, or open **SKY SPOTTER** to view tonight's naked-eye overpass window.`;
+    }
+
+    if (q.includes('starlink')) {
+      return `**Starlink** is SpaceX's mega-constellation operating primarily in circular LEO shells at $~550\\text{ km}$ ($53.2^\\circ$ inclination).\n\n• **In OrbitGuard**: In the **3D Globe** left dock, select **◆ Starlink** under Fleet Filters to highlight the entire Starlink constellation mesh and monitor orbital density.`;
+    }
+
+    // Direct conversational response for other queries
+    return `That's an interesting question regarding orbital operations and space dynamics.\n\nCould you clarify if you're looking for specific astrodynamics calculations (e.g. SGP4 propagation, Keplerian elements, $P_c$ covariance), or would you like guidance on using a specific OrbitGuard feature?`;
   };
 
   const handleSend = () => {
@@ -115,7 +149,7 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, aiMsg]);
-    }, 450);
+    }, 350);
   };
 
   return (
@@ -156,17 +190,17 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
             <HelpCircle className="w-3 h-3 text-cyan-400" /> PROMPTS:
           </span>
           {[
+            'What is space?',
             'What is Kessler Syndrome?',
             'What does the speed slider do?',
-            'How to check launch collision risk?',
-            'How is collision probability (Pc) calculated?'
+            'How to check launch collision risk?'
           ].map((prompt) => (
             <button
               key={prompt}
               onClick={() => {
                 setInputText(prompt);
               }}
-              className="px-2.5 py-1 rounded-full bg-space-950 hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-space-800 hover:border-cyan-500/40 transition whitespace-nowrap flex-shrink-0 font-medium"
+              className="px-2.5 py-1 rounded-full bg-space-950 hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-space-800 hover:border-cyan-500/40 transition whitespace-nowrap flex-shrink-0 font-medium cursor-pointer"
             >
               {prompt}
             </button>
@@ -181,7 +215,7 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
               className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
             >
               <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-slate-500">
-                <span>{m.sender === 'user' ? 'Flight Director' : 'OrbitBot (SDA Expert)'}</span>
+                <span>{m.sender === 'user' ? 'You' : 'OrbitBot (SDA Expert)'}</span>
                 <span>•</span>
                 <span>{m.timestamp}</span>
               </div>
@@ -219,7 +253,7 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
         <div className="p-3 bg-space-900 border-t border-space-800 flex items-center gap-2">
           <input
             type="text"
-            placeholder="Ask OrbitBot about orbital mechanics, collision risk, or UI tools..."
+            placeholder="Ask OrbitBot anything about space or how to use OrbitGuard..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
