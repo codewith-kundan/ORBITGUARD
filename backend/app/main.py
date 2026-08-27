@@ -35,7 +35,7 @@ auto_migrate_schema()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="SPACE SENTINEL API",
+    title="ORBITGUARD API",
     description="Space Debris Tracking & Real-Time Orbital Conjunction Screening Engine",
     version="2.0.0",
     docs_url="/docs",
@@ -191,7 +191,7 @@ async def startup_event():
 async def root():
     """Root status endpoint."""
     return {
-        "service": "SPACE SENTINEL API",
+        "service": "ORBITGUARD API",
         "status": "online",
         "docs": "/docs",
         "health": "/api/health"
@@ -208,7 +208,7 @@ async def health_check(db: Session = Depends(get_db)):
         
         return {
             "status": "ok",
-            "service": "SPACE SENTINEL",
+            "service": "ORBITGUARD",
             "database_connected": True,
             "orbital_provider_connected": True,
             "last_sync": last_sync_log.created_at.isoformat() if last_sync_log else None,
@@ -219,7 +219,7 @@ async def health_check(db: Session = Depends(get_db)):
     except Exception as e:
         return {
             "status": "degraded",
-            "service": "SPACE SENTINEL",
+            "service": "ORBITGUARD",
             "database_connected": False,
             "orbital_provider_connected": False,
             "error": str(e)

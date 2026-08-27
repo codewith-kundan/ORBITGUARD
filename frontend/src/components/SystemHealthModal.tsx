@@ -503,7 +503,7 @@ export const SystemHealthModal: React.FC<SystemHealthModalProps> = ({
             <Clock className="w-3.5 h-3.5 text-cyan-400" />
             <span>UTC: {new Date().toISOString().replace('T', ' ').slice(0, 19)}</span>
           </div>
-          <div>SPACE SENTINEL v2.0 • SGP4 Ephemeris Engine</div>
+          <div>ORBITGUARD v2.0 • SGP4 Ephemeris Engine</div>
         </div>
       </div>
     </div>

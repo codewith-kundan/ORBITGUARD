@@ -531,7 +531,7 @@ export const CAMPlannerModal: React.FC<CAMPlannerModalProps> = ({
 
         {/* Footer */}
         <div className="border-t border-space-800 px-4 sm:px-6 py-2.5 bg-space-950/90 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-          <div>SPACE SENTINEL CAM ENGINE • WGS84 & GAUSS VARIATIONAL EQUATIONS</div>
+          <div>ORBITGUARD CAM ENGINE • WGS84 & GAUSS VARIATIONAL EQUATIONS</div>
           <button
             onClick={onClose}
             className="px-3 py-1 bg-space-800 hover:bg-space-700 text-white rounded text-xs transition font-bold"

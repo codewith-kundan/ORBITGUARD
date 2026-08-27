@@ -308,7 +308,7 @@ export default function App() {
         {loading && objects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[60vh] gap-3 font-mono text-cyan-400">
             <Loader2 className="w-8 h-8 animate-spin text-cyan-neon" />
-            <p className="text-sm font-bold">Connecting to SPACE SENTINEL SGP4 Ephemeris Engine...</p>
+            <p className="text-sm font-bold">Connecting to ORBITGUARD SGP4 Ephemeris Engine...</p>
             <p className="text-xs text-slate-400">Loading orbital state vectors and active collision screening tables...</p>
           </div>
         ) : (

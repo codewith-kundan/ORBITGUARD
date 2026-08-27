@@ -10,7 +10,7 @@ BASE_DIR_PATH = str(Path(__file__).resolve().parent.parent.parent)
 
 class Settings(BaseSettings):
     BASE_DIR: str = BASE_DIR_PATH
-    APP_NAME: str = "SPACE SENTINEL"
+    APP_NAME: str = "ORBITGUARD"
     APP_ENV: str = "production"
     API_PORT: int = 8000
     API_HOST: str = "0.0.0.0"
