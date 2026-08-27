@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     SPACE_TRACK_USERNAME: Optional[str] = None
     SPACE_TRACK_PASSWORD: Optional[str] = None
+    OPENAI_API_KEY: Optional[str] = None
 
     ORBITAL_DATA_PROVIDER: str = "Space-Track"
     SYNC_INTERVAL_MINUTES: int = 60

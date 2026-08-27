@@ -38,7 +38,8 @@ async def chat_with_orbitbot(payload: ChatRequest):
     Proxies user chat prompts directly to OpenAI ChatGPT (gpt-4o-mini / gpt-4o),
     injecting OrbitBot's strict Space Domain Awareness persona and dynamic routing rules.
     """
-    openai_api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    from backend.app.config import settings
+    openai_api_key = (os.getenv("OPENAI_API_KEY") or settings.OPENAI_API_KEY or "").strip().strip("'\"")
 
     # 1. If OpenAI API Key is provided in environment variables, query live OpenAI
     if openai_api_key:
