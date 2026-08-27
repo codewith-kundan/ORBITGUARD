@@ -14,11 +14,15 @@ export default {
           800: '#141d3b',
           700: '#1c284f',
           600: '#2c3e75',
+          dark: '#0a1128',
+          blue: '#1a2b4c',
+          border: '#2d4b73',
         },
         cyan: {
           400: '#22d3ee',
           500: '#06b6d4',
-          neon: '#00f0ff'
+          neon: '#00f0ff',
+          stitch: '#00f2ff'
         },
         danger: {
           500: '#ef4444',
