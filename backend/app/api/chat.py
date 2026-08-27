@@ -46,54 +46,68 @@ async def chat_with_orbitbot(payload: ChatRequest):
     last_user_msg = payload.messages[-1].content if payload.messages else ""
 
     # =========================================================================
-    # 1. GOOGLE GEMINI (100% FREE TIER)
+    # 1. GOOGLE GEMINI (100% FREE TIER - v1beta & v1 endpoints)
     # =========================================================================
     if gemini_key:
-        try:
-            logger.info("Calling Google Gemini 1.5 API...")
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
-            
-            # Format contents for Gemini API
-            gemini_contents = []
-            for msg in payload.messages:
-                role_mapped = "user" if msg.role == "user" else "model"
-                gemini_contents.append({
-                    "role": role_mapped,
-                    "parts": [{"text": msg.content}]
-                })
+        # Try gemini-1.5-flash first, then fallback to gemini-pro if needed
+        for model_name in ["gemini-1.5-flash", "gemini-pro"]:
+            try:
+                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
+                
+                # Format conversation turns for Gemini
+                gemini_contents = []
+                for msg in payload.messages:
+                    role_mapped = "user" if msg.role == "user" else "model"
+                    gemini_contents.append({
+                        "role": role_mapped,
+                        "parts": [{"text": msg.content}]
+                    })
 
-            gemini_body = {
-                "system_instruction": {
-                    "parts": [{"text": ORBITBOT_SYSTEM_PROMPT}]
-                },
-                "contents": gemini_contents,
-                "generationConfig": {
-                    "temperature": payload.temperature or 0.7,
-                    "maxOutputTokens": payload.max_tokens or 800
+                gemini_body: Dict[str, Any] = {
+                    "contents": gemini_contents,
+                    "generationConfig": {
+                        "temperature": payload.temperature or 0.7,
+                        "maxOutputTokens": payload.max_tokens or 800
+                    }
                 }
-            }
+                
+                # system_instruction is supported in 1.5
+                if "1.5" in model_name:
+                    gemini_body["system_instruction"] = {
+                        "parts": [{"text": ORBITBOT_SYSTEM_PROMPT}]
+                    }
 
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                resp = await client.post(gemini_url, json=gemini_body)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    bot_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                    return ChatResponse(
-                        response=bot_text,
-                        model="Gemini 1.5 Flash (Google AI)",
-                        status="LIVE_GEMINI"
-                    )
-                else:
-                    logger.warning(f"Gemini API returned HTTP {resp.status_code}: {resp.text}")
-        except Exception as e:
-            logger.error(f"Gemini API call failed: {e}")
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    resp = await client.post(gemini_url, json=gemini_body)
+                    logger.info(f"Gemini {model_name} response status: {resp.status_code}")
+                    
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        candidates = data.get("candidates", [])
+                        if candidates and "content" in candidates[0]:
+                            bot_text = candidates[0]["content"]["parts"][0]["text"]
+                            return ChatResponse(
+                                response=bot_text,
+                                model="Gemini 1.5 Flash (Google AI)",
+                                status="LIVE_GEMINI"
+                            )
+                    else:
+                        logger.warning(f"Gemini {model_name} returned {resp.status_code}: {resp.text}")
+                        # If invalid key or quota, return informative diagnostic
+                        if resp.status_code in (400, 403, 429):
+                            return ChatResponse(
+                                response=f"Google Gemini API Notice ({resp.status_code}): {resp.json().get('error', {}).get('message', resp.text)}",
+                                model="Google AI Diagnostics",
+                                status="GEMINI_ERROR"
+                            )
+            except Exception as e:
+                logger.error(f"Gemini {model_name} invocation error: {e}")
 
     # =========================================================================
     # 2. OPENAI CHATGPT (if configured)
     # =========================================================================
     if openai_key:
         try:
-            logger.info("Calling OpenAI gpt-4o-mini...")
             url = "https://api.openai.com/v1/chat/completions"
             headers = {
                 "Authorization": f"Bearer {openai_key}",
@@ -130,7 +144,7 @@ async def chat_with_orbitbot(payload: ChatRequest):
             logger.error(f"OpenAI API call failed: {e}")
 
     # =========================================================================
-    # 3. BUILT-IN ORBITBOT ASTRODYNAMICS ENGINE (100% Free Fallback)
+    # 3. BUILT-IN ORBITBOT ASTRODYNAMICS ENGINE (Zero-cost fallback)
     # =========================================================================
     direct_reply = _answer_directly_without_templates(last_user_msg)
 
