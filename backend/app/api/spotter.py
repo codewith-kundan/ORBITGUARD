@@ -15,26 +15,32 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/spotter", tags=["Citizen Sky Spotter"])
 
-# Key bright naked-eye satellites (Large cross-section in LEO)
+# Expanded collection of high-visibility, naked-eye satellites (Large RCS in LEO)
 BRIGHT_TARGETS = [
     {"norad_id": 25544, "name": "ISS (ZARYA)", "label": "International Space Station (ISS)", "mag_base": -3.8, "desc": "Extremely bright, outshines Venus"},
-    {"norad_id": 48274, "name": "TIANGONG", "label": "Tiangong Space Station (CSS)", "mag_base": -1.5, "desc": "Bright as Sirius, distinct golden hue"},
+    {"norad_id": 48274, "name": "TIANGONG", "label": "Tiangong Space Station (CSS)", "mag_base": -1.8, "desc": "Bright as Sirius, distinct golden hue"},
     {"norad_id": 20580, "name": "HST", "label": "Hubble Space Telescope (HST)", "mag_base": 1.2, "desc": "Famous NASA/ESA space observatory"},
     {"norad_id": 25989, "name": "TERRA", "label": "Terra (EOS AM-1)", "mag_base": 2.0, "desc": "Flagship NASA Earth observation platform"},
     {"norad_id": 27424, "name": "AQUA", "label": "Aqua (EOS PM-1)", "mag_base": 2.1, "desc": "NASA Earth climate monitoring satellite"},
     {"norad_id": 28654, "name": "NOAA 18", "label": "NOAA 18 Weather Satellite", "mag_base": 2.3, "desc": "Polar-orbiting meteorological observatory"},
     {"norad_id": 33591, "name": "NOAA 19", "label": "NOAA 19 Weather Satellite", "mag_base": 2.2, "desc": "Direct zenith visible polar satellite"},
-    {"norad_id": 40059, "name": "GPM-CORE", "label": "GPM-Core Observatory", "mag_base": 2.5, "desc": "NASA/JAXA Global Precipitation satellite"}
+    {"norad_id": 40059, "name": "GPM-CORE", "label": "GPM-Core Observatory", "mag_base": 2.5, "desc": "NASA/JAXA Global Precipitation satellite"},
+    {"norad_id": 44713, "name": "STARLINK-1007", "label": "Starlink-1007", "mag_base": 2.8, "desc": "Low Earth Orbit broadband mega-constellation"},
+    {"norad_id": 44714, "name": "STARLINK-1008", "label": "Starlink-1008", "mag_base": 2.8, "desc": "LEO satellite passing with fast angular rate"}
 ]
 
-# Major global cities across continents
+# Major global cities and astronomical observation hubs
 GLOBAL_CITIES = [
     {"id": "bengaluru", "name": "Bengaluru, India", "lat": 12.9716, "lon": 77.5946, "alt_m": 920.0},
     {"id": "new_delhi", "name": "New Delhi, India", "lat": 28.6139, "lon": 77.2090, "alt_m": 216.0},
     {"id": "mumbai", "name": "Mumbai, India", "lat": 19.0760, "lon": 72.8777, "alt_m": 14.0},
+    {"id": "chennai", "name": "Chennai, India", "lat": 13.0827, "lon": 80.2707, "alt_m": 6.0},
+    {"id": "hyderabad", "name": "Hyderabad, India", "lat": 17.3850, "lon": 78.4867, "alt_m": 542.0},
+    {"id": "kolkata", "name": "Kolkata, India", "lat": 22.5726, "lon": 88.3639, "alt_m": 9.0},
     {"id": "london", "name": "London, United Kingdom", "lat": 51.5074, "lon": -0.1278, "alt_m": 25.0},
     {"id": "new_york", "name": "New York, USA", "lat": 40.7128, "lon": -74.0060, "alt_m": 10.0},
     {"id": "san_francisco", "name": "San Francisco, USA", "lat": 37.7749, "lon": -122.4194, "alt_m": 16.0},
+    {"id": "los_angeles", "name": "Los Angeles, USA", "lat": 34.0522, "lon": -118.2437, "alt_m": 89.0},
     {"id": "tokyo", "name": "Tokyo, Japan", "lat": 35.6762, "lon": 139.6503, "alt_m": 40.0},
     {"id": "paris", "name": "Paris, France", "lat": 48.8566, "lon": 2.3522, "alt_m": 35.0},
     {"id": "sydney", "name": "Sydney, Australia", "lat": -33.8688, "lon": 151.2093, "alt_m": 19.0},
@@ -42,7 +48,8 @@ GLOBAL_CITIES = [
     {"id": "dubai", "name": "Dubai, UAE", "lat": 25.2048, "lon": 55.2708, "alt_m": 5.0},
     {"id": "berlin", "name": "Berlin, Germany", "lat": 52.5200, "lon": 13.4050, "alt_m": 34.0},
     {"id": "sao_paulo", "name": "São Paulo, Brazil", "lat": -23.5505, "lon": -46.6333, "alt_m": 760.0},
-    {"id": "cairo", "name": "Cairo, Egypt", "lat": 30.0444, "lon": 31.2357, "alt_m": 23.0}
+    {"id": "cairo", "name": "Cairo, Egypt", "lat": 30.0444, "lon": 31.2357, "alt_m": 23.0},
+    {"id": "toronto", "name": "Toronto, Canada", "lat": 43.6532, "lon": -79.3832, "alt_m": 76.0}
 ]
 
 def _azimuth_to_cardinal(az_deg: float) -> str:
@@ -53,19 +60,23 @@ def _azimuth_to_cardinal(az_deg: float) -> str:
 @router.get("/visible-passes")
 def get_visible_passes(
     city_id: Optional[str] = Query(None, description="City ID or default to all visible cities"),
-    min_elevation: float = Query(15.0, description="Minimum elevation cutoff degrees"),
-    lookahead_hours: float = Query(24.0, description="Prediction window in hours"),
+    min_elevation: float = Query(12.0, description="Minimum elevation cutoff degrees"),
+    lookahead_hours: float = Query(48.0, description="Prediction window in hours"),
     db: Session = Depends(get_db)
 ):
     """
-    Computes live naked-eye satellite passes by propagating live SGP4 TLE ephemeris via sgp4.api.
-    Only returns cities and passes where the satellite is actually above horizon and visible in dark/twilight sky.
+    Computes high-precision optical satellite passes using SGP4 analytical propagation:
+    1. Propagates official Space-Track / CelesTrak TLEs over topocentric observer horizons.
+    2. Rigorously verifies Twilight & Optical Illumination (satellite sunlit + observer in civil/nautical/astronomical dark).
+    3. Calculates apparent visual magnitude, culmination angle (Zenith proximity), and AOS/LOS cardinal compass headings.
+    4. Provides 1-second live countdown tickers and sky-view vectors.
     """
     norad_ids = [t["norad_id"] for t in BRIGHT_TARGETS]
     objs = db.query(OrbitalObject).filter(OrbitalObject.norad_id.in_(norad_ids)).all()
     
     tle_dict = {o.norad_id: (o.tle_line1, o.tle_line2, o) for o in objs if o.tle_line1 and o.tle_line2}
     
+    # Fallback to local verified TLE records if needed
     fallback_records = TLEService._load_local_fallback()
     for rec in fallback_records:
         nid = rec.get("norad_id")
@@ -93,7 +104,6 @@ def get_visible_passes(
 
             _, _, orbital_obj = tle_dict[nid]
             try:
-                # Use OverpassService native SGP4 prediction engine
                 prediction = OverpassService.predict_overpasses(
                     obj=orbital_obj,
                     station_lat=city["lat"],
@@ -106,17 +116,24 @@ def get_visible_passes(
 
                 for ev in prediction.passes:
                     duration_sec = int(ev.duration_seconds)
-                    if duration_sec >= 60:
+                    if duration_sec >= 45:
                         mag = target["mag_base"]
-                        if ev.max_elevation_deg > 60:
-                            mag -= 0.5
-                        elif ev.max_elevation_deg < 30:
-                            mag += 0.6
+                        
+                        # Elevation adjustment for brightness (atmospheric extinction & slant range)
+                        if ev.max_elevation_deg >= 70:
+                            mag -= 0.6  # Zenith passes are significantly brighter
+                        elif ev.max_elevation_deg >= 45:
+                            mag -= 0.3
+                        elif ev.max_elevation_deg < 25:
+                            mag += 0.5
 
                         rank = "Extremely Bright" if mag < -1.0 else ("Bright" if mag < 2.0 else "Moderate")
                         
                         start_time_obj = ev.aos_time
                         start_ts_ms = int(start_time_obj.timestamp() * 1000)
+
+                        # Sky pass path summary (e.g. SW -> Zenith -> NE)
+                        path_desc = f"{_azimuth_to_cardinal(ev.aos_azimuth_deg)} → {int(ev.max_elevation_deg)}° {_azimuth_to_cardinal(ev.peak_azimuth_deg)} → {_azimuth_to_cardinal(ev.los_azimuth_deg)}"
 
                         all_passes.append({
                             "satelliteName": target["label"],
@@ -126,17 +143,22 @@ def get_visible_passes(
                             "cityLat": city["lat"],
                             "cityLon": city["lon"],
                             "magnitude": f"{mag:.1f} ({target['desc']})",
+                            "magValue": round(mag, 1),
                             "startTime": ev.aos_time.isoformat(),
-                            "peakTime": ev.tca_time.isoformat(),
+                            "peakTime": ev.peak_time.isoformat(),
                             "endTime": ev.los_time.isoformat(),
                             "startTimeMs": start_ts_ms,
-                            "maxElevation": f"{int(ev.max_elevation_deg)}° {'(Zenith)' if ev.max_elevation_deg >= 70 else ''}".strip(),
+                            "maxElevation": f"{int(ev.max_elevation_deg)}° {'(Direct Zenith)' if ev.max_elevation_deg >= 70 else ''}".strip(),
                             "maxElevationDeg": round(ev.max_elevation_deg, 1),
                             "durationSec": duration_sec,
                             "duration": f"{duration_sec // 60}m {duration_sec % 60}s",
                             "startDirection": _azimuth_to_cardinal(ev.aos_azimuth_deg),
+                            "peakDirection": _azimuth_to_cardinal(ev.peak_azimuth_deg),
                             "endDirection": _azimuth_to_cardinal(ev.los_azimuth_deg),
-                            "brightnessRank": rank
+                            "skyPath": path_desc,
+                            "brightnessRank": rank,
+                            "visibilityCondition": ev.visibility_label or "Sunlit in Twilight/Dark Sky",
+                            "minRangeKm": round(ev.min_range_km, 1) if ev.min_range_km else None
                         })
                         visible_cities_set.add(city["id"])
             except Exception as e:
@@ -146,7 +168,7 @@ def get_visible_passes(
 
     confirmed_cities = [c for c in GLOBAL_CITIES if c["id"] in visible_cities_set]
     if not confirmed_cities:
-        confirmed_cities = GLOBAL_CITIES[:4]
+        confirmed_cities = GLOBAL_CITIES
 
     return {
         "status": "LIVE_SGP4",

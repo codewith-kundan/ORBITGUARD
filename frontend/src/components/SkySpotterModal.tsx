@@ -9,7 +9,8 @@ import {
   Compass,
   Sparkles,
   Globe2,
-  Calendar
+  Calendar,
+  Navigation,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -24,15 +25,22 @@ interface VisiblePass {
   cityName: string;
   cityId: string;
   magnitude: string;
+  magValue?: number;
   startTime: string;
   peakTime?: string;
   endTime?: string;
   startTimeMs: number;
   maxElevation: string;
+  maxElevationDeg?: number;
   duration: string;
+  durationSec?: number;
   startDirection: string;
+  peakDirection?: string;
   endDirection: string;
+  skyPath?: string;
   brightnessRank: 'Extremely Bright' | 'Bright' | 'Moderate';
+  visibilityCondition?: string;
+  minRangeKm?: number;
 }
 
 interface AvailableCity {
@@ -49,6 +57,7 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
   const [availableCities, setAvailableCities] = useState<AvailableCity[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [nowMs, setNowMs] = useState<number>(Date.now());
+  const [minElevationFilter, setMinElevationFilter] = useState<number>(15);
 
   // 1-second live countdown ticker
   useEffect(() => {
@@ -85,12 +94,13 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
 
   if (!isOpen) return null;
 
-  // Filter out expired passes and filter by location if specific city chosen
+  // Filter out expired passes and filter by location and elevation
   const activePasses = passes
     .filter((p) => {
       const isFuture = p.startTimeMs > nowMs - 600000; // Keep for 10 min past start while in transit
       const matchesCity = selectedCityId === 'ALL' || p.cityId === selectedCityId;
-      return isFuture && matchesCity;
+      const matchesElevation = (p.maxElevationDeg || 20) >= minElevationFilter;
+      return isFuture && matchesCity && matchesElevation;
     })
     .sort((a, b) => a.startTimeMs - b.startTimeMs);
 
@@ -114,26 +124,26 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in font-mono">
-      <div className="relative w-full max-w-4xl bg-space-950 border border-cyan-500/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in font-mono">
+      <div className="relative w-full max-w-4xl bg-space-950 border border-cyan-500/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="p-3 sm:p-4 bg-gradient-to-r from-blue-950/80 via-space-900 to-space-950 border-b border-cyan-500/30 flex items-center justify-between">
+        <div className="p-3 sm:p-4 bg-gradient-to-r from-blue-950/90 via-space-900 to-space-950 border-b border-cyan-500/30 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 sm:p-2.5 bg-cyan-500/20 rounded-xl border border-cyan-500/40 text-cyan-300">
-              <Eye className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
+              <Eye className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse text-cyan-400" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded-full border border-cyan-500/40">
-                  CITIZEN ASTRONOMY & SATELLITE SPOTTER
+                  CITIZEN SKY SPOTTER & OPTICAL RADAR
                 </span>
                 <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  Live SGP4 Optical Passes
+                  SGP4 WGS-84 Ephemeris Active
                 </span>
               </div>
               <h3 className="text-xs sm:text-base font-bold text-white tracking-wide mt-0.5">
-                Tonight's Naked-Eye Visible Satellite Passes
+                Naked-Eye & Optical Satellite Overpasses
               </h3>
             </div>
           </div>
@@ -142,31 +152,31 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
             <button
               onClick={() => loadPasses(selectedCityId)}
               disabled={loading}
-              className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-300 hover:text-white rounded-lg border border-space-800 transition disabled:opacity-50"
-              title="Refresh Passes"
+              className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-300 hover:text-white rounded-lg border border-space-800 transition disabled:opacity-50 cursor-pointer"
+              title="Recalculate Passes"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-400 hover:text-white rounded-lg border border-space-800 transition"
+              className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-400 hover:text-white rounded-lg border border-space-800 transition cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Location Filter Bar (Shown with All Visible Objects Option First) */}
+        {/* Location & Elevation Controls Bar */}
         <div className="p-3 bg-space-900/90 border-b border-space-800 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 flex-wrap">
             <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-            <span className="text-slate-400 font-bold">FILTER BY LOCATION:</span>
+            <span className="text-slate-400 font-bold">OBSERVATION HUB:</span>
             <select
               value={selectedCityId}
               onChange={(e) => setSelectedCityId(e.target.value)}
               className="bg-space-950 border border-cyan-500/40 rounded-lg px-3 py-1 text-cyan-300 font-bold focus:outline-none focus:border-cyan-400 text-xs cursor-pointer"
             >
-              <option value="ALL">🌐 All Global Visible Passes ({passes.length} Overflights)</option>
+              <option value="ALL">🌐 All Global Visible Passes ({passes.length} Overpasses)</option>
               {availableCities.map((city) => (
                 <option key={city.id} value={city.id}>
                   📍 {city.name} ({city.lat.toFixed(1)}°N, {city.lon.toFixed(1)}°E)
@@ -175,25 +185,37 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
             </select>
           </div>
 
-          <div className="flex items-center gap-2 text-[10px]">
+          <div className="flex items-center gap-2 text-[10px] flex-wrap">
+            <div className="flex items-center gap-1 bg-space-950 px-2 py-0.5 rounded border border-space-800">
+              <span className="text-slate-400">Min Culmination:</span>
+              <select
+                value={minElevationFilter}
+                onChange={(e) => setMinElevationFilter(Number(e.target.value))}
+                className="bg-transparent text-cyan-300 font-bold focus:outline-none cursor-pointer"
+              >
+                <option value={10}>≥ 10° (Horizon to Zenith)</option>
+                <option value={25}>≥ 25° (Clear Obstructed View)</option>
+                <option value={50}>≥ 50° (High Zenith Only)</option>
+              </select>
+            </div>
             <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-emerald-400" />
-              Sunlit in Twilight / Dark Sky Window
+              Sunlit in Dark/Twilight Sky
             </span>
           </div>
         </div>
 
-        {/* Main List of Real Visible Passes with 1-Second Countdown Tickers */}
-        <div className="p-3 sm:p-5 overflow-y-auto flex-1 space-y-3">
+        {/* Main List of Real Visible Passes */}
+        <div className="p-3 sm:p-5 overflow-y-auto flex-1 space-y-3 custom-scrollbar">
           {loading ? (
-            <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-3">
+            <div className="py-20 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-3">
               <RefreshCw className="w-6 h-6 animate-spin text-cyan-400" />
               <span>Propagating live SGP4 optical visibility vectors over chosen ground sites...</span>
             </div>
           ) : activePasses.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-xs bg-space-900 rounded-xl border border-space-800 space-y-1">
-              <p className="text-white font-bold">No naked-eye satellite passes predicted in the next 24 hours for this location.</p>
-              <p className="text-[11px] text-slate-500">Try selecting "All Global Visible Passes" to see encounters in other cities.</p>
+              <p className="text-white font-bold">No naked-eye satellite passes predicted in the next 48 hours matching current filters.</p>
+              <p className="text-[11px] text-slate-500">Try selecting "All Global Visible Passes" or lowering the minimum elevation cutoff.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -204,8 +226,8 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
                     key={`${p.noradId}-${p.cityId}-${idx}`} 
                     className={`p-3.5 sm:p-4 bg-space-900/90 rounded-xl border transition space-y-2.5 ${
                       isOverheadNow 
-                        ? 'border-emerald-500/80 bg-emerald-950/20 shadow-[0_0_20px_rgba(16,185,129,0.2)] animate-pulse' 
-                        : 'border-space-800 hover:border-cyan-500/40'
+                        ? 'border-emerald-500/80 bg-emerald-950/30 shadow-[0_0_25px_rgba(16,185,129,0.25)] animate-pulse' 
+                        : 'border-space-800 hover:border-cyan-500/40 hover:bg-space-900'
                     }`}
                   >
                     {/* Header */}
@@ -248,17 +270,17 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
                       <div className="p-2 bg-space-950 rounded-lg border border-space-800">
                         <span className="text-slate-500 block text-[9px] flex items-center gap-1">
                           <Calendar className="w-2.5 h-2.5 text-cyan-400" />
-                          START TIME (UTC):
+                          AOS START (UTC):
                         </span>
                         <strong className="text-cyan-300">
-                          {new Date(p.startTime).toUTCString().substring(17, 25)} UTC
+                          {new Date(p.startTime).toUTCString().substring(17, 22)} UTC
                         </strong>
                       </div>
 
                       <div className="p-2 bg-space-950 rounded-lg border border-space-800">
                         <span className="text-slate-500 block text-[9px] flex items-center gap-1">
                           <Globe2 className="w-2.5 h-2.5 text-emerald-400" />
-                          PEAK ELEVATION:
+                          PEAK CULMINATION:
                         </span>
                         <strong className="text-emerald-400">{p.maxElevation}</strong>
                       </div>
@@ -266,9 +288,9 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
                       <div className="p-2 bg-space-950 rounded-lg border border-space-800">
                         <span className="text-slate-500 block text-[9px] flex items-center gap-1">
                           <Compass className="w-2.5 h-2.5 text-purple-400" />
-                          TRAJECTORY PATH:
+                          TRAJECTORY COMPASS:
                         </span>
-                        <strong className="text-white truncate block" title={`${p.startDirection} → ${p.endDirection}`}>
+                        <strong className="text-white truncate block" title={p.skyPath || `${p.startDirection} → ${p.endDirection}`}>
                           {p.startDirection} → {p.endDirection}
                         </strong>
                       </div>
@@ -281,6 +303,22 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
                         <strong className="text-amber-300">{p.duration}</strong>
                       </div>
                     </div>
+
+                    {/* Sky Vector Ribbon */}
+                    {p.skyPath && (
+                      <div className="flex items-center justify-between text-[10px] bg-space-950/60 px-2.5 py-1 rounded border border-space-800/60 text-slate-400 font-mono">
+                        <span className="flex items-center gap-1">
+                          <Navigation className="w-3 h-3 text-cyan-400" />
+                          <span className="text-slate-400">Sky Path:</span>
+                          <span className="text-cyan-300 font-bold">{p.skyPath}</span>
+                        </span>
+                        {p.minRangeKm && (
+                          <span className="text-slate-400">
+                            Slant Range: <span className="text-white font-bold">{p.minRangeKm} km</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
