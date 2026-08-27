@@ -282,7 +282,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-2 sm:p-3 lg:p-4 max-w-[1920px] mx-auto w-full">
         {error && (
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 sm:p-4 mb-4 font-mono text-amber-300 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-300">
             <div className="flex items-center gap-2">
