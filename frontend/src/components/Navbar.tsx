@@ -82,66 +82,31 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isLiveError = dataStatus?.is_live_error || dataStatus?.mode === 'LIVE ERROR';
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 bg-space-950/95 backdrop-blur-md border-b border-space-800 px-3 sm:px-5 py-2.5 transition-all">
-      <div className="flex items-center justify-between gap-2 max-w-[1920px] mx-auto">
-        {/* Left Side: Brand Logo & Quick Action Buttons */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          <div 
-            onClick={() => handleSelectTab('space')}
-            className="flex items-center gap-2 cursor-pointer group flex-shrink-0"
-          >
-            <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border border-cyan-500/40 group-hover:border-cyan-400 group-hover:shadow-[0_0_15px_rgba(0,240,255,0.3)] transition">
-              <Radio className="w-4 h-4 text-cyan-400 animate-pulse" />
-            </div>
-            <div>
-              <span className="font-mono text-sm font-bold tracking-wider text-white group-hover:text-cyan-400 transition">
+    <header className="fixed top-0 left-0 right-0 z-40 bg-space-950/95 backdrop-blur-md border-b border-space-800 font-mono transition-all">
+      {/* Tier 1: Main Brand Bar with Primary Tabs & Live Diagnostics */}
+      <div className="px-3 sm:px-5 py-2 flex items-center justify-between gap-3 max-w-[1920px] mx-auto">
+        {/* Brand Logo & Name */}
+        <div 
+          onClick={() => handleSelectTab('space')}
+          className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0"
+        >
+          <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border border-cyan-500/40 group-hover:border-cyan-400 group-hover:shadow-[0_0_15px_rgba(0,240,255,0.3)] transition">
+            <Radio className="w-4 h-4 text-cyan-400 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="text-sm sm:text-base font-bold tracking-wider text-white group-hover:text-cyan-400 transition">
                 ORBITGUARD
               </span>
-              <p className="text-[9px] text-slate-400 font-mono hidden xl:block leading-none">
-                Real-Time Orbital Tracking & Conjunction Screening
-              </p>
             </div>
-          </div>
-
-          {/* Left-Side Action Buttons: Space Weather & AI Copilot */}
-          <div className="hidden lg:flex items-center gap-1.5 font-mono pl-2 border-l border-space-800">
-            {onOpenSpaceWeather && (
-              <button
-                onClick={onOpenSpaceWeather}
-                className="flex items-center gap-1.5 bg-amber-500/15 hover:bg-amber-500/25 px-2.5 py-1 rounded-lg border border-amber-500/40 text-[11px] text-amber-300 hover:text-white transition shadow-sm font-bold"
-                title="Open NOAA Space Weather & Solar Storm Monitor"
-              >
-                <Sun className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
-                <span>WEATHER</span>
-              </button>
-            )}
-
-            {onOpenAICopilot && (
-              <button
-                onClick={onOpenAICopilot}
-                className="flex items-center gap-1.5 bg-cyan-500/15 hover:bg-cyan-500/25 px-2.5 py-1 rounded-lg border border-cyan-500/40 text-[11px] text-cyan-300 hover:text-white transition shadow-sm font-bold"
-                title="Open Autonomous AI Flight Copilot"
-              >
-                <Bot className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-                <span>AI COPILOT</span>
-              </button>
-            )}
-
-            {onOpenSpotter && (
-              <button
-                onClick={onOpenSpotter}
-                className="hidden xl:flex items-center gap-1.5 bg-blue-500/15 hover:bg-blue-500/25 px-2.5 py-1 rounded-lg border border-blue-500/40 text-[11px] text-blue-300 hover:text-white transition shadow-sm font-bold"
-                title="View Tonight's Visible Passes"
-              >
-                <Eye className="w-3.5 h-3.5 text-blue-400" />
-                <span>SPOTTER</span>
-              </button>
-            )}
+            <p className="text-[9px] sm:text-[10px] text-slate-400 hidden sm:block leading-none">
+              Real-Time Orbital Tracking & Conjunction Screening
+            </p>
           </div>
         </div>
 
-        {/* Center: Main Navigation Tabs */}
-        <nav className="hidden md:flex items-center gap-1 bg-space-900/90 p-1 rounded-xl border border-space-800 font-mono text-xs shadow-inner flex-shrink-0">
+        {/* Center: Main Primary Navigation Tabs */}
+        <nav className="hidden md:flex items-center gap-1 bg-space-900/90 p-1 rounded-xl border border-space-800 text-xs shadow-inner flex-shrink-0">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.key;
@@ -169,9 +134,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           })}
         </nav>
 
-        {/* Right Side: Status Indicators & Tool Buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2 font-mono text-xs flex-shrink-0">
-          {/* Active Alerts Badge */}
+        {/* Right Side: Live Tracked Counter, Data Mode, & Quick Actions */}
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs flex-shrink-0">
+          {/* Alert Indicator */}
           {(alertCount ?? 0) > 0 && (
             <div className="flex items-center gap-1.5 bg-danger-500/10 px-2.5 py-1 rounded-lg border border-danger-500/30 text-[11px] sm:text-xs animate-pulse">
               <ShieldAlert className="w-3.5 h-3.5 text-danger-neon" />
@@ -180,37 +145,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           )}
 
-          {/* Tracked Count Counter */}
+          {/* Total Assets Counter */}
           <div className="hidden lg:flex items-center gap-1.5 bg-space-900 px-2.5 py-1 rounded-lg border border-space-800 text-slate-400">
             <Satellite className="w-3.5 h-3.5 text-cyan-400" />
             <span>TRACKED:</span>
             <span className="text-cyan-neon font-bold">
-              {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '32,283')}
+              {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '32,340')}
             </span>
           </div>
-
-          {/* Additional Tool Modals in Navbar */}
-          {onOpenLaunchRadar && (
-            <button
-              onClick={onOpenLaunchRadar}
-              className="hidden 2xl:flex items-center gap-1.5 bg-purple-500/15 hover:bg-purple-500/25 px-2 py-1 rounded-lg border border-purple-500/40 text-[11px] text-purple-300 hover:text-white transition shadow-sm font-bold"
-              title="Global Rocket Launch Radar"
-            >
-              <Rocket className="w-3.5 h-3.5 text-purple-400" />
-              <span>LAUNCHES</span>
-            </button>
-          )}
-
-          {onOpenKesslerDensity && (
-            <button
-              onClick={onOpenKesslerDensity}
-              className="hidden 2xl:flex items-center gap-1.5 bg-red-500/15 hover:bg-red-500/25 px-2 py-1 rounded-lg border border-red-500/40 text-[11px] text-red-300 hover:text-white transition shadow-sm font-bold"
-              title="Kessler Syndrome Density"
-            >
-              <Flame className="w-3.5 h-3.5 text-red-400" />
-              <span>KESSLER</span>
-            </button>
-          )}
 
           {/* User Guide Interactive Modal Trigger Button */}
           {onOpenUserGuide && (
@@ -275,9 +217,115 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
+      {/* Tier 2: Dedicated SSA Tactical Operations Sub-Bar (All Features Cleanly Visible) */}
+      <div className="hidden md:flex items-center justify-between px-3 sm:px-5 py-1.5 bg-space-900/60 border-t border-space-800/80 text-[11px] overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-2 flex-nowrap max-w-[1920px] mx-auto w-full">
+          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold pr-2 border-r border-space-800 flex-shrink-0 flex items-center gap-1">
+            <Radio className="w-3 h-3 text-cyan-400" />
+            SSA TOOLS:
+          </span>
+
+          {/* NOAA Space Weather Monitor */}
+          {onOpenSpaceWeather && (
+            <button
+              onClick={onOpenSpaceWeather}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Open NOAA Space Weather, Geomagnetic Storm & Solar Flux Monitor"
+            >
+              <Sun className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
+              <span>SPACE WEATHER</span>
+            </button>
+          )}
+
+          {/* Autonomous AI Flight Copilot */}
+          {onOpenAICopilot && (
+            <button
+              onClick={onOpenAICopilot}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Open Autonomous AI Flight Copilot"
+            >
+              <Bot className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+              <span>AI COPILOT</span>
+            </button>
+          )}
+
+          {/* Citizen Sky Spotter */}
+          {onOpenSpotter && (
+            <button
+              onClick={onOpenSpotter}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="View Tonight's Visible Naked-Eye Satellite Passes"
+            >
+              <Eye className="w-3.5 h-3.5 text-blue-400" />
+              <span>SKY SPOTTER</span>
+            </button>
+          )}
+
+          {/* Global Launch & Reentry Radar */}
+          {onOpenLaunchRadar && (
+            <button
+              onClick={onOpenLaunchRadar}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Open Global Rocket Launch Radar & Decaying Debris Tracker"
+            >
+              <Rocket className="w-3.5 h-3.5 text-purple-400" />
+              <span>LAUNCH RADAR</span>
+            </button>
+          )}
+
+          {/* Kessler Density Heatmap */}
+          {onOpenKesslerDensity && (
+            <button
+              onClick={onOpenKesslerDensity}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 text-red-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Open Kessler Syndrome Spatial Density Heatmap"
+            >
+              <Flame className="w-3.5 h-3.5 text-red-400" />
+              <span>KESSLER HEATMAP</span>
+            </button>
+          )}
+
+          {/* Defense SITREP Dossier */}
+          {onOpenSITREP && (
+            <button
+              onClick={onOpenSITREP}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Generate Formal Defense Situation Report (SITREP)"
+            >
+              <FileText className="w-3.5 h-3.5 text-slate-400" />
+              <span>DEFENSE SITREP</span>
+            </button>
+          )}
+
+          {/* ASAT Missile Simulator */}
+          {onOpenASAT && (
+            <button
+              onClick={onOpenASAT}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/40 text-orange-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Open ASAT Kinetic Missile Intercept & Cascade Simulator"
+            >
+              <Flame className="w-3.5 h-3.5 text-orange-400" />
+              <span>ASAT MISSILE</span>
+            </button>
+          )}
+
+          {/* Operator Sandbox Game */}
+          {onOpenGame && (
+            <button
+              onClick={onOpenGame}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Play Satellite Operator Evasion Sandbox Challenge"
+            >
+              <Gamepad2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>EVASION GAME</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-space-800 mt-2.5 pt-2 pb-2 font-mono animate-fade-in space-y-2">
+        <div className="md:hidden border-t border-space-800 mt-2.5 pt-2 pb-2 font-mono animate-fade-in space-y-2 px-3">
           <div className="flex flex-col gap-1 text-xs">
             {navItems.map((item) => {
               const Icon = item.icon;
