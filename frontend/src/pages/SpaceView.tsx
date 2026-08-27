@@ -14,7 +14,6 @@ import {
   ChevronRight,
   Clock,
   Crosshair,
-  FastForward,
   Globe,
   Sliders,
   Radio
@@ -1766,16 +1765,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                       </div>
 
                       {/* Action Buttons */}
-                      <div className="grid grid-cols-3 gap-1">
-                        <button
-                          type="button"
-                          onClick={() => { onSelectConjunction(conj); handleJumpToTca(conj); }}
-                          className="py-1 px-1 bg-danger-600 hover:bg-danger-500 text-white rounded-lg font-bold text-[9px] sm:text-[10px] flex items-center justify-center gap-0.5 sm:gap-1 shadow transition active:scale-95 cursor-pointer"
-                          title="Focus 3D Scene and blink both encounter objects"
-                        >
-                          <FastForward className="w-3 h-3" />
-                          FOCUS 3D
-                        </button>
+                      <div className="grid grid-cols-2 gap-1.5">
                         <button
                           type="button"
                           onClick={() => {
@@ -1783,20 +1773,20 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                               onNavigateTo2DTrack(conj);
                             }
                           }}
-                          className="py-1 px-1 bg-cyan-500 hover:bg-cyan-400 text-space-950 rounded-lg font-bold text-[9px] sm:text-[10px] flex items-center justify-center gap-0.5 sm:gap-1 shadow transition active:scale-95 cursor-pointer"
+                          className="py-1 px-2 bg-cyan-500 hover:bg-cyan-400 text-space-950 rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 shadow transition active:scale-95 cursor-pointer"
                           title="View both objects' ground tracks together on 2D map"
                         >
-                          <Compass className="w-3 h-3" />
+                          <Compass className="w-3.5 h-3.5" />
                           2D TRACK
                         </button>
                         <button
                           type="button"
                           onClick={() => onOpenConjunctionDetails(conj)}
-                          className="py-1 px-1 bg-space-900 hover:bg-space-800 text-cyan-400 border border-cyan-500/40 rounded-lg font-bold text-[9px] sm:text-[10px] flex items-center justify-center gap-0.5 sm:gap-1 transition cursor-pointer"
+                          className="py-1 px-2 bg-space-900 hover:bg-space-800 text-cyan-400 border border-cyan-500/40 rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 transition cursor-pointer"
                           title="Open Conjunction CDM Report"
                         >
-                          <Radio className="w-3 h-3" />
-                          REPORT
+                          <Radio className="w-3.5 h-3.5" />
+                          CDM REPORT
                         </button>
                       </div>
                     </div>
