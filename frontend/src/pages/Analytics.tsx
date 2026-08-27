@@ -128,7 +128,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({
               <Satellite className="w-4 h-4 text-cyan-400" />
               TOTAL CATALOG ASSETS
             </span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold">100% REAL</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>LIVE SGP4</span>
           </div>
           <div className="text-2xl sm:text-3xl font-bold text-white tracking-wider">
             {totalTracked.toLocaleString()}

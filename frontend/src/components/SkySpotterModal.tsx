@@ -129,7 +129,7 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
                 </span>
                 <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  100% Real SGP4 Visual Passes
+                  Live SGP4 Optical Passes
                 </span>
               </div>
               <h3 className="text-xs sm:text-base font-bold text-white tracking-wide mt-0.5">

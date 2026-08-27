@@ -58,7 +58,7 @@ def get_visible_passes(
     db: Session = Depends(get_db)
 ):
     """
-    Computes 100% real naked-eye satellite passes by propagating live SGP4 TLE ephemeris via sgp4.api.
+    Computes live naked-eye satellite passes by propagating live SGP4 TLE ephemeris via sgp4.api.
     Only returns cities and passes where the satellite is actually above horizon and visible in dark/twilight sky.
     """
     norad_ids = [t["norad_id"] for t in BRIGHT_TARGETS]
