@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Navbar, NavTabKey } from './components/Navbar';
 import { DataStatusBar } from './components/DataStatusBar';
 import { SpaceView } from './pages/SpaceView';
+import { Analytics } from './pages/Analytics';
 import { Map2DView } from './components/Map2DView';
 import { ObjectTable } from './components/ObjectTable';
 import { ConjunctionTable } from './components/ConjunctionTable';
@@ -377,6 +378,21 @@ export default function App() {
                 }}
                 onScreenNew={handleScreenConjunctions}
                 isScreening={isScreening}
+              />
+            )}
+
+            {/* 5. SSA ANALYTICS & RISK DASHBOARD */}
+            {activeTab === 'analytics' && (
+              <Analytics
+                stats={stats}
+                conjunctions={conjunctions}
+                objects={objects}
+                onNavigateTo3D={(conj) => {
+                  setSelectedConjunction(conj);
+                  if (conj.object_a) setSelectedObject(conj.object_a);
+                  setActiveTab('space');
+                }}
+                onSelectObject={handleSelectObject}
               />
             )}
           </>
