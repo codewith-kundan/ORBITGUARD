@@ -80,7 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isLiveError = dataStatus?.is_live_error || dataStatus?.mode === 'LIVE ERROR';
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 bg-space-950/95 backdrop-blur-md border-b border-space-800 font-mono transition-all">
+    <header className="sticky top-0 z-40 bg-space-950/95 backdrop-blur-md border-b border-space-800 font-mono transition-all shadow-xl">
       {/* Tier 1: Clean Primary Header */}
       <div className="px-3 sm:px-5 py-2 flex items-center justify-between gap-3 max-w-[1920px] mx-auto">
         {/* Brand Logo */}
