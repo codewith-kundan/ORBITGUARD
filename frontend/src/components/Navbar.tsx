@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Globe, 
   Satellite, 
   ShieldAlert, 
   BarChart3, 
   RefreshCw, 
-  Menu, 
-  X, 
   Radio, 
   Sparkles, 
   Sun,
@@ -62,12 +60,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenGame,
   onOpenSpotter
 }) => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
   const handleSelectTab = (tab: NavTabKey) => {
     if (setActiveTab) setActiveTab(tab);
     if (onSelectTab) onSelectTab(tab);
-    setMobileMenuOpen(false);
   };
 
   const navItems: { key: NavTabKey; label: string; icon: React.FC<{ className?: string }>; count?: number; isAlert?: boolean }[] = [
@@ -83,30 +78,30 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-space-950/95 backdrop-blur-md border-b border-space-800 font-mono transition-all">
-      {/* Tier 1: Main Brand Bar with Primary Tabs & Live Diagnostics */}
-      <div className="px-3 sm:px-5 py-2 flex items-center justify-between gap-3 max-w-[1920px] mx-auto">
-        {/* Brand Logo & Name */}
+      {/* Tier 1: Main Brand Bar with Primary Navigation Tabs & Live Tracked Counter */}
+      <div className="px-2 sm:px-4 lg:px-6 py-2 flex flex-wrap items-center justify-between gap-2 max-w-[1920px] mx-auto">
+        {/* Brand Logo */}
         <div 
           onClick={() => handleSelectTab('space')}
-          className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0"
+          className="flex items-center gap-2 cursor-pointer group flex-shrink-0"
         >
-          <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border border-cyan-500/40 group-hover:border-cyan-400 group-hover:shadow-[0_0_15px_rgba(0,240,255,0.3)] transition">
-            <Radio className="w-4 h-4 text-cyan-400 animate-pulse" />
+          <div className="relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border border-cyan-500/40 group-hover:border-cyan-400 group-hover:shadow-[0_0_15px_rgba(0,240,255,0.3)] transition">
+            <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-400 animate-pulse" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="text-sm sm:text-base font-bold tracking-wider text-white group-hover:text-cyan-400 transition">
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <span className="text-xs sm:text-sm md:text-base font-bold tracking-wider text-white group-hover:text-cyan-400 transition">
                 ORBITGUARD
               </span>
             </div>
-            <p className="text-[9px] sm:text-[10px] text-slate-400 hidden sm:block leading-none">
+            <p className="text-[8px] sm:text-[9px] text-slate-400 hidden lg:block leading-none">
               Real-Time Orbital Tracking & Conjunction Screening
             </p>
           </div>
         </div>
 
-        {/* Center: Main Primary Navigation Tabs */}
-        <nav className="hidden md:flex items-center gap-1 bg-space-900/90 p-1 rounded-xl border border-space-800 text-xs shadow-inner flex-shrink-0">
+        {/* Center: Main Primary Navigation Tabs (Flex-wrap so it never gets cut off when tab is small) */}
+        <nav className="flex items-center gap-1 bg-space-900/90 p-1 rounded-xl border border-space-800 text-[11px] sm:text-xs shadow-inner flex-wrap justify-center">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.key;
@@ -114,16 +109,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={item.key}
                 onClick={() => handleSelectTab(item.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition font-medium text-xs whitespace-nowrap ${
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg transition font-medium whitespace-nowrap ${
                   isActive
                     ? 'bg-cyan-500/20 text-cyan-neon border border-cyan-500/40 shadow-sm font-bold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-space-800/80'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 <span>{item.label}</span>
                 {item.count != null && (
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] flex items-center justify-center font-bold ${
+                  <span className={`px-1 sm:px-1.5 py-0.2 rounded-full text-[9px] sm:text-[10px] flex items-center justify-center font-bold ${
                     item.isAlert ? 'bg-danger-500 text-white animate-pulse' : 'bg-cyan-500/20 text-cyan-400'
                   }`}>
                     {item.count}
@@ -134,21 +129,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           })}
         </nav>
 
-        {/* Right Side: Live Tracked Counter, Data Mode, & Quick Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2 text-xs flex-shrink-0">
+        {/* Right Side: Alerts, Tracked Assets, Diagnostics & Refresh */}
+        <div className="flex items-center gap-1 sm:gap-2 text-xs flex-wrap justify-end">
           {/* Alert Indicator */}
           {(alertCount ?? 0) > 0 && (
-            <div className="flex items-center gap-1.5 bg-danger-500/10 px-2.5 py-1 rounded-lg border border-danger-500/30 text-[11px] sm:text-xs animate-pulse">
-              <ShieldAlert className="w-3.5 h-3.5 text-danger-neon" />
+            <div className="flex items-center gap-1 bg-danger-500/10 px-2 py-1 rounded-lg border border-danger-500/30 text-[10px] sm:text-xs animate-pulse">
+              <ShieldAlert className="w-3 h-3 text-danger-neon" />
               <span className="text-danger-neon font-bold">{alertCount}</span>
-              <span className="text-slate-400 hidden sm:inline">ALERTS</span>
+              <span className="text-slate-400 hidden md:inline">ALERTS</span>
             </div>
           )}
 
           {/* Total Assets Counter */}
-          <div className="hidden lg:flex items-center gap-1.5 bg-space-900 px-2.5 py-1 rounded-lg border border-space-800 text-slate-400">
-            <Satellite className="w-3.5 h-3.5 text-cyan-400" />
-            <span>TRACKED:</span>
+          <div className="flex items-center gap-1 sm:gap-1.5 bg-space-900 px-2 py-1 rounded-lg border border-space-800 text-slate-400 text-[10px] sm:text-xs">
+            <Satellite className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">TRACKED:</span>
             <span className="text-cyan-neon font-bold">
               {stats?.tracked_objects ? stats.tracked_objects.toLocaleString() : (dataStatus?.total_objects ? dataStatus.total_objects.toLocaleString() : '32,340')}
             </span>
@@ -158,10 +153,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenUserGuide && (
             <button
               onClick={onOpenUserGuide}
-              className="flex items-center gap-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1 rounded-lg border border-cyan-500/30 hover:border-cyan-400 text-[11px] text-cyan-300 hover:text-white transition shadow-sm font-bold"
+              className="flex items-center gap-1 bg-cyan-500/10 hover:bg-cyan-500/20 px-2 py-1 rounded-lg border border-cyan-500/30 hover:border-cyan-400 text-[10px] sm:text-xs text-cyan-300 hover:text-white transition shadow-sm font-bold"
               title="Open Interactive Operator User Guide"
             >
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+              <Sparkles className="w-3 h-3 text-cyan-400" />
               <span className="hidden sm:inline">GUIDE</span>
             </button>
           )}
@@ -169,7 +164,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Live Data Feed Mode Indicator */}
           <div 
             onClick={onOpenSystemHealth}
-            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border cursor-pointer transition ${
+            className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-lg border cursor-pointer transition text-[10px] sm:text-xs ${
               isLiveError
                 ? 'bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20'
                 : isLive
@@ -178,14 +173,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
             title="Click to view System Diagnostics & Health"
           >
-            <span className={`w-2 h-2 rounded-full ${
+            <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${
               isLiveError
                 ? 'bg-amber-400 animate-pulse'
                 : isLive
                 ? 'bg-emerald-400 animate-pulse'
                 : 'bg-warning-neon'
             }`} />
-            <span className={`text-[10px] sm:text-[11px] font-bold ${
+            <span className={`font-bold ${
               isLiveError
                 ? 'text-amber-400'
                 : isLive
@@ -200,28 +195,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={onRefresh}
             disabled={isRefreshing}
-            className="p-1.5 sm:p-2 bg-space-900 hover:bg-space-800 text-slate-400 hover:text-white rounded-lg border border-space-800 transition disabled:opacity-50"
+            className="p-1 sm:p-1.5 bg-space-900 hover:bg-space-800 text-slate-400 hover:text-white rounded-lg border border-space-800 transition disabled:opacity-50"
             title="Refresh Orbital Positions & Screen Conjunctions"
           >
-            <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isRefreshing ? 'animate-spin text-cyan-neon' : ''}`} />
-          </button>
-
-          {/* Mobile Menu Trigger */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-1.5 sm:p-2 bg-space-900 text-slate-300 hover:text-white rounded-lg border border-space-800"
-            aria-label="Toggle Navigation Menu"
-          >
-            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-cyan-neon' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* Tier 2: Dedicated SSA Tactical Operations Sub-Bar (All Features Cleanly Visible) */}
-      <div className="hidden md:flex items-center justify-between px-3 sm:px-5 py-1.5 bg-space-900/60 border-t border-space-800/80 text-[11px] overflow-x-auto scrollbar-none">
-        <div className="flex items-center gap-2 flex-nowrap max-w-[1920px] mx-auto w-full">
-          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold pr-2 border-r border-space-800 flex-shrink-0 flex items-center gap-1">
-            <Radio className="w-3 h-3 text-cyan-400" />
+      {/* Tier 2: Dedicated SSA Tactical Operations Sub-Bar (Flex-wrap so ALL buttons stay visible on small/resized tabs) */}
+      <div className="px-2 sm:px-4 lg:px-6 py-1.5 bg-space-900/70 border-t border-space-800/80 text-[10px] sm:text-[11px]">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 max-w-[1920px] mx-auto w-full">
+          <span className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wider font-bold pr-1.5 border-r border-space-800 flex items-center gap-1">
+            <Radio className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-cyan-400" />
             SSA TOOLS:
           </span>
 
@@ -229,10 +215,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenSpaceWeather && (
             <button
               onClick={onOpenSpaceWeather}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
-              title="Open NOAA Space Weather, Geomagnetic Storm & Solar Flux Monitor"
+              className="flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
+              title="Open NOAA Space Weather & Solar Storm Monitor"
             >
-              <Sun className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
+              <Sun className="w-3 h-3 text-amber-400 animate-spin-slow" />
               <span>SPACE WEATHER</span>
             </button>
           )}
@@ -241,10 +227,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenAICopilot && (
             <button
               onClick={onOpenAICopilot}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              className="flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
               title="Open Autonomous AI Flight Copilot"
             >
-              <Bot className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+              <Bot className="w-3 h-3 text-cyan-400 animate-pulse" />
               <span>AI COPILOT</span>
             </button>
           )}
@@ -253,10 +239,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenSpotter && (
             <button
               onClick={onOpenSpotter}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              className="flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
               title="View Tonight's Visible Naked-Eye Satellite Passes"
             >
-              <Eye className="w-3.5 h-3.5 text-blue-400" />
+              <Eye className="w-3 h-3 text-blue-400" />
               <span>SKY SPOTTER</span>
             </button>
           )}
@@ -265,10 +251,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenLaunchRadar && (
             <button
               onClick={onOpenLaunchRadar}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              className="flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
               title="Open Global Rocket Launch Radar & Decaying Debris Tracker"
             >
-              <Rocket className="w-3.5 h-3.5 text-purple-400" />
+              <Rocket className="w-3 h-3 text-purple-400" />
               <span>LAUNCH RADAR</span>
             </button>
           )}
@@ -277,10 +263,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenKesslerDensity && (
             <button
               onClick={onOpenKesslerDensity}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 text-red-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              className="flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 text-red-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
               title="Open Kessler Syndrome Spatial Density Heatmap"
             >
-              <Flame className="w-3.5 h-3.5 text-red-400" />
+              <Flame className="w-3 h-3 text-red-400" />
               <span>KESSLER HEATMAP</span>
             </button>
           )}
@@ -289,10 +275,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenSITREP && (
             <button
               onClick={onOpenSITREP}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              className="flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
               title="Generate Formal Defense Situation Report (SITREP)"
             >
-              <FileText className="w-3.5 h-3.5 text-slate-400" />
+              <FileText className="w-3 h-3 text-slate-400" />
               <span>DEFENSE SITREP</span>
             </button>
           )}
@@ -301,10 +287,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenASAT && (
             <button
               onClick={onOpenASAT}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/40 text-orange-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              className="flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/40 text-orange-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
               title="Open ASAT Kinetic Missile Intercept & Cascade Simulator"
             >
-              <Flame className="w-3.5 h-3.5 text-orange-400" />
+              <Flame className="w-3 h-3 text-orange-400" />
               <span>ASAT MISSILE</span>
             </button>
           )}
@@ -313,123 +299,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onOpenGame && (
             <button
               onClick={onOpenGame}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              className="flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
               title="Play Satellite Operator Evasion Sandbox Challenge"
             >
-              <Gamepad2 className="w-3.5 h-3.5 text-emerald-400" />
+              <Gamepad2 className="w-3 h-3 text-emerald-400" />
               <span>EVASION GAME</span>
             </button>
           )}
         </div>
       </div>
-
-      {/* Mobile Drawer Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-t border-space-800 mt-2.5 pt-2 pb-2 font-mono animate-fade-in space-y-2 px-3">
-          <div className="flex flex-col gap-1 text-xs">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.key;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => handleSelectTab(item.key)}
-                  className={`flex items-center justify-between p-2 rounded-lg transition ${
-                    isActive
-                      ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40'
-                      : 'bg-space-900 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.count != null && (
-                    <span className="bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full text-[10px] flex items-center justify-center font-bold">
-                      {item.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-space-800 text-xs">
-            {onOpenSpaceWeather && (
-              <button
-                onClick={() => { onOpenSpaceWeather(); setMobileMenuOpen(false); }}
-                className="flex items-center gap-1.5 p-2 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold"
-              >
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
-                <span>Space Weather</span>
-              </button>
-            )}
-            {onOpenAICopilot && (
-              <button
-                onClick={() => { onOpenAICopilot(); setMobileMenuOpen(false); }}
-                className="flex items-center gap-1.5 p-2 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-bold"
-              >
-                <Bot className="w-3.5 h-3.5 text-cyan-400" />
-                <span>AI Copilot</span>
-              </button>
-            )}
-            {onOpenSpotter && (
-              <button
-                onClick={() => { onOpenSpotter(); setMobileMenuOpen(false); }}
-                className="flex items-center gap-1.5 p-2 rounded-lg bg-blue-500/20 border border-blue-500/40 text-blue-300 font-bold"
-              >
-                <Eye className="w-3.5 h-3.5 text-blue-400" />
-                <span>Sky Spotter</span>
-              </button>
-            )}
-            {onOpenLaunchRadar && (
-              <button
-                onClick={() => { onOpenLaunchRadar(); setMobileMenuOpen(false); }}
-                className="flex items-center gap-1.5 p-2 rounded-lg bg-purple-500/20 border border-purple-500/40 text-purple-300 font-bold"
-              >
-                <Rocket className="w-3.5 h-3.5 text-purple-400" />
-                <span>Launch Radar</span>
-              </button>
-            )}
-            {onOpenKesslerDensity && (
-              <button
-                onClick={() => { onOpenKesslerDensity(); setMobileMenuOpen(false); }}
-                className="flex items-center gap-1.5 p-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 font-bold"
-              >
-                <Flame className="w-3.5 h-3.5 text-red-400" />
-                <span>Kessler Density</span>
-              </button>
-            )}
-            {onOpenSITREP && (
-              <button
-                onClick={() => { onOpenSITREP(); setMobileMenuOpen(false); }}
-                className="flex items-center gap-1.5 p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 font-bold"
-              >
-                <FileText className="w-3.5 h-3.5 text-slate-400" />
-                <span>SITREP Report</span>
-              </button>
-            )}
-            {onOpenASAT && (
-              <button
-                onClick={() => { onOpenASAT(); setMobileMenuOpen(false); }}
-                className="flex items-center gap-1.5 p-2 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-300 font-bold"
-              >
-                <Flame className="w-3.5 h-3.5 text-orange-400" />
-                <span>ASAT Missile</span>
-              </button>
-            )}
-            {onOpenGame && (
-              <button
-                onClick={() => { onOpenGame(); setMobileMenuOpen(false); }}
-                className="flex items-center gap-1.5 p-2 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold"
-              >
-                <Gamepad2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Simulator Game</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
     </header>
   );
 };
