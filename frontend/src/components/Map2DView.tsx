@@ -1099,7 +1099,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
   return (
     <div 
       ref={containerRef}
-      className="flex-1 flex flex-col bg-space-950 text-slate-100 font-mono relative overflow-hidden rounded-2xl border border-space-800 shadow-2xl min-h-[calc(100vh-140px)] h-[calc(100vh-140px)]"
+      className="flex-1 flex flex-col bg-space-950 text-slate-100 font-mono relative overflow-hidden rounded-2xl border border-space-800 shadow-2xl min-h-[calc(100vh-105px)] h-[calc(100vh-105px)]"
     >
       {/* TOP CONTROLS & LIVE SIMULATION BAR */}
       <div className="bg-space-900/95 border-b border-space-800 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs z-30 backdrop-blur-md">

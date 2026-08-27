@@ -1330,7 +1330,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   };
 
   return (
-    <div className={`relative w-full h-[calc(100vh-140px)] min-h-[600px] bg-space-950 rounded-2xl overflow-hidden border border-space-800 shadow-2xl ${isFullscreen ? 'fixed inset-0 z-50 h-screen rounded-none border-none' : ''}`}>
+    <div className={`relative w-full h-[calc(100vh-105px)] min-h-[620px] bg-space-950 rounded-2xl overflow-hidden border border-space-800 shadow-2xl ${isFullscreen ? 'fixed inset-0 z-50 h-screen rounded-none border-none' : ''}`}>
       {/* 3D WebGL Canvas Mounting Container */}
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
