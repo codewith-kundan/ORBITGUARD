@@ -7,9 +7,11 @@ import {
   RefreshCw,
   Calendar,
   Layers,
-  MapPin
+  MapPin,
+  ShieldAlert
 } from 'lucide-react';
 import { api } from '../services/api';
+import { DecayWatchlistItem } from '../types';
 
 interface LaunchRadarModalProps {
   isOpen: boolean;
@@ -26,31 +28,37 @@ interface LaunchEvent {
   status: string;
   missionDescription: string;
   image?: string;
-}
-
-interface DebrisReentryEvent {
-  id: string;
-  noradId: number;
-  objectName: string;
-  decayWindow: string;
-  predictedImpactLatitude: string;
-  predictedImpactLongitude: string;
-  riskCategory: 'UNCONTROLLED' | 'CONTROLLED' | 'MINIMAL RISK';
-  perigeeKm: number;
+  _netMs?: number;
 }
 
 export const LaunchRadarModal: React.FC<LaunchRadarModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<'launches' | 'reentries'>('launches');
-  const [launches, setLaunches] = useState<LaunchEvent[]>([]);
+  const [rawLaunches, setRawLaunches] = useState<LaunchEvent[]>([]);
+  const [decayWatchlist, setDecayWatchlist] = useState<DecayWatchlistItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadingDecay, setLoadingDecay] = useState<boolean>(false);
   const [feedSource, setFeedSource] = useState<string>('Launch Library 2 (The Space Devs)');
+  const [nowMs, setNowMs] = useState<number>(Date.now());
+
+  // 1-second live ticker for real-time second-by-second countdown and past launch pruning
+  useEffect(() => {
+    if (!isOpen) return;
+    const interval = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isOpen]);
 
   const fetchLaunches = async () => {
     try {
       setLoading(true);
       const res = await api.getUpcomingLaunches();
       if (res && res.launches && res.launches.length > 0) {
-        setLaunches(res.launches);
+        const parsed = res.launches.map((l: any) => ({
+          ...l,
+          _netMs: new Date(l.launchTimeUtc).getTime()
+        }));
+        setRawLaunches(parsed);
         setFeedSource(res.source || 'Launch Library 2');
       }
     } catch (err) {
@@ -60,50 +68,55 @@ export const LaunchRadarModal: React.FC<LaunchRadarModalProps> = ({ isOpen, onCl
     }
   };
 
+  const fetchDecayWatchlist = async () => {
+    try {
+      setLoadingDecay(true);
+      const res = await api.getDecayWatchlist(180.0);
+      if (res && res.length > 0) {
+        setDecayWatchlist(res);
+      }
+    } catch (err) {
+      console.error('Failed to load decay watchlist:', err);
+    } finally {
+      setLoadingDecay(false);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       fetchLaunches();
+      fetchDecayWatchlist();
     }
   }, [isOpen]);
+
+  // Filter out any past launches where NET + 30m launch window has completed, sort ascending by time
+  const upcomingLaunches = rawLaunches
+    .filter((l) => {
+      const net = l._netMs || new Date(l.launchTimeUtc).getTime();
+      return !isNaN(net) && (net + 30 * 60 * 1000) > nowMs; // Keep during launch window, prune once completed
+    })
+    .sort((a, b) => (a._netMs || 0) - (b._netMs || 0));
 
   const formatCountdown = (dateStr: string) => {
     try {
       const target = new Date(dateStr).getTime();
-      const now = Date.now();
-      const diffMs = target - now;
-      if (diffMs <= 0) return 'T-00:00:00 (LAUNCH WINDOW OPEN)';
+      const diffMs = target - nowMs;
+      if (diffMs <= 0 && diffMs > -1800000) return 'LIFTOFF / IN FLIGHT';
+      if (diffMs <= -1800000) return 'MISSION COMPLETED';
+      
       const days = Math.floor(diffMs / (86400 * 1000));
       const hours = Math.floor((diffMs % (86400 * 1000)) / (3600 * 1000));
       const mins = Math.floor((diffMs % (3600 * 1000)) / (60 * 1000));
-      if (days > 0) return `T-${days}d ${hours.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m`;
-      return `T-${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:00`;
+      const secs = Math.floor((diffMs % (60 * 1000)) / 1000);
+
+      if (days > 0) {
+        return `T-${days}d ${hours.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+      }
+      return `T-${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     } catch {
       return 'SCHEDULED';
     }
   };
-
-  const decayingDebris: DebrisReentryEvent[] = [
-    {
-      id: 'dec-01',
-      noradId: 44219,
-      objectName: 'CZ-3B R/B (Long March 3B Spent Upper Stage)',
-      decayWindow: new Date(Date.now() + 14 * 3600 * 1000).toUTCString() + ' ± 3h',
-      predictedImpactLatitude: '14.2° S',
-      predictedImpactLongitude: '112.5° W (South Pacific Corridor)',
-      riskCategory: 'UNCONTROLLED',
-      perigeeKm: 138.2
-    },
-    {
-      id: 'dec-02',
-      noradId: 39512,
-      objectName: 'COSMOS 2251 DEB (#39512)',
-      decayWindow: new Date(Date.now() + 32 * 3600 * 1000).toUTCString() + ' ± 5h',
-      predictedImpactLatitude: '48.1° N',
-      predictedImpactLongitude: '35.4° E (Black Sea Corridor)',
-      riskCategory: 'UNCONTROLLED',
-      perigeeKm: 154.0
-    }
-  ];
 
   if (!isOpen) return null;
 
@@ -133,12 +146,12 @@ export const LaunchRadarModal: React.FC<LaunchRadarModalProps> = ({ isOpen, onCl
           </div>
           <div className="flex items-center gap-1.5">
             <button
-              onClick={fetchLaunches}
-              disabled={loading}
+              onClick={() => { fetchLaunches(); fetchDecayWatchlist(); }}
+              disabled={loading || loadingDecay}
               className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-300 hover:text-white rounded-lg border border-space-800 transition disabled:opacity-50"
               title="Refresh Live Manifest"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-purple-400' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${(loading || loadingDecay) ? 'animate-spin text-purple-400' : ''}`} />
             </button>
             <button
               onClick={onClose}
@@ -160,7 +173,7 @@ export const LaunchRadarModal: React.FC<LaunchRadarModalProps> = ({ isOpen, onCl
             }`}
           >
             <Rocket className="w-3.5 h-3.5" />
-            <span>REAL-TIME UPCOMING MISSIONS ({launches.length})</span>
+            <span>REAL-TIME UPCOMING MISSIONS ({upcomingLaunches.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('reentries')}
@@ -171,7 +184,7 @@ export const LaunchRadarModal: React.FC<LaunchRadarModalProps> = ({ isOpen, onCl
             }`}
           >
             <Flame className="w-3.5 h-3.5" />
-            <span>DECAYING RE-ENTRY CORRIDORS ({decayingDebris.length})</span>
+            <span>ATMOSPHERIC RE-ENTRY WATCHLIST ({decayWatchlist.length})</span>
           </button>
         </div>
 
@@ -183,13 +196,13 @@ export const LaunchRadarModal: React.FC<LaunchRadarModalProps> = ({ isOpen, onCl
                 <RefreshCw className="w-6 h-6 animate-spin text-purple-400" />
                 <span>Syncing live global launch manifest from Launch Library 2...</span>
               </div>
-            ) : launches.length === 0 ? (
+            ) : upcomingLaunches.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-xs bg-space-900 rounded-xl border border-space-800">
-                No upcoming launches found in current 30-day window.
+                All scheduled missions have concluded. Checking next launch windows...
               </div>
             ) : (
               <div className="space-y-3">
-                {launches.map((lch) => (
+                {upcomingLaunches.map((lch) => (
                   <div key={lch.id} className="p-3 sm:p-4 bg-space-900/90 rounded-xl border border-space-800 hover:border-purple-500/40 transition space-y-2">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -199,8 +212,8 @@ export const LaunchRadarModal: React.FC<LaunchRadarModalProps> = ({ isOpen, onCl
                         </span>
                       </div>
                       <div className="flex items-center gap-2 self-start sm:self-auto">
-                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30 flex items-center gap-1">
-                          <Clock className="w-2.5 h-2.5" />
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30 flex items-center gap-1 tabular-nums">
+                          <Clock className="w-2.5 h-2.5 animate-spin-slow" />
                           {formatCountdown(lch.launchTimeUtc)}
                         </span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
@@ -247,38 +260,76 @@ export const LaunchRadarModal: React.FC<LaunchRadarModalProps> = ({ isOpen, onCl
               </div>
             )
           ) : (
-            <div className="space-y-3">
-              {decayingDebris.map((dec) => (
-                <div key={dec.id} className="p-3 sm:p-4 bg-space-900/90 rounded-xl border border-red-500/30 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs sm:text-sm font-bold text-white">{dec.objectName}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-space-950 text-red-300 border border-red-500/30">
-                        NORAD #{dec.noradId}
+            /* TAB 2: REAL ATMOSPHERIC RE-ENTRY FROM LIVE SGP4 / KING-HELE PROPAGATION */
+            loadingDecay ? (
+              <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-3">
+                <RefreshCw className="w-6 h-6 animate-spin text-red-400" />
+                <span>Computing live King-Hele atmospheric drag lifetime on low-perigee catalog tracks...</span>
+              </div>
+            ) : decayWatchlist.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs bg-space-900 rounded-xl border border-space-800">
+                No active orbital tracks currently below 200 km perigee re-entry threshold.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="p-3 bg-red-950/40 border border-red-500/40 rounded-xl text-xs flex items-center gap-2.5 text-red-300">
+                  <ShieldAlert className="w-4 h-4 text-red-400 flex-shrink-0 animate-pulse" />
+                  <span>
+                    Real-time SGP4 thermospheric decay predictions calculated via <strong>King-Hele Drag Mechanics</strong> against Jacchia-Roberts scale heights.
+                  </span>
+                </div>
+
+                {decayWatchlist.map((dec) => (
+                  <div key={dec.norad_id} className="p-3 sm:p-4 bg-space-900/90 rounded-xl border border-red-500/30 space-y-2 hover:border-red-500/60 transition">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs sm:text-sm font-bold text-white">{dec.object_name}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-space-950 text-red-300 border border-red-500/30">
+                          NORAD #{dec.norad_id}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-space-950 text-slate-400 border border-space-800">
+                          {dec.object_type}
+                        </span>
+                      </div>
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
+                        dec.risk_level === 'CRITICAL'
+                          ? 'bg-red-600/20 text-red-400 border-red-500/50 animate-pulse'
+                          : dec.risk_level === 'HIGH'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
+                      }`}>
+                        {dec.risk_level} RE-ENTRY RISK
                       </span>
                     </div>
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 font-bold">
-                      {dec.riskCategory}
-                    </span>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] pt-1 text-slate-400">
-                    <div>
-                      <span className="text-slate-500 block text-[9px]">DECAY HORIZON:</span>
-                      <span className="text-amber-300 font-bold">{dec.decayWindow}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block text-[9px]">CURRENT PERIGEE:</span>
-                      <span className="text-red-300 font-bold">{dec.perigeeKm} km (Thermosphere Entry)</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block text-[9px]">PROJECTED IMPACT CORRIDOR:</span>
-                      <span className="text-slate-200">{dec.predictedImpactLatitude}, {dec.predictedImpactLongitude}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px] pt-1.5 border-t border-space-800/80 text-slate-400">
+                      <div>
+                        <span className="text-slate-500 block text-[9px]">ESTIMATED LIFETIME:</span>
+                        <span className="text-amber-300 font-bold">
+                          {dec.estimated_lifetime_days < 1 
+                            ? `${Math.round(dec.estimated_lifetime_days * 24)} hours` 
+                            : `${dec.estimated_lifetime_days.toFixed(1)} days`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[9px]">CURRENT PERIGEE:</span>
+                        <span className="text-red-300 font-bold">{dec.perigee_km.toFixed(1)} km</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[9px]">CURRENT APOGEE:</span>
+                        <span className="text-cyan-300 font-bold">{dec.apogee_km.toFixed(1)} km</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[9px]">PROJECTED RE-ENTRY:</span>
+                        <span className="text-slate-200 font-medium">
+                          {new Date(dec.predicted_reentry_time).toUTCString().substring(0, 22)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )
           )}
         </div>
       </div>
