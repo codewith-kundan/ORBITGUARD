@@ -411,6 +411,24 @@ export const api = {
     }
   },
 
+  // OrbitBot AI Copilot Chat Endpoint
+  sendChatMessage: async (messages: { role: string; content: string }[]): Promise<{ response: string; model: string; status: string }> => {
+    try {
+      return await request<{ response: string; model: string; status: string }>('/chat', {
+        method: 'POST',
+        body: JSON.stringify({ messages })
+      });
+    } catch (e) {
+      console.warn('Chat API failed, using client fallback:', e);
+      const lastMsg = messages[messages.length - 1]?.content || '';
+      return {
+        response: `Regarding "${lastMsg}": OrbitGuard continuously calculates SGP4 state vectors, Time of Closest Approach (TCA), and B-plane covariance ellipses. (Connect OPENAI_API_KEY in backend environment to enable full live ChatGPT processing).`,
+        model: 'OrbitBot Client Fallback',
+        status: 'CLIENT_FALLBACK'
+      };
+    }
+  },
+
   // Citizen Sky Spotter Real Naked-Eye Passes
   getVisiblePasses: async (cityId?: string): Promise<{ status: string; total_passes: number; available_cities: any[]; passes: any[] }> => {
     try {

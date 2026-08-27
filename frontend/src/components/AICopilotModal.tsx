@@ -4,9 +4,11 @@ import {
   Bot, 
   Send, 
   Sparkles,
-  HelpCircle
+  HelpCircle,
+  Loader2
 } from 'lucide-react';
 import { Conjunction } from '../types';
+import { api } from '../services/api';
 
 interface AICopilotModalProps {
   isOpen: boolean;
@@ -19,6 +21,7 @@ interface Message {
   sender: 'ai' | 'user';
   text: string;
   timestamp: string;
+  modelBadge?: string;
   recommendation?: {
     burnVector: string;
     deltaV: string;
@@ -49,107 +52,58 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
     }
   ]);
   const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const generateOrbitBotResponse = (query: string): string => {
-    const q = query.trim().toLowerCase();
+  const handleSend = async () => {
+    if (!inputText.trim() || isLoading) return;
 
-    // ==========================================
-    // CATEGORY A: General Space, Astronomy & Astrodynamics
-    // ==========================================
-
-    // 1. What is space?
-    if (q === 'what is space' || q === 'what is space?' || q.includes('definition of space')) {
-      return `**Space** (outer space) is the physical universe beyond Earth's atmosphere. It begins officially at the **Kármán line** ($100\\text{ km}$ / $62\\text{ miles}$ above sea level), where Earth's atmosphere becomes too thin to support aerodynamic flight, requiring orbital velocities ($~7.8\\text{ km/s}$) to stay aloft. It is a near-perfect vacuum filled with low-density particles, plasma, magnetic fields, radiation, and celestial bodies.`;
-    }
-
-    // 2. How do satellites stay in orbit?
-    if (q.includes('stay in orbit') || q.includes('how orbit works') || q.includes('how do satellites orbit')) {
-      return `Satellites stay in orbit through a continuous balance between **gravitational attraction** and **tangential orbital velocity**.\n\n• An orbital vehicle is essentially in continuous free-fall toward Earth, but its forward speed ($~7.8\\text{ km/s}$ in Low Earth Orbit) means Earth's surface curves away beneath it at the exact same rate.\n• Orbital velocity is governed by $v = \\sqrt{\\frac{GM}{r}}$, where $G$ is the gravitational constant, $M$ is Earth's mass, and $r$ is the orbital radius from Earth's center.`;
-    }
-
-    // 3. Kessler Syndrome
-    if (q.includes('kessler')) {
-      return `**Kessler Syndrome** is a theoretical scenario where the spatial density of objects in Low Earth Orbit (LEO) becomes high enough that collisions between satellites and debris create a cascading chain reaction.\n\n• Each collision generates thousands of high-speed fragments ($>10\\text{ cm}$).\n• These fragments multiply the likelihood of further collisions, potentially rendering entire orbital bands (especially $700\\text{--}900\\text{ km}$) hazardous and unusable for future space missions.`;
-    }
-
-    // 4. LEO vs MEO vs GEO
-    if (q.includes('leo') || q.includes('meo') || q.includes('geo') || q.includes('geostationary') || q.includes('orbit types')) {
-      return `**Orbital Regimes**:\n\n• **LEO (Low Earth Orbit, $160\\text{--}2,000\\text{ km}$)**: Fast orbital periods ($~90\\text{ mins}$). Home to the ISS, Earth observation satellites, and Starlink.\n• **MEO (Medium Earth Orbit, $2,000\\text{--}35,786\\text{ km}$)**: Primary home of GNSS/Navigation constellations (GPS, Galileo, GLONASS).\n• **GEO (Geostationary Orbit, $35,786\\text{ km}$)**: Orbit period exactly matches Earth's rotation ($23\\text{h } 56\\text{m}$), keeping satellites fixed above a specific longitude for telecommunications and weather monitoring.`;
-    }
-
-    // 5. Orbital Debris / Space Junk
-    if (q.includes('space junk') || (q.includes('debris') && !q.includes('filter') && !q.includes('how to'))) {
-      return `**Space Debris** refers to defunct human-made objects in orbit—spent rocket stages, inactive satellites, and fragmentation debris from explosions or collisions.\n\n• Traveling at hypervelocities ($~7\\text{--}14\\text{ km/s}$), even a $1\\text{ cm}$ particle carries the kinetic impact energy of an exploding hand grenade.\n• There are currently over $36,000$ tracked pieces larger than $10\\text{ cm}$ and millions of smaller untrackable fragments.`;
-    }
-
-    // ==========================================
-    // CATEGORY B: Website & OrbitGuard UI Guidance
-    // ==========================================
-
-    // 1. Speed Slider / Time Controls
-    if (q.includes('speed slider') || q.includes('time control') || q.includes('slider')) {
-      return `**Time Controls & Speed Multipliers** (Bottom Dock):\n\n• **Play / Pause**: Freezes or resumes orbital motion in real time.\n• **Speed Buttons ($1\\times$ to $1000\\times$)**: Accelerates numerical SGP4 propagation forward to preview satellite positions hours ahead.\n• **Timeline Scrubber**: Drag the slider up to $+24\\text{ hours}$ to inspect upcoming orbital geometry.\n• **NOW Button**: Instantly snaps the simulation clock back to current live UTC.`;
-    }
-
-    // 2. How to check launch safety / collision risk for launch
-    if (q.includes('launch') && (q.includes('check') || q.includes('safe') || q.includes('risk') || q.includes('how'))) {
-      return `**Checking Launch Trajectory & Mission Safety in OrbitGuard**:\n\n1. Click **UPCOMING MISSIONS** in the top tactical toolbar to view the live global rocket manifest, launch complex coordinates, and liftoff countdowns.\n2. In the **3D Globe**, view projected orbital insertion tracks and look for intersecting mega-constellations (e.g. Starlink at $550\\text{ km}$).\n3. Accelerate the bottom **Speed Slider** to check if the target orbital regime has active conjunction warnings during insertion.`;
-    }
-
-    // 3. How to check satellite collision risk / conjunctions
-    if (q.includes('conjunction') || q.includes('collision risk') || q.includes('check risk') || q.includes('miss distance')) {
-      return `**Checking Conjunctions & Collision Risk**:\n\n1. Navigate to the **Conjunctions** tab in the top navigation bar to view all screened close approaches sorted chronologically by TCA.\n2. Click on any encounter row or card to open the **2D B-Plane Covariance Modal**.\n3. Review the calculated **Miss Distance** ($km$), **Relative Velocity** ($km/s$), and **Foster-2D Collision Probability ($P_c$)**.\n4. Click **PLAN CAM** to calculate an optimal Collision Avoidance Maneuver $\\Delta v$ burn.`;
-    }
-
-    // 4. Where is 3D Radar / How to search
-    if (q.includes('search') || q.includes('find satellite') || q.includes('radar') || q.includes('3d')) {
-      return `**Using the 3D Orbital Radar & Catalog Search**:\n\n1. Click the **3D Globe** tab in the top navigation bar.\n2. Open the top-left **ORBITAL RADAR** dock to access the search bar.\n3. Enter any satellite name (e.g. \`Starlink\`, \`Tiangong\`) or 5-digit NORAD ID (e.g. \`25544\` for ISS).\n4. Click any search result to automatically focus the 3D camera on the object and display its real-time SGP4 ephemeris and orbit trail.`;
-    }
-
-    // 5. Sky Spotter / Naked-Eye Passes
-    if (q.includes('spotter') || q.includes('naked eye') || q.includes('visible pass')) {
-      return `**Using the Citizen Sky Spotter**:\n\n1. Click **SKY SPOTTER** in the SSA tools sub-bar.\n2. By default, it displays all confirmed naked-eye visible passes across global observer corridors.\n3. Use the **FILTER BY LOCATION** dropdown to see passes exclusively for your observer city (e.g. Bengaluru, London, New York) with live $1\\text{-second}$ countdown timers.`;
-    }
-
-    // ==========================================
-    // CATEGORY C: Hybrid / Specific Satellite Queries
-    // ==========================================
-    if (q.includes('iss') || q.includes('space station') || q.includes('25544')) {
-      return `The **International Space Station (ISS)** (NORAD #25544) orbits at an altitude of $~415\\text{--}420\\text{ km}$ with an orbital inclination of $51.64^\\circ$ and a speed of $~7.66\\text{ km/s}$.\n\n• **In OrbitGuard**: Type **25544** into the top-left search bar in the **3D Globe** to focus its real-time trajectory, or open **SKY SPOTTER** to view tonight's naked-eye overpass window.`;
-    }
-
-    if (q.includes('starlink')) {
-      return `**Starlink** is SpaceX's mega-constellation operating primarily in circular LEO shells at $~550\\text{ km}$ ($53.2^\\circ$ inclination).\n\n• **In OrbitGuard**: In the **3D Globe** left dock, select **◆ Starlink** under Fleet Filters to highlight the entire Starlink constellation mesh and monitor orbital density.`;
-    }
-
-    // Direct conversational response for other queries
-    return `That's an interesting question regarding orbital operations and space dynamics.\n\nCould you clarify if you're looking for specific astrodynamics calculations (e.g. SGP4 propagation, Keplerian elements, $P_c$ covariance), or would you like guidance on using a specific OrbitGuard feature?`;
-  };
-
-  const handleSend = () => {
-    if (!inputText.trim()) return;
+    const userText = inputText.trim();
     const userMsg: Message = {
       id: `usr-${Date.now()}`,
       sender: 'user',
-      text: inputText,
+      text: userText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
-    setMessages(prev => [...prev, userMsg]);
-    const query = inputText;
-    setInputText('');
 
-    setTimeout(() => {
-      const replyText = generateOrbitBotResponse(query);
+    setMessages(prev => [...prev, userMsg]);
+    setInputText('');
+    setIsLoading(true);
+
+    try {
+      // Build conversation history for OpenAI chat completions
+      const chatHistory = [
+        ...messages.map(m => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text
+        })),
+        { role: 'user', content: userText }
+      ];
+
+      const res = await api.sendChatMessage(chatHistory);
+
       const aiMsg: Message = {
         id: `ai-${Date.now()}`,
         sender: 'ai',
-        text: replyText,
+        text: res.response || 'I am ready to assist with your orbital tracking and collision screening queries.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        modelBadge: res.model
+      };
+
+      setMessages(prev => [...prev, aiMsg]);
+    } catch (err) {
+      console.error('OrbitBot query error:', err);
+      const errorMsg: Message = {
+        id: `ai-err-${Date.now()}`,
+        sender: 'ai',
+        text: `Regarding "${userText}": I encountered a communication delay with the astrodynamics neural engine. You can monitor active conjunctions directly in the **Conjunctions** tab or search any satellite via NORAD ID in the **3D Globe**.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      setMessages(prev => [...prev, aiMsg]);
-    }, 350);
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -218,6 +172,11 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
                 <span>{m.sender === 'user' ? 'You' : 'OrbitBot (SDA Expert)'}</span>
                 <span>•</span>
                 <span>{m.timestamp}</span>
+                {m.modelBadge && (
+                  <span className="text-[9px] px-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">
+                    {m.modelBadge}
+                  </span>
+                )}
               </div>
               
               <div
@@ -247,6 +206,21 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
               </div>
             </div>
           ))}
+
+          {/* Loading Indicator */}
+          {isLoading && (
+            <div className="flex flex-col items-start">
+              <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-slate-500">
+                <span>OrbitBot</span>
+                <span>•</span>
+                <span>Synthesizing...</span>
+              </div>
+              <div className="p-3 bg-space-900 border border-cyan-500/30 rounded-2xl rounded-bl-none text-slate-300 flex items-center gap-2 text-xs">
+                <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
+                <span className="animate-pulse">OrbitBot is querying astrodynamics intelligence...</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Input Bar */}
@@ -256,17 +230,18 @@ export const AICopilotModal: React.FC<AICopilotModalProps> = ({ isOpen, onClose,
             placeholder="Ask OrbitBot anything about space or how to use OrbitGuard..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
+            disabled={isLoading}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSend();
+              if (e.key === 'Enter' && !isLoading) handleSend();
             }}
-            className="flex-1 bg-space-950 border border-space-700 rounded-xl px-3.5 py-2 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 shadow-inner"
+            className="flex-1 bg-space-950 border border-space-700 rounded-xl px-3.5 py-2 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 shadow-inner disabled:opacity-50"
           />
           <button
             onClick={handleSend}
-            disabled={!inputText.trim()}
-            className="p-2.5 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-space-950 rounded-xl transition shadow-md cursor-pointer"
+            disabled={!inputText.trim() || isLoading}
+            className="p-2.5 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-space-950 rounded-xl transition shadow-md cursor-pointer flex items-center justify-center"
           >
-            <Send className="w-4 h-4" />
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
         </div>
       </div>
