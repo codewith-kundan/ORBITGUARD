@@ -119,6 +119,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const mountRef = useRef<HTMLDivElement>(null);
   
   // UI State (LeoLabs Style Multi-Filter & Search Dock)
+  
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(false);
   const [isRightPanelMinimized, setIsRightPanelMinimized] = useState<boolean>(true);
   const [rightPanelTab, setRightPanelTab] = useState<'ALERTS' | 'TELEMETRY'>('ALERTS');
@@ -1331,27 +1332,63 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
   return (
     <div className={`relative w-full h-[calc(100vh-140px)] min-h-[620px] bg-space-950 rounded-2xl overflow-hidden border border-space-800 shadow-2xl ${isFullscreen ? 'fixed inset-0 z-50 h-screen rounded-none border-none' : ''}`}>
-      {/* 3D WebGL Canvas Mounting Container */}
-      <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* FLOATING HOVER TOOLTIP (LeoLabs Style) */}
+      {/* 1. WEBGL & SGP4 INITIALIZATION / LOADING SCREEN (Graceful Visual Fallback) */}
+      {(positions.length === 0 && objects.length === 0) && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-space-950/90 backdrop-blur-md font-mono text-xs text-slate-300 p-6 animate-fade-in select-none">
+          <div className="relative flex items-center justify-center w-16 h-16 mb-4">
+            <div className="absolute inset-0 rounded-full border-2 border-cyan-500/20 border-t-cyan-400 animate-spin" />
+            <div className="absolute inset-2 rounded-full border-2 border-purple-500/20 border-b-purple-400 animate-spin-slow" />
+            <Globe className="w-7 h-7 text-cyan-400 animate-pulse" />
+          </div>
+          <div className="flex items-center gap-2 text-sm font-bold text-white tracking-wide">
+            <span>INITIALIZING 3D ASTRODYNAMICS ENGINE</span>
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1 max-w-sm text-center">
+            Propagating 32,000+ SGP4 orbital tracks & preparing GPU instanced mesh buffers...
+          </div>
+          <div className="flex items-center gap-2 mt-4 px-3 py-1 bg-space-900 rounded-full border border-space-800 text-[10px] text-cyan-300 font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+            <span>GPU Hardware Acceleration Active</span>
+          </div>
+        </div>
+      )}
+
+      {/* 3D WebGL Canvas Mounting Container */}
+      <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing touch-none select-none" style={{ touchAction: "none" }} />
+
+      {/* FLOATING HOVER TOOLTIP (Interactive Orbit Node Telemetry & Risk Index) */}
       {hoveredObject && (
         <div 
-          className="fixed pointer-events-none z-50 bg-slate-900/40 backdrop-blur-xl border border-white/10 p-2.5 rounded-xl text-xs font-mono shadow-2xl text-white animate-fade-in -translate-x-1/2 -translate-y-full mb-3"
+          className="fixed pointer-events-none z-50 bg-slate-900/90 backdrop-blur-xl border border-cyan-500/40 p-3 rounded-xl text-xs font-mono shadow-2xl text-white animate-fade-in -translate-x-1/2 -translate-y-full mb-3 min-w-[200px]"
           style={{ left: hoveredObject.screenX, top: hoveredObject.screenY }}
         >
-          <div className="font-bold text-cyan-neon flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-            <span>{hoveredObject.name}</span>
+          <div className="font-bold text-cyan-neon flex items-center justify-between gap-2 border-b border-space-800 pb-1">
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+              <span className="truncate">{hoveredObject.name}</span>
+            </div>
+            <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40">
+              LIVE SGP4
+            </span>
           </div>
-          <div className="text-[10px] text-slate-400">
-            NORAD #{hoveredObject.norad_id} • {hoveredObject.type}
+          <div className="text-[10px] text-slate-400 mt-1 flex items-center justify-between">
+            <span>NORAD #{hoveredObject.norad_id}</span>
+            <span className="text-slate-300 font-semibold">{hoveredObject.type}</span>
           </div>
-          <div className="grid grid-cols-2 gap-2 mt-1 pt-1 border-t border-space-800 text-[10px]">
+          <div className="grid grid-cols-2 gap-2 mt-1.5 pt-1.5 border-t border-space-800 text-[10px]">
             <div>Alt: <span className="text-white font-bold">{hoveredObject.alt_km.toFixed(1)} km</span></div>
             <div>Vel: <span className="text-cyan-400 font-bold">{hoveredObject.velocity_km_s.toFixed(2)} km/s</span></div>
           </div>
-          <div className="text-[9px] text-cyan-400/80 mt-0.5 text-center">Double-click dot for full telemetry</div>
+          <div className="mt-1 pt-1 border-t border-space-800 flex items-center justify-between text-[9px]">
+            <span className="text-slate-400">Debris Risk Index:</span>
+            <span className={`font-bold ${hoveredObject.type.includes('DEBRIS') ? 'text-red-400' : 'text-emerald-400'}`}>
+              {hoveredObject.type.includes('DEBRIS') ? 'HIGH (UNCONTROLLED)' : 'NOMINAL'}
+            </span>
+          </div>
+          <div className="text-[9px] text-cyan-400/90 mt-1 text-center bg-space-950/60 py-0.5 rounded border border-space-800">
+            Double-click dot for complete trajectory & CDM
+          </div>
         </div>
       )}
 
