@@ -24,7 +24,6 @@ import { ASATSimulatorModal } from './components/ASATSimulatorModal';
 import { OperatorGameModal } from './components/OperatorGameModal';
 import { SkySpotterModal } from './components/SkySpotterModal';
 import { UserGuideModal } from './components/UserGuideModal';
-import { MarketingLandingPage } from './pages/MarketingLandingPage';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -319,14 +318,6 @@ export default function App() {
           </div>
         ) : (
           <>
-            {/* 0. STITCH MARKETING LANDING PORTAL */}
-            {activeTab === 'landing' && (
-              <MarketingLandingPage
-                onEnterApp={() => setActiveTab('space')}
-                onLogin={() => setActiveTab('space')}
-              />
-            )}
-
             {/* 1. 3D ORBIT TRACKER (Space View) */}
             {activeTab === 'space' && (
               <SpaceView

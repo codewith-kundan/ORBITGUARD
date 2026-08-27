@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { DataStatus, SystemStatistics } from '../types';
 
-export type NavTabKey = 'landing' | 'space' | 'map2d' | 'catalog' | 'conjunctions' | 'analytics';
+export type NavTabKey = 'space' | 'map2d' | 'catalog' | 'conjunctions' | 'analytics';
 
 interface NavbarProps {
   activeTab: NavTabKey;
@@ -69,7 +69,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const navItems: { key: NavTabKey; label: string; icon: React.FC<{ className?: string }>; count?: number; isAlert?: boolean }[] = [
-    { key: 'landing', label: 'Portal', icon: Sparkles },
     { key: 'space', label: '3D Globe', icon: Globe },
     { key: 'map2d', label: '2D Ground Track', icon: Radio },
     { key: 'catalog', label: 'Catalog', icon: Satellite },
