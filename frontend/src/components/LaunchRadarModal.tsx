@@ -140,7 +140,7 @@ export const LaunchRadarModal: React.FC<LaunchRadarModalProps> = ({ isOpen, onCl
                 </span>
               </div>
               <h3 className="text-xs sm:text-base font-bold text-white tracking-wide mt-0.5">
-                Global Rocket Launch Manifest & Decaying Debris Tracker
+                Upcoming Space Missions & Decaying Debris Tracker
               </h3>
             </div>
           </div>

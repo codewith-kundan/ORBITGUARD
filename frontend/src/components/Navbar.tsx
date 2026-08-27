@@ -252,10 +252,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onOpenLaunchRadar}
               className="flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
-              title="Open Global Rocket Launch Radar & Decaying Debris Tracker"
+              title="Open Global Upcoming Missions & Decaying Debris Tracker"
             >
               <Rocket className="w-3 h-3 text-purple-400" />
-              <span>LAUNCH RADAR</span>
+              <span>UPCOMING MISSIONS</span>
             </button>
           )}
 
