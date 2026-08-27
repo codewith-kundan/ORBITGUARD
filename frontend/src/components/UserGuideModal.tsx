@@ -1,26 +1,20 @@
 import React, { useState } from 'react';
 import {
   X,
-  Globe,
   Map,
   ShieldAlert,
-  Zap,
   Flame,
   Radio,
   FileCode,
   CheckCircle,
   ArrowRight,
   ArrowLeft,
-  Layers,
   Activity,
   Rocket,
-  Atom,
-  Eye,
   Crosshair,
   Compass,
-  Satellite,
   Sun,
-  Bot
+  Eye
 } from 'lucide-react';
 
 interface UserGuideModalProps {
@@ -38,210 +32,174 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
     {
       id: 'welcome',
       tabTitle: 'Welcome',
-      title: 'ORBITGUARD SPACE SITUATIONAL AWARENESS',
+      title: 'WELCOME TO ORBITGUARD',
+      subtitle: 'Space Situational Awareness (SSA) & Real-Time Collision Risk Defense',
+      description: 'ORBITGUARD is an advanced SSA platform engineered for real-time tracking, SGP4 orbital propagation, close approach screening, and autonomous collision avoidance for over 32,000+ cataloged space objects.',
       badge: 'OVERVIEW',
-      tagline: 'Real-Time Orbital Safety, Catalog Monitoring & Conjunction Defense',
-      description: 'ORBITGUARD is a Space Situational Awareness (SSA) platform engineered for real-time tracking, ephemeris propagation, orbital safety analysis, and autonomous collision avoidance for over 32,000+ cataloged space objects.',
+      heroTag: 'LIVE SGP4 / WGS-84 ORBITAL ENGINE',
+      heroDetails: {
+        stat1: '32,340',
+        label1: 'Cataloged Objects',
+        stat2: '24 Hours',
+        label2: 'Lookahead Screening',
+        stat3: 'Live SGP4',
+        label3: 'Analytical Mechanics'
+      },
       cards: [
         {
           icon: Activity,
-          title: 'Live SGP4 / WGS-84 Mechanics',
-          desc: 'Analytical orbital mechanics with direct Space-Track and CelesTrak ephemeris feeds updated continuously.',
-          accent: 'border-cyan-400/40 text-cyan-300 bg-cyan-950/20'
+          title: 'Live Analytical Mechanics',
+          desc: 'Direct ephemeris ingestion from Space-Track and CelesTrak with continuous orbital state propagation.'
         },
         {
           icon: ShieldAlert,
-          title: '24h Conjunction Screening',
-          desc: 'Continuous multi-object close approach analysis, calculating Time of Closest Approach (TCA) and miss distances.',
-          accent: 'border-rose-500/40 text-rose-300 bg-rose-950/20'
-        },
-        {
-          icon: Satellite,
-          title: 'Real-Time Telemetry',
-          desc: 'Instant access to velocity vectors, altitude, apogee/perigee, inclination, and object classifications.',
-          accent: 'border-blue-500/40 text-blue-300 bg-blue-950/20'
-        },
-        {
-          icon: Rocket,
-          title: 'Autonomous CAM Planning',
-          desc: 'Compute optimal impulsive ΔV maneuvers (Prograde, Retrograde, Cross-Track) to mitigate collision risks.',
-          accent: 'border-amber-500/40 text-amber-300 bg-amber-950/20'
+          title: 'Continuous Conjunction Defense',
+          desc: 'Multi-object 24-hour crossing analysis, calculating Time of Closest Approach (TCA) and miss distance.'
         }
       ]
     },
     {
-      id: 'conjunctions',
+      id: 'conjunction',
       tabTitle: 'Conjunction',
       title: 'PROACTIVE CONJUNCTION ASSESSMENT',
-      badge: 'COLLISION DEFENSE',
-      tagline: 'Automated Close-Encounter Detection & Collision Risk Analysis',
+      subtitle: 'Automated Close-Encounter Detection & Collision Risk Management',
       description: 'Continuous 24-hour screening algorithms detect close orbital passes between active spacecraft and space debris, computing miss distances, relative velocities, and collision probabilities.',
+      badge: 'COLLISION DEFENSE',
+      heroTag: 'KEEP-OUT ELLIPSOIDS & PROBABILITY OF COLLISION (Pc)',
+      heroDetails: {
+        stat1: '< 1.0 km',
+        label1: 'Critical Threshold',
+        stat2: '10⁻⁴',
+        label2: 'Maneuver Trigger (Pc)',
+        stat3: 'Real-Time',
+        label3: 'TCA Countdown Clock'
+      },
       cards: [
         {
           icon: Crosshair,
           title: 'Miss Distance Thresholding',
-          desc: 'Filter close approaches by risk severity: Critical (< 1 km), High (< 5 km), Warning (< 10 km), and Monitor (< 25 km).',
-          accent: 'border-rose-500/40 text-rose-300 bg-rose-950/20'
+          desc: 'Filter close approaches by risk severity: Critical (< 1 km), High (< 5 km), Warning (< 10 km), and Monitor (< 25 km).'
         },
         {
           icon: ShieldAlert,
-          title: 'Collision Probability (Pc)',
-          desc: '2D & 3D Gaussian error covariance ellipsoids projected onto the B-plane to estimate probability of collision.',
-          accent: 'border-orange-500/40 text-orange-300 bg-orange-950/20'
-        },
-        {
-          icon: Activity,
-          title: 'Live TCA Countdowns',
-          desc: 'Real-time countdown timers to the exact second of closest approach, highlighting critical response windows.',
-          accent: 'border-cyan-400/40 text-cyan-300 bg-cyan-950/20'
-        },
-        {
-          icon: Zap,
-          title: 'Direct One-Click Response',
-          desc: 'Every row connects directly to 3D Focus, 2D Ground Track, CCSDS CDM export, Breakup Simulator, and CAM Planner.',
-          accent: 'border-purple-500/40 text-purple-300 bg-purple-950/20'
+          title: '2D/3D Covariance Ellipsoids',
+          desc: 'Gaussian error covariance projected onto the encounter B-plane to estimate accurate collision probability.'
         }
       ]
     },
     {
-      id: '3d-visualization',
+      id: '3d',
       tabTitle: '3D',
       title: 'IMMERSIVE 3D VISUALIZATION',
-      badge: '3D ORBITAL GLOBE',
-      tagline: 'High-Fidelity WebGL Visualization in Earth-Centered Inertial Space',
-      description: 'Users can rotate, zoom, and track satellites in real-time within 3D Earth-Centered Inertial (ECI/TEME) space, providing an intuitive, interactive view of the orbital environment.',
+      subtitle: 'Earth-Centered Inertial (ECI/TEME) Orbital Space & Swarm Radar',
+      description: 'Users can rotate, zoom, and track satellites in real-time within a 3D space, providing a comprehensive view of the orbital environment.',
+      badge: '3D VISUALIZER',
+      heroTag: 'GPU INSTANCED REAL-TIME 3D GLOBE',
+      heroDetails: {
+        stat1: 'ECI/TEME',
+        label1: 'Coordinate System',
+        stat2: '60 FPS',
+        label2: 'GPU Instancing',
+        stat3: '360° Free',
+        label3: 'Orbit Camera'
+      },
       cards: [
         {
-          icon: Eye,
-          title: 'Interactive Camera Controls',
-          desc: 'Orbit, pan, and zoom effortlessly around Earth. Click any spacecraft to smoothly fly the camera and lock target tracking.',
-          accent: 'border-cyan-400/40 text-cyan-300 bg-cyan-950/20'
-        },
-        {
           icon: Compass,
-          title: 'Dynamic Trajectory Paths',
-          desc: 'Renders dynamic orbital ribbon ellipses, future 24h orbital projections, and animated encounter vectors between conjunction pairs.',
-          accent: 'border-blue-500/40 text-blue-300 bg-blue-950/20'
+          title: 'Interactive Camera',
+          desc: 'Orbit, pan, and zoom effortlessly around Earth. Click any spacecraft to smoothly lock camera tracking.'
         },
         {
-          icon: Layers,
-          title: 'Regime Altitude Shells',
-          desc: 'Filter objects by orbital regime: Low Earth Orbit (LEO < 2,000 km), Medium Earth Orbit (MEO), and Geostationary (GEO).',
-          accent: 'border-emerald-500/40 text-emerald-300 bg-emerald-950/20'
-        },
-        {
-          icon: Globe,
-          title: 'Constellation Swarm Radar',
-          desc: 'Instantly highlight Starlink, OneWeb, GPS/GNSS fleets, debris clouds, or rocket body fragments.',
-          accent: 'border-indigo-500/40 text-indigo-300 bg-indigo-950/20'
+          icon: Eye,
+          title: 'Trajectory Prediction',
+          desc: 'Dynamic multi-orbit ephemeris ribbons, future 24h path projections, and animated distance vectors.'
         }
       ]
     },
     {
-      id: '2d-ground-track',
+      id: '2d',
       tabTitle: '2D',
-      title: '2D GROUND TRACK & SENSOR FOOTPRINTS',
+      title: '2D GROUND TRACK & SENSOR COVERAGE',
+      subtitle: 'Global Sub-Satellite Points, Sensor Footprints & Day/Night Terminator',
+      description: 'Translates 3D orbital state vectors into precise geodetic coordinates (Lat, Lon, Alt) over an equirectangular world map with real-time ground communications coverage.',
       badge: 'GROUND SEGMENT',
-      tagline: 'Global Sub-Satellite Points, Sensor Footprints & Day/Night Terminator',
-      description: 'Translates 3D orbital state vectors into precise geodetic coordinates (Lat, Lon, Alt) over an equirectangular world projection with real-time communications coverage.',
+      heroTag: 'EQUIRECTANGULAR GEODETIC PROJECTION',
+      heroDetails: {
+        stat1: '41 Stations',
+        label1: 'DSN / ESTRACK / ISRO',
+        stat2: '3 Orbits',
+        label2: 'Past 1 + Future 2',
+        stat3: 'Real-Time',
+        label3: 'Solar Terminator'
+      },
       cards: [
         {
           icon: Map,
-          title: 'Multi-Orbit Ground Tracks',
-          desc: 'Plots past 1 orbit and future 2 orbital periods with color-coded ground track ribbons and sub-satellite coordinates.',
-          accent: 'border-emerald-500/40 text-emerald-300 bg-emerald-950/20'
+          title: 'Multi-Orbit Ribbon Tracks',
+          desc: 'Plots past 1 orbit and future 2 orbital periods with color-coded ground track ribbons and sub-satellite coordinates.'
         },
         {
           icon: Radio,
           title: 'Line-of-Sight Visibility Cones',
-          desc: 'Calculates the instantaneous radio/optical horizon circle, showing real-time ground communications coverage.',
-          accent: 'border-cyan-400/40 text-cyan-300 bg-cyan-950/20'
-        },
-        {
-          icon: Globe,
-          title: '41 Worldwide Ground Stations',
-          desc: 'Ground network markers across ISRO, NASA DSN, ESA ESTRACK, KSAT, and JAXA tracking facilities.',
-          accent: 'border-purple-500/40 text-purple-300 bg-purple-950/20'
-        },
-        {
-          icon: Sun,
-          title: 'Day / Night Solar Terminator',
-          desc: 'Dynamic real-time sub-solar point and solar terminator illumination overlay across the globe.',
-          accent: 'border-amber-500/40 text-amber-300 bg-amber-950/20'
+          desc: 'Calculates the instantaneous radio/optical horizon circle, showing real-time ground station communications access.'
         }
       ]
     },
     {
-      id: 'quick-actions',
-      tabTitle: 'Quick Actions',
-      title: '5 INSTANT CONJUNCTION ACTION BUTTONS',
-      badge: 'OPERATOR TOOLS',
-      tagline: 'Deep Dive into the 5 Real-Time Encounter Action Buttons',
-      description: 'Every detected conjunction row in the table provides 5 instant one-click analysis tools for rapid decision-making:',
+      id: 'conjunction-analysis',
+      tabTitle: 'Conjunction (Analysis)',
+      title: 'CONJUNCTION ANALYSIS & ACTION TOOLS',
+      subtitle: 'Deep Dive into the 5 Real-Time Encounter Action Buttons',
+      description: 'Every detected encounter in the Conjunction Assessment table provides 5 instant one-click analysis tools for rapid operational decision-making and collision avoidance.',
+      badge: 'QUICK ACTIONS',
+      heroTag: '5 INSTANT ENCOUNTER RESPONSE TOOLS',
+      heroDetails: {
+        stat1: 'Focus 3D',
+        label1: 'Camera Fly-To',
+        stat2: 'CCSDS CDM',
+        label2: 'Official Messages',
+        stat3: 'Plan CAM',
+        label3: 'Impulsive ΔV Burn'
+      },
       cards: [
         {
-          icon: Globe,
-          title: '1. FOCUS 3D',
-          desc: 'Smoothly flies the 3D camera directly to the encounter location, locks onto the primary satellite, and renders a dynamic dashed distance vector.',
-          accent: 'border-cyan-400/40 text-cyan-300 bg-cyan-950/20'
-        },
-        {
-          icon: Map,
-          title: '2. 2D GROUND TRACK',
-          desc: 'Opens the 2D world map view and plots the exact sub-satellite orbital ground tracks, geographic coordinates, and coverage circles.',
-          accent: 'border-purple-500/40 text-purple-300 bg-purple-950/20'
-        },
-        {
           icon: FileCode,
-          title: '3. CCSDS CDM',
-          desc: 'Generates and previews official CCSDS 508.0-B-1 Conjunction Data Messages (CDM) in KVN or XML format for inter-agency coordination.',
-          accent: 'border-blue-500/40 text-blue-300 bg-blue-950/20'
-        },
-        {
-          icon: Atom,
-          title: '4. NASA BREAKUP',
-          desc: 'Simulates catastrophic hypervelocity impact fragmentation (>5 cm debris count, characteristic length Lc) and generates Gabbard plots.',
-          accent: 'border-amber-500/40 text-amber-300 bg-amber-950/20'
+          title: 'CCSDS 508.0-B-1 CDM Export',
+          desc: 'Generates and previews official Conjunction Data Messages (CDM) in KVN or XML format for inter-agency coordination.'
         },
         {
           icon: Rocket,
-          title: '5. PLAN CAM',
-          desc: 'Calculates the optimum impulsive maneuver thrust vector (ΔV: Prograde, Retrograde, Radial, or Cross-Track) to clear the keep-out ellipsoid.',
-          accent: 'border-emerald-500/40 text-emerald-300 bg-emerald-950/20'
+          title: 'Collision Avoidance (CAM) Planner',
+          desc: 'Calculates optimum impulsive thrust vectors (ΔV: Prograde, Retrograde, Cross-Track) to clear keep-out volumes.'
         }
       ]
     },
     {
-      id: 'nasa-tools',
-      tabTitle: 'NASA Tools',
-      title: 'MISSION OPS & ADVANCED ANALYSIS TOOLS',
+      id: 'nasa',
+      tabTitle: 'NASA',
+      title: 'NASA TOOLS & MISSION OPERATIONS',
+      subtitle: 'NASA Standard Breakup Model, Atmospheric Lifetime & Space Weather',
+      description: 'Enterprise-grade space situational awareness tools accessible from the top navigation bar or satellite telemetry inspection panels.',
       badge: 'MISSION OPS',
-      tagline: 'Fragmentation Modeling, Atmospheric Lifetime & Space Weather',
-      description: 'Access enterprise-grade space situational awareness tools directly from the top navigation bar or satellite telemetry inspection panels.',
+      heroTag: 'NASA STANDARDS & ATMOSPHERIC PHYSICS',
+      heroDetails: {
+        stat1: 'NASA SBM',
+        label1: 'Fragmentation Model',
+        stat2: 'NRLMSISE-00',
+        label2: 'Thermospheric Drag',
+        stat3: 'NOAA SWPC',
+        label3: 'Solar Flux & Kp Index'
+      },
       cards: [
         {
           icon: Flame,
           title: 'NASA Standard Breakup Model',
-          desc: 'Simulates kinetic energy fragmentation distributions, area-to-mass ratios (A/m), and Gabbard altitude clouds.',
-          accent: 'border-rose-500/40 text-rose-300 bg-rose-950/20'
-        },
-        {
-          icon: Radio,
-          title: 'Atmospheric Re-entry & Decay',
-          desc: 'Estimates orbital lifetime and ballistic re-entry decay using NRLMSISE-00 thermospheric drag models.',
-          accent: 'border-amber-500/40 text-amber-300 bg-amber-950/20'
+          desc: 'Simulates hypervelocity fragmentation (>5 cm debris count, characteristic length Lc, and orbital Gabbard clouds).'
         },
         {
           icon: Sun,
-          title: 'Live Space Weather & Solar Flux',
-          desc: 'Real-time NOAA Space Weather feeds: Planetary Kp-index, Solar Flux F10.7, and geomagnetic storm alerts.',
-          accent: 'border-cyan-400/40 text-cyan-300 bg-cyan-950/20'
-        },
-        {
-          icon: Bot,
-          title: 'AI Orbital Copilot & SITREP',
-          desc: 'Intelligent AI assistant capable of parsing orbital parameters, answering safety questions, and generating executive SITREPs.',
-          accent: 'border-purple-500/40 text-purple-300 bg-purple-950/20'
+          title: 'Space Weather & Decay Lifetime',
+          desc: 'Real-time NOAA planetary Kp-index, solar flux F10.7, and ballistic atmospheric drag lifetime predictions.'
         }
       ]
     }
@@ -257,51 +215,46 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
   const current = steps[activeStep];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-fade-in font-sans">
-      {/* Main Glass Panel Modal Container */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-space-dark/85 backdrop-blur-md animate-fade-in font-sans text-white">
+      {/* BEGIN: Main Modal Container */}
       <main className="w-full max-w-4xl glass-panel rounded-2xl border border-space-border shadow-2xl overflow-hidden flex flex-col relative z-10 max-h-[92vh]">
         
-        {/* Header Section */}
-        <header className="pt-6 px-6 sm:px-8 pb-3 bg-space-dark/60 border-b border-space-border/60">
-          {/* Top Bar with Step counter and Close Button */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <span className="px-2.5 py-0.5 rounded-full bg-space-blue border border-cyan-400/40 text-cyan-stitch text-xs font-mono font-semibold tracking-wider uppercase">
-                {current.badge}
-              </span>
-              <span className="text-xs text-slate-400 font-mono">
+        {/* BEGIN: Header Section */}
+        <header className="pt-7 px-6 sm:px-8 pb-3 bg-space-dark/40">
+          
+          {/* Progress Bar & Counter */}
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center w-full max-w-lg">
+              {steps.map((_, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => setActiveStep(idx)}
+                  className={`progress-segment cursor-pointer ${idx <= activeStep ? 'active' : ''}`}
+                  title={`Step ${idx + 1}: ${steps[idx].tabTitle}`}
+                />
+              ))}
+            </div>
+            <div className="flex items-center gap-3 ml-4">
+              <span className="text-xs text-slate-400 font-mono whitespace-nowrap">
                 Step {activeStep + 1} of {steps.length}
               </span>
+              <button
+                onClick={handleClose}
+                className="p-1 rounded-lg bg-space-blue/50 hover:bg-space-blue text-slate-400 hover:text-white border border-space-border/50 transition-colors"
+                title="Close Guide"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            
-            <button
-              onClick={handleClose}
-              className="p-1.5 rounded-lg bg-space-blue/50 hover:bg-space-blue text-slate-400 hover:text-white border border-space-border/50 transition-colors"
-              title="Close Guide"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Segmented Progress Bar */}
-          <div className="flex items-center w-full gap-1 mb-5">
-            {steps.map((_, idx) => (
-              <div
-                key={idx}
-                onClick={() => setActiveStep(idx)}
-                className={`progress-segment cursor-pointer ${idx <= activeStep ? 'active' : ''}`}
-                title={`Jump to Step ${idx + 1}`}
-              />
-            ))}
           </div>
 
           {/* Navigation Tabs */}
-          <nav className="flex items-center justify-between overflow-x-auto gap-2 scrollbar-none">
+          <nav className="flex justify-between items-center border-b border-space-border pb-1 overflow-x-auto gap-2 scrollbar-none">
             {steps.map((s, idx) => (
               <button
                 key={s.id}
                 onClick={() => setActiveStep(idx)}
-                className={`nav-tab text-xs sm:text-sm font-medium whitespace-nowrap px-2 pb-2 transition-all ${
+                className={`nav-tab text-xs sm:text-sm font-medium whitespace-nowrap px-1 pb-2 transition-all ${
                   activeStep === idx ? 'active font-bold' : ''
                 }`}
               >
@@ -310,38 +263,108 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
             ))}
           </nav>
         </header>
+        {/* END: Header Section */}
 
-        {/* Content Section */}
-        <section className="flex-grow px-6 sm:px-8 py-5 overflow-y-auto flex flex-col">
+        {/* BEGIN: Content Section */}
+        <section className="flex-grow px-6 sm:px-8 py-4 overflow-y-auto flex flex-col items-center">
+          
           {/* Step Header */}
           <div className="w-full text-left mb-4">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-wide text-white uppercase mb-1">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="px-2 py-0.5 rounded-full bg-space-blue border border-cyan-400/50 text-cyan-stitch text-[10px] font-mono font-bold uppercase tracking-wider">
+                {current.badge}
+              </span>
+              <span className="text-xs text-cyan-400 font-mono font-semibold">
+                {current.subtitle}
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-wide text-white uppercase mb-2">
               {current.title}
             </h1>
-            <p className="text-cyan-400 text-xs sm:text-sm font-mono font-medium mb-2">
-              {current.tagline}
-            </p>
-            <p className="text-slate-300 text-xs sm:text-sm leading-relaxed max-w-3xl">
+            <p className="text-slate-300 text-xs sm:text-sm max-w-3xl leading-relaxed">
               {current.description}
             </p>
           </div>
 
-          {/* Action / Feature Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 my-auto pt-2">
+          {/* Central Visualization Hero Container */}
+          <div className="w-full max-w-3xl h-44 sm:h-52 relative mb-5 rounded-xl overflow-hidden border border-space-border/60 bg-gradient-to-br from-space-blue/60 via-space-dark to-[#050b1a] flex flex-col justify-between p-4 shadow-inner relative group">
+            {/* Ambient Starry / Grid Background */}
+            <div className="absolute inset-0 radar-grid opacity-30 pointer-events-none" />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+            
+            {/* Top Bar of Hero */}
+            <div className="flex items-center justify-between z-10">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-cyan-stitch animate-pulse" />
+                <span className="text-[11px] font-mono font-bold tracking-wider text-cyan-stitch uppercase">
+                  {current.heroTag}
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-400 px-2 py-0.5 rounded bg-space-dark/80 border border-space-border/60">
+                ORBITGUARD ENGINE v1.0
+              </span>
+            </div>
+
+            {/* Central Visual Graphic */}
+            <div className="my-auto flex items-center justify-around z-10 w-full py-2">
+              <div className="text-center">
+                <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">
+                  {current.heroDetails.stat1}
+                </div>
+                <div className="text-[10px] sm:text-xs text-slate-400 font-mono">
+                  {current.heroDetails.label1}
+                </div>
+              </div>
+              
+              <div className="h-8 w-px bg-space-border/60" />
+              
+              <div className="text-center">
+                <div className="text-xl sm:text-2xl font-bold font-mono text-cyan-stitch tracking-tight">
+                  {current.heroDetails.stat2}
+                </div>
+                <div className="text-[10px] sm:text-xs text-slate-400 font-mono">
+                  {current.heroDetails.label2}
+                </div>
+              </div>
+              
+              <div className="h-8 w-px bg-space-border/60" />
+              
+              <div className="text-center">
+                <div className="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">
+                  {current.heroDetails.stat3}
+                </div>
+                <div className="text-[10px] sm:text-xs text-slate-400 font-mono">
+                  {current.heroDetails.label3}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Status Ticker */}
+            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 z-10 border-t border-space-border/40 pt-2">
+              <div className="flex items-center gap-1.5 text-emerald-400">
+                <CheckCircle className="w-3 h-3" />
+                <span>ACTIVE TELEMETRY & PROPAGATION ACTIVE</span>
+              </div>
+              <span className="text-slate-500">18TH SDS SPACE-TRACK SYNCED</span>
+            </div>
+          </div>
+
+          {/* Action Cards (Stitch Design) */}
+          <div className="w-full flex flex-col md:flex-row gap-4 justify-center">
             {current.cards.map((card, cIdx) => {
               const CardIcon = card.icon;
               return (
                 <div
                   key={cIdx}
-                  className={`bg-space-blue/40 border rounded-xl p-4 flex items-start gap-3.5 hover:bg-space-blue/70 transition-all shadow-cyan-inner group text-left ${card.accent}`}
+                  className="flex-1 bg-space-blue/50 border border-cyan-400/30 rounded-xl p-4 flex items-center gap-4 hover:bg-space-blue hover:border-cyan-stitch transition-all shadow-cyan-inner group cursor-pointer text-left"
                 >
-                  <div className="w-10 h-10 rounded-lg border border-cyan-400/40 flex items-center justify-center bg-space-dark/80 flex-shrink-0 group-hover:shadow-cyan-glow transition-all">
-                    <CardIcon className="w-5 h-5 text-cyan-stitch" />
+                  <div className="w-12 h-12 rounded-lg border border-cyan-400/50 flex items-center justify-center bg-space-dark/60 flex-shrink-0 group-hover:shadow-cyan-glow transition-all">
+                    <CardIcon className="w-6 h-6 text-cyan-stitch" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-white mb-1">
+                    <span className="font-semibold text-sm sm:text-base text-white block mb-0.5">
                       {card.title}
-                    </h3>
+                    </span>
                     <p className="text-xs text-slate-300 leading-relaxed">
                       {card.desc}
                     </p>
@@ -351,52 +374,55 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
             })}
           </div>
         </section>
+        {/* END: Content Section */}
 
-        {/* Footer Section */}
-        <footer className="px-6 sm:px-8 py-4 bg-space-dark/80 border-t border-space-border/60 flex flex-wrap justify-between items-center gap-3 mt-auto">
-          <label className="flex items-center gap-2.5 cursor-pointer group select-none">
+        {/* BEGIN: Footer Section */}
+        <footer className="px-6 sm:px-8 py-4 bg-space-dark/80 border-t border-space-border/60 flex justify-between items-center mt-auto">
+          <label className="flex items-center gap-3 cursor-pointer group select-none">
             <input
               type="checkbox"
               checked={dontShowAgain}
               onChange={(e) => setDontShowAgain(e.target.checked)}
               className="custom-checkbox"
             />
-            <span className="text-slate-300 text-xs group-hover:text-white transition-colors">
+            <span className="text-slate-300 text-xs sm:text-sm group-hover:text-white transition-colors">
               Don't show this guide on startup
             </span>
           </label>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             {activeStep > 0 && (
               <button
                 onClick={() => setActiveStep(activeStep - 1)}
-                className="px-4 py-2 rounded-xl bg-space-blue hover:bg-space-blue/80 border border-space-border text-slate-200 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all"
+                className="px-4 py-2 rounded-full bg-space-blue hover:bg-space-blue/80 border border-space-border text-slate-200 hover:text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Previous
+                <span>Previous</span>
               </button>
             )}
 
             {activeStep < steps.length - 1 ? (
               <button
                 onClick={() => setActiveStep(activeStep + 1)}
-                className="bg-cyan-stitch text-space-dark font-bold text-xs sm:text-sm py-2 px-5 rounded-full flex items-center gap-2 hover:bg-white hover:shadow-cyan-glow transition-all duration-300 cursor-pointer"
+                className="bg-cyan-stitch text-space-dark font-bold py-2 sm:py-2.5 px-6 rounded-full flex items-center gap-2 hover:bg-white hover:shadow-cyan-glow transition-all duration-300 cursor-pointer text-xs sm:text-sm"
               >
                 <span>Next</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4 text-space-dark" />
               </button>
             ) : (
               <button
                 onClick={handleClose}
-                className="bg-cyan-stitch text-space-dark font-bold text-xs sm:text-sm py-2 px-6 rounded-full flex items-center gap-2 hover:bg-white hover:shadow-cyan-glow transition-all duration-300 cursor-pointer"
+                className="bg-cyan-stitch text-space-dark font-bold py-2 sm:py-2.5 px-6 rounded-full flex items-center gap-2 hover:bg-white hover:shadow-cyan-glow transition-all duration-300 cursor-pointer text-xs sm:text-sm"
               >
-                <CheckCircle className="w-4 h-4" />
+                <CheckCircle className="w-4 h-4 text-space-dark" />
                 <span>Launch ORBITGUARD</span>
               </button>
             )}
           </div>
         </footer>
+        {/* END: Footer Section */}
       </main>
+      {/* END: Main Modal Container */}
     </div>
   );
 };
