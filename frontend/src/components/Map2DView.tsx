@@ -1539,20 +1539,6 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
             )}
           </div>
         )}
-
-        {/* Floating 2D Map Notation Key */}
-        <div className="absolute bottom-4 left-4 z-30 pointer-events-none hidden md:flex">
-          <div className="pointer-events-auto bg-space-950/90 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-xl shadow-2xl flex items-center flex-wrap gap-2 text-[10px] font-mono">
-            <span className="text-[9px] uppercase font-bold text-cyan-400 border-r border-space-700 pr-1.5">MAP KEY:</span>
-            <span className="flex items-center gap-1 text-amber-300"><span>🚀</span>Rocket</span>
-            <span className="flex items-center gap-1 text-red-400"><span>💥</span>Debris</span>
-            <span className="flex items-center gap-1 text-emerald-400"><span>📡</span>GPS/GNSS</span>
-            <span className="flex items-center gap-1 text-purple-300"><span>🛰️</span>Starlink</span>
-            <span className="flex items-center gap-1 text-slate-200"><span>🛰️</span>OneWeb</span>
-            <span className="flex items-center gap-1 text-sky-300"><span>🛰️</span>ISS</span>
-            <span className="flex items-center gap-1 text-cyan-400"><span>🛰️</span>Payload</span>
-          </div>
-        </div>
       </div>
     </div>
   );
