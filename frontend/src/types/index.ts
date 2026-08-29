@@ -232,6 +232,7 @@ export interface SystemStatistics {
     gps: number;
     debris: number;
     rocket: number;
+    iss?: number;
     leo: number;
     meo: number;
     geo: number;

@@ -12817,6 +12817,7 @@ export const fallbackStats: SystemStatistics = {
     gps: 32,
     debris: 7520,
     rocket: 2100,
+    iss: 2,
     leo: 25000,
     meo: 3000,
     geo: 4283

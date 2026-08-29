@@ -1395,7 +1395,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
                     >
                       <span className={`truncate text-[11px] ${f.color}`}>{f.label}</span>
                       <span className="text-[9px] px-1 py-0.5 rounded bg-space-900 border border-space-800 text-slate-300 font-mono flex-shrink-0">
-                        {f.count.toLocaleString()}
+                        {(f.count ?? 0).toLocaleString()}
                       </span>
                     </button>
                   ))}

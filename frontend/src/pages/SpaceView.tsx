@@ -197,6 +197,10 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
 
   // Dynamic Individual Fleet & Constellation and Regime Counts
   const fleetCounts = useMemo(() => {
+    if (stats?.fleet_breakdown) {
+      return stats.fleet_breakdown;
+    }
+
     let all = stats?.tracked_objects || objects.length;
     let payload = 0;
     let starlink = 0;
@@ -1540,7 +1544,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                   >
                     <span className={`truncate text-[11px] ${f.color}`}>{f.label}</span>
                     <span className="text-[9px] px-1 py-0.5 rounded bg-space-900 border border-space-800 text-slate-300 font-mono flex-shrink-0">
-                      {f.count.toLocaleString()}
+                      {(f.count ?? 0).toLocaleString()}
                     </span>
                   </button>
                 ))}
