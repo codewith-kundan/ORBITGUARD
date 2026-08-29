@@ -314,7 +314,7 @@ class TLEService:
 
         existing_objs = {obj.norad_id: obj for obj in db.query(OrbitalObject).all()}
 
-        for gp in gp_records:
+        for idx, gp in enumerate(gp_records):
             try:
                 norad_id = int(gp.get("NORAD_CAT_ID", 0))
                 if norad_id == 0:
@@ -431,6 +431,11 @@ class TLEService:
                     db.add(obj)
                     existing_objs[norad_id] = obj
                     inserted += 1
+
+                # Flush in 1,000-record chunks to prevent memory bloat and lock timeouts
+                if (idx + 1) % 1000 == 0:
+                    db.flush()
+
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).debug(f"Failed to process GP record: {e}")
