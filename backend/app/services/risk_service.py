@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 import math
-import random
 from typing import Dict, Any, Tuple, Optional
+import numpy as np
 from backend.app.schemas.conjunction import RiskLevel
+from backend.app.schemas.orbital_object import ObjectType
 from backend.app.utils.time_utils import to_utc
 
 class RiskService:
@@ -12,9 +13,9 @@ class RiskService:
     1. Foster-2D Isotropic Hard-Body Encounter Model
     2. Akella-Alfriend Curvilinear Probability Formulation
     3. Alfano Maximum-Pc Boundary Assessment
-    4. Monte Carlo 10,000 Stochastic Perturbation Sampling
+    4. Vectorized Monte Carlo 10,000 Stochastic Perturbation Sampling (NumPy Accelerated)
     5. Hypervelocity Kinetic Energy Yield (Joules & TNT Equivalent)
-    6. Backward-compatible risk factor attribution dictionary structure
+    6. 2D B-Plane Covariance Projection with Along-Track Growth Dynamics
     """
 
     WEIGHT_MISS_DISTANCE = 0.45
@@ -22,6 +23,52 @@ class RiskService:
     WEIGHT_APPROACH_GEOMETRY = 0.15
     WEIGHT_COMBINED_SIZE = 0.10
     WEIGHT_TIME_TO_TCA = 0.10
+
+    @classmethod
+    def estimate_combined_size(
+        cls,
+        type_a: Any = None,
+        rcs_a: Optional[str] = None,
+        type_b: Any = None,
+        rcs_b: Optional[str] = None,
+        norad_a: Optional[int] = None,
+        norad_b: Optional[int] = None
+    ) -> float:
+        """Estimates realistic combined hard-body collision diameter in meters."""
+        # Special high-value assets
+        space_stations = {25544, 48274} # ISS, Tiangong
+        size_a = 54.0 if (norad_a in space_stations) else 5.0
+        size_b = 54.0 if (norad_b in space_stations) else 5.0
+
+        if norad_a not in space_stations:
+            if rcs_a == "LARGE":
+                size_a = 8.0
+            elif rcs_a == "MEDIUM":
+                size_a = 3.5
+            elif rcs_a == "SMALL":
+                size_a = 1.0
+            elif type_a in (ObjectType.ACTIVE_SATELLITE, "ACTIVE_SATELLITE"):
+                size_a = 5.0
+            elif type_a in (ObjectType.ROCKET_BODY, "ROCKET_BODY"):
+                size_a = 12.0
+            elif type_a in (ObjectType.DEBRIS, "DEBRIS"):
+                size_a = 1.5
+
+        if norad_b not in space_stations:
+            if rcs_b == "LARGE":
+                size_b = 8.0
+            elif rcs_b == "MEDIUM":
+                size_b = 3.5
+            elif rcs_b == "SMALL":
+                size_b = 1.0
+            elif type_b in (ObjectType.ACTIVE_SATELLITE, "ACTIVE_SATELLITE"):
+                size_b = 5.0
+            elif type_b in (ObjectType.ROCKET_BODY, "ROCKET_BODY"):
+                size_b = 12.0
+            elif type_b in (ObjectType.DEBRIS, "DEBRIS"):
+                size_b = 1.5
+
+        return round(size_a + size_b, 1)
 
     @classmethod
     def calculate_collision_probability(
@@ -58,23 +105,31 @@ class RiskService:
         relative_velocity_km_s: float,
         combined_radius_m: float = 6.0,
         pos_uncertainty_km: float = 1.2,
-        debris_mass_kg: float = 2.5
+        debris_mass_kg: float = 2.5,
+        hours_to_tca: float = 12.0,
+        approach_angle_deg: float = 45.0
     ) -> Dict[str, Any]:
         sigma_m = max(100.0, pos_uncertainty_km * 1000.0)
+        # Along-track covariance growth with lead time
+        sigma_intrack_m = sigma_m * (1.5 + 0.12 * max(0.0, hours_to_tca))
+        sigma_radial_m = sigma_m * 0.6
+        sigma_crosstrack_m = sigma_m * 0.85
+
         miss_dist_m = miss_distance_km * 1000.0
         r_sq = combined_radius_m ** 2
         d_sq = miss_dist_m ** 2
 
-        # 1. Foster-2D
-        exp_foster = - (d_sq) / (2.0 * (sigma_m ** 2))
-        pc_foster = 0.0 if exp_foster < -50 else (r_sq / (2.0 * (sigma_m ** 2))) * math.exp(exp_foster)
+        # 1. Foster-2D (Anisotropic projection onto B-plane)
+        sigma_eff = math.sqrt(sigma_radial_m * sigma_intrack_m)
+        exp_foster = - (d_sq) / (2.0 * (sigma_eff ** 2))
+        pc_foster = 0.0 if exp_foster < -50 else (r_sq / (2.0 * (sigma_eff ** 2))) * math.exp(exp_foster)
         pc_foster_pct = round(min(100.0, pc_foster * 100.0), 5)
 
-        # 2. Akella-Alfriend
+        # 2. Akella-Alfriend Curvilinear Formulation
         velocity_factor = max(1.0, math.sqrt(1.0 + (relative_velocity_km_s / 7.5)**2 * 0.12))
         pc_akella_pct = round(min(100.0, pc_foster_pct * velocity_factor), 5)
 
-        # 3. Alfano Maximum-Pc
+        # 3. Alfano Maximum-Pc Boundary
         if miss_dist_m > 0:
             sigma_worst_m = miss_dist_m / math.sqrt(2.0)
             pc_max = (r_sq / (2.0 * (sigma_worst_m ** 2))) * math.exp(-1.0)
@@ -82,26 +137,23 @@ class RiskService:
         else:
             pc_alfano_max_pct = 100.0
 
-        # 4. Monte Carlo Numerical Sampling (10,000 Perturbations)
-        rng = random.Random(int(miss_distance_km * 10000) % 999999)
-        hits = 0
-        mc_samples = 10000
-        for _ in range(mc_samples):
-            dx = rng.gauss(0, sigma_m)
-            dy = rng.gauss(miss_dist_m, sigma_m)
-            if (dx*dx + dy*dy) <= r_sq:
-                hits += 1
-        pc_monte_carlo_pct = round((hits / mc_samples) * 100.0, 4)
+        # 4. Vectorized Monte Carlo Sampling (10,000 Perturbations via NumPy)
+        seed = int(miss_distance_km * 10000 + approach_angle_deg * 100) % 999999
+        rng = np.random.default_rng(seed)
+        dx = rng.normal(0.0, sigma_intrack_m, 10000)
+        dy = rng.normal(miss_dist_m, sigma_radial_m, 10000)
+        hits = np.count_nonzero((dx * dx + dy * dy) <= r_sq)
+        pc_monte_carlo_pct = round((hits / 10000.0) * 100.0, 4)
 
-        # 5. Hypervelocity Kinetic Energy
+        # 5. Hypervelocity Kinetic Energy Yield
         v_rel_m_s = relative_velocity_km_s * 1000.0
         kinetic_energy_joules = 0.5 * debris_mass_kg * (v_rel_m_s ** 2)
         kinetic_energy_mj = round(kinetic_energy_joules / 1e6, 2)
         tnt_equivalent_kg = round(kinetic_energy_joules / 4.184e6, 2)
 
         # 6. B-Plane Coordinates
-        b_dot_t_m = round(miss_dist_m * math.cos(math.radians(35.0)), 1)
-        b_dot_r_m = round(miss_dist_m * math.sin(math.radians(35.0)), 1)
+        b_dot_t_m = round(miss_dist_m * math.cos(math.radians(approach_angle_deg)), 1)
+        b_dot_r_m = round(miss_dist_m * math.sin(math.radians(approach_angle_deg)), 1)
 
         return {
             "foster_2d_pc_pct": pc_foster_pct,
@@ -114,9 +166,9 @@ class RiskService:
             "b_plane": {
                 "b_dot_t_m": b_dot_t_m,
                 "b_dot_r_m": b_dot_r_m,
-                "sigma_radial_m": round(sigma_m * 0.45, 1),
-                "sigma_intrack_m": round(sigma_m * 1.8, 1),
-                "sigma_crosstrack_m": round(sigma_m * 0.75, 1),
+                "sigma_radial_m": round(sigma_radial_m, 1),
+                "sigma_intrack_m": round(sigma_intrack_m, 1),
+                "sigma_crosstrack_m": round(sigma_crosstrack_m, 1),
                 "combined_hard_body_radius_m": combined_radius_m
             }
         }
@@ -143,16 +195,19 @@ class RiskService:
         # Factor A: Miss Distance
         if miss_distance_km <= 1.0:
             score_dist = 100.0
-            dist_desc = "Critical"
+            dist_desc = "Critical (<1.0 km)"
         elif miss_distance_km <= 5.0:
-            score_dist = 80.0
-            dist_desc = "High"
+            score_dist = 85.0
+            dist_desc = "High (1.0-5.0 km)"
         elif miss_distance_km <= 25.0:
-            score_dist = 40.0
-            dist_desc = "Moderate"
+            score_dist = 50.0
+            dist_desc = "Moderate (5.0-25.0 km)"
+        elif miss_distance_km <= 80.0:
+            score_dist = 25.0
+            dist_desc = "Low-Medium (25-80 km)"
         else:
             score_dist = 10.0
-            dist_desc = "Low"
+            dist_desc = "Low (>80 km)"
 
         # Factor B: Relative Velocity
         if relative_velocity_km_s >= 14.0:
@@ -171,12 +226,12 @@ class RiskService:
         # Factor C: Approach Geometry
         if 70.0 <= approach_angle_deg <= 110.0:
             score_geom = 90.0
-            geom_desc = "Orthogonal Orbital Plane Crossing (~90°)"
+            geom_desc = f"Orthogonal Plane Crossing ({approach_angle_deg:.1f}°)"
         elif approach_angle_deg >= 150.0:
             score_geom = 100.0
-            geom_desc = "Direct Counter-Rotating Head-On (~180°)"
+            geom_desc = f"Head-On Counter-Rotating ({approach_angle_deg:.1f}°)"
         else:
-            score_geom = 40.0 + (approach_angle_deg / 180.0) * 40.0
+            score_geom = 35.0 + (approach_angle_deg / 180.0) * 45.0
             geom_desc = f"Coplanar / Shallow Angle ({approach_angle_deg:.1f}°)"
 
         # Factor D: Physical Size
@@ -199,17 +254,19 @@ class RiskService:
 
         # Weighted Composite Score (0-100)
         total_score = (
-            score_dist * 0.55 +
-            score_vel * 0.25 +
-            score_time * 0.20
+            score_dist * 0.50 +
+            score_vel * 0.20 +
+            score_time * 0.15 +
+            score_geom * 0.10 +
+            score_size * 0.05
         )
         total_score = round(min(100.0, max(0.0, total_score)), 1)
 
-        if total_score >= 81.0:
+        if total_score >= 80.0:
             level = RiskLevel.CRITICAL
-        elif total_score >= 61.0:
+        elif total_score >= 60.0:
             level = RiskLevel.HIGH
-        elif total_score >= 31.0:
+        elif total_score >= 30.0:
             level = RiskLevel.MEDIUM
         else:
             level = RiskLevel.LOW
@@ -224,37 +281,39 @@ class RiskService:
             miss_distance_km=miss_distance_km,
             relative_velocity_km_s=relative_velocity_km_s,
             combined_radius_m=combined_size_m / 2.0,
-            pos_uncertainty_km=pos_uncertainty_km
+            pos_uncertainty_km=pos_uncertainty_km,
+            hours_to_tca=hours_to_tca,
+            approach_angle_deg=approach_angle_deg
         )
 
         factors = {
             "miss_distance_factor": {
                 "score": score_dist,
-                "weight": 0.55,
+                "weight": 0.50,
                 "value_km": round(miss_distance_km, 2),
                 "contribution": dist_desc
             },
             "relative_velocity_factor": {
                 "score": score_vel,
-                "weight": 0.25,
+                "weight": 0.20,
                 "value_km_s": round(relative_velocity_km_s, 2),
                 "contribution": vel_desc
             },
             "time_to_tca_factor": {
                 "score": score_time,
-                "weight": 0.20,
+                "weight": 0.15,
                 "hours_to_tca": round(hours_to_tca, 1),
                 "contribution": time_desc
             },
             "approach_geometry_factor": {
-                "score": score_geom,
-                "weight": 0.15,
+                "score": round(score_geom, 1),
+                "weight": 0.10,
                 "angle_deg": round(approach_angle_deg, 1),
                 "description": geom_desc
             },
             "object_size_factor": {
-                "score": score_size,
-                "weight": 0.10,
+                "score": round(score_size, 1),
+                "weight": 0.05,
                 "size_m": round(combined_size_m, 1),
                 "description": size_desc
             },
@@ -267,3 +326,4 @@ class RiskService:
         }
 
         return total_score, level, factors
+

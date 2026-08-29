@@ -1,5 +1,6 @@
 import math
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple, Dict, Any
 from sgp4.api import Satrec, jday
@@ -57,6 +58,31 @@ def ecef_to_geodetic(x: float, y: float, z: float) -> Tuple[float, float, float]
     return lat_deg, lon_deg, alt_km
 
 class PropagationService:
+    _satrec_cache: Dict[Tuple[str, str], Satrec] = {}
+    _cache_lock = threading.Lock()
+    _MAX_CACHE_SIZE = 10000
+
+    @classmethod
+    def get_satrec(cls, line1: str, line2: str) -> Optional[Satrec]:
+        """Retrieves or creates cached Satrec instance from TLE lines."""
+        cache_key = (line1.strip(), line2.strip())
+        with cls._cache_lock:
+            if cache_key in cls._satrec_cache:
+                return cls._satrec_cache[cache_key]
+        
+        try:
+            sat = Satrec.twoline2rv(line1, line2)
+            with cls._cache_lock:
+                if len(cls._satrec_cache) > cls._MAX_CACHE_SIZE:
+                    # Evict first 2000 entries
+                    for k in list(cls._satrec_cache.keys())[:2000]:
+                        cls._satrec_cache.pop(k, None)
+                cls._satrec_cache[cache_key] = sat
+            return sat
+        except Exception as e:
+            logger.debug(f"Failed to instantiate Satrec: {e}")
+            return None
+
     @staticmethod
     def propagate_satellite(
         line1: str,
@@ -68,12 +94,15 @@ class PropagationService:
         internal_id: Optional[int] = None
     ) -> Optional[OrbitalPosition]:
         """
-        Propagates satellite to target_time using analytical SGP4.
+        Propagates satellite to target_time using analytical SGP4 with cached Satrec objects.
         Returns position in TEME Cartesian and WGS84 geodetic coordinates.
         """
         target_utc = to_utc(target_time)
         try:
-            sat = Satrec.twoline2rv(line1, line2)
+            sat = PropagationService.get_satrec(line1, line2)
+            if not sat:
+                return None
+
             jd, fr = jday(
                 target_utc.year, target_utc.month, target_utc.day,
                 target_utc.hour, target_utc.minute, target_utc.second + target_utc.microsecond / 1e6
@@ -127,6 +156,7 @@ class PropagationService:
     ) -> List[TrajectoryPoint]:
         """
         Generates an array of future orbital positions (3D and geodetic) over a time window.
+        Optimized with cached Satrec instance.
         """
         if start_time is None:
             start_time = datetime.now(timezone.utc)
@@ -169,6 +199,7 @@ class PropagationService:
     ) -> List[GroundTrackPoint]:
         """
         Generates projected sub-satellite ground track points (lat, lon, alt) over time.
+        Optimized with cached Satrec instance.
         """
         if start_time is None:
             start_time = datetime.now(timezone.utc)

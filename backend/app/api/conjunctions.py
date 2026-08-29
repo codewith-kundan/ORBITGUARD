@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime
 
@@ -8,18 +8,20 @@ from backend.app.models.conjunction import Conjunction
 from backend.app.schemas.conjunction import ConjunctionResponse, RiskLevel, ConjunctionSummary
 from backend.app.services.conjunction_service import ConjunctionService
 from backend.app.services.alert_service import AlertService
+from backend.app.services.risk_service import RiskService
+from backend.app.services.history_service import HistoryService
 from backend.app.services.cache_service import fast_cache
 
 router = APIRouter(prefix="/api/conjunctions", tags=["Conjunctions"])
 
 @router.post("/screen")
 def trigger_conjunction_screening(
-    window_hours: int = 72,
-    threshold_km: float = 150.0,
-    coarse_step_minutes: int = 3,
+    window_hours: int = 24,
+    threshold_km: float = 120.0,
+    coarse_step_minutes: float = 2.0,
     db: Session = Depends(get_db)
 ):
-    """Executes full multi-object conjunction screening pipeline across current catalog."""
+    """Executes ultra-fast vectorized multi-object conjunction screening pipeline across current catalog."""
     result = ConjunctionService.run_full_conjunction_screening(
         db,
         window_hours=window_hours,
@@ -49,14 +51,17 @@ def list_conjunctions(
     offset: int = 0,
     db: Session = Depends(get_db)
 ):
-    """Retrieves active upcoming conjunctions sorted by risk score descending with fast caching."""
+    """Retrieves active upcoming conjunctions sorted by risk score descending with fast caching and single SQL JOIN."""
     cache_key = f"conjunctions:list:{risk_level}:{min_risk_score}:{max_miss_distance_km}:{include_passed}:{limit}:{offset}"
     cached_data = fast_cache.get(cache_key)
     if cached_data is not None:
         return cached_data
 
     now = datetime.utcnow()
-    query = db.query(Conjunction)
+    query = db.query(Conjunction).options(
+        joinedload(Conjunction.object_a),
+        joinedload(Conjunction.object_b)
+    )
 
     if not include_passed:
         query = query.filter(Conjunction.tca > now)
@@ -77,14 +82,17 @@ def list_high_risk_conjunctions(
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """Retrieves active high and critical risk upcoming conjunctions with fast caching."""
+    """Retrieves active high and critical risk upcoming conjunctions with fast caching and eager loaded relationships."""
     cache_key = f"conjunctions:high_risk:{limit}"
     cached_data = fast_cache.get(cache_key)
     if cached_data is not None:
         return cached_data
 
     now = datetime.utcnow()
-    results = db.query(Conjunction).filter(
+    results = db.query(Conjunction).options(
+        joinedload(Conjunction.object_a),
+        joinedload(Conjunction.object_b)
+    ).filter(
         Conjunction.tca > now,
         Conjunction.risk_level.in_([RiskLevel.HIGH, RiskLevel.CRITICAL])
     ).order_by(Conjunction.risk_score.desc()).limit(limit).all()
@@ -124,14 +132,19 @@ def get_conjunction_summary(db: Session = Depends(get_db)):
     fast_cache.set(cache_key, summary, ttl_seconds=15.0)
     return summary
 
-
-from backend.app.services.risk_service import RiskService
-from backend.app.services.history_service import HistoryService
-
 @router.get("/{id}", response_model=ConjunctionResponse)
 def get_conjunction(id: int, db: Session = Depends(get_db)):
     """Retrieves detailed information for a specific conjunction event with explainable multi-factor risk and historical prediction confidence."""
-    conj = db.query(Conjunction).filter(Conjunction.id == id).first()
+    cache_key = f"conjunctions:detail:{id}"
+    cached_data = fast_cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
+    conj = db.query(Conjunction).options(
+        joinedload(Conjunction.object_a),
+        joinedload(Conjunction.object_b)
+    ).filter(Conjunction.id == id).first()
+
     if not conj:
         raise HTTPException(status_code=404, detail=f"Conjunction with ID {id} not found")
     
@@ -156,4 +169,6 @@ def get_conjunction(id: int, db: Session = Depends(get_db)):
         factors["historical_prediction"] = hist_analysis
 
     conj.factors = factors
+    fast_cache.set(cache_key, conj, ttl_seconds=30.0)
     return conj
+
