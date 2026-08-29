@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { OrbitalObject, OrbitalPosition, GroundStation, SystemStatistics, Conjunction } from '../types';
 import { api } from '../services/api';
+import { getOrbitalIconCategory } from '../utils/orbitalIcons';
 
 interface Map2DViewProps {
   objects: OrbitalObject[];
@@ -42,7 +43,6 @@ interface HoveredEntity {
   screenX: number;
   screenY: number;
 }
-
 
 export const Map2DView: React.FC<Map2DViewProps> = ({
   objects,
@@ -79,6 +79,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
   const [hoveredEntity, setHoveredEntity] = useState<HoveredEntity | null>(null);
   const [searchSuggestions, setSearchSuggestions] = useState<OrbitalObject[]>([]);
   const [isSearchingCatalog, setIsSearchingCatalog] = useState<boolean>(false);
+  const [_isTextureLoaded, setIsTextureLoaded] = useState<boolean>(false);
 
   // Debounced live suggestions from full 32,282 catalog API
   useEffect(() => {
@@ -105,6 +106,15 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
   // Predefined Ground Stations State
   const [stations, setStations] = useState<GroundStation[]>([]);
 
+  // Fetch Ground Stations
+  useEffect(() => {
+    api.getGroundStations()
+      .then((data) => {
+        if (data && data.length > 0) setStations(data);
+      })
+      .catch(() => {});
+  }, []);
+
   // Real-Time Batch Positions Swarm State (4,000+ SGP4 tracked assets)
   const [positions, setPositions] = useState<OrbitalPosition[]>([]);
   const satrecMapRef = useRef<Map<number, { satrec: any; name: string; type: string; norad_id: number }>>(new Map());
@@ -128,19 +138,20 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     dayImg.src = '/textures/earth_day.jpg';
     dayImg.onload = () => {
       earthImgRef.current = dayImg;
+      setIsTextureLoaded(true);
     };
   }, []);
 
-  // Initialize SGP4 satrec records from objects' TLEs (client-side, works offline)
+  // Parse TLEs into SGP4 Satrec records
   useEffect(() => {
     if (objects && objects.length > 0) {
       objects.forEach((obj) => {
-        if (obj.tle_line1 && obj.tle_line2 && !satrecMapRef.current.has(obj.norad_id)) {
+        if (obj.tle_line1 && obj.tle_line2) {
           try {
-            const rec = satellite.twoline2satrec(obj.tle_line1, obj.tle_line2);
-            if (rec && (rec as any).error === 0) {
+            const satrec = satellite.twoline2satrec(obj.tle_line1, obj.tle_line2);
+            if (satrec && (satrec as any).error === 0) {
               satrecMapRef.current.set(obj.norad_id, {
-                satrec: rec,
+                satrec,
                 name: obj.name,
                 type: obj.object_type,
                 norad_id: obj.norad_id
@@ -152,23 +163,12 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     }
   }, [objects]);
 
-  // Fetch Predefined Ground Stations (with fallback)
-  useEffect(() => {
-    api.getGroundStations()
-      .then((data) => {
-        if (data && data.length > 0) setStations(data);
-      })
-      .catch(() => {
-        console.debug('Ground stations API unavailable, using fallback');
-      });
-  }, []);
-
-  // Fetch Batch Ephemeris Positions from Backend API (1,800+ real assets)
+  // Fetch Batch Ephemeris Positions
   useEffect(() => {
     let isMounted = true;
     const fetchPositions = async () => {
       try {
-        const batch = await api.getBatchPositions(new Date().toISOString(), 1800);
+        const batch = await api.getBatchPositions(new Date().toISOString(), 2000);
         if (isMounted && batch.positions && batch.positions.length > 0) {
           setPositions(batch.positions);
           batch.positions.forEach((p: OrbitalPosition) => {
@@ -202,41 +202,41 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
   // Dynamic Fleet & Constellation & Regime Counts from real Database Stats
   const fleetCounts = useMemo(() => {
-    if (stats?.fleet_breakdown) {
-      return stats.fleet_breakdown;
-    }
-
     let all = stats?.tracked_objects || (positions.length > 0 ? positions.length : objects.length);
-    let payload = stats?.active_satellites || 0;
+    let payload = 0;
     let starlink = 0;
     let oneweb = 0;
     let gps = 0;
-    let debris = stats?.space_debris || 0;
-    let rocket = stats?.rocket_bodies || 0;
+    let debris = 0;
+    let rocket = 0;
+    let iss = 0;
     let leo = stats?.altitude_distribution?.leo || 0;
     let meo = stats?.altitude_distribution?.meo || 0;
     let geo = stats?.altitude_distribution?.geo || 0;
 
     const sourceList = positions.length > 0 ? positions : objects;
     sourceList.forEach((o: any) => {
-      const name = (o.name || '').toUpperCase();
-      const type = (typeof o.type === 'string' ? o.type : typeof o.object_type === 'string' ? o.object_type : (o.object_type as any)?.value || '').toUpperCase();
+      const cat = getOrbitalIconCategory(o.name, o.type || o.object_type, o.norad_id);
       const apogee = o.alt_km || o.apogee_km || o.perigee_km || 0;
 
-      if (type === 'DEBRIS') debris++;
-      else if (type === 'ROCKET_BODY' || type === 'ROCKET') rocket++;
+      if (cat === 'DEBRIS') debris++;
+      else if (cat === 'ROCKET') rocket++;
+      else if (cat === 'GPS') gps++;
+      else if (cat === 'STARLINK') starlink++;
+      else if (cat === 'ONEWEB') oneweb++;
+      else if (cat === 'ISS') iss++;
       else payload++;
-
-      if (name.includes('STARLINK')) starlink++;
-      if (name.includes('ONEWEB')) oneweb++;
-      if (name.includes('NAVSTAR') || name.includes('GPS') || name.includes('GLONASS') || name.includes('GALILEO') || name.includes('BEIDOU')) gps++;
 
       if (apogee <= 2000) leo++;
       else if (apogee < 35000) meo++;
       else geo++;
     });
 
-    return { all, operational: payload, payload, starlink, oneweb, gps, debris, rocket, leo, meo, geo };
+    if (stats?.space_debris && debris === 0) debris = stats.space_debris;
+    if (stats?.rocket_bodies && rocket === 0) rocket = stats.rocket_bodies;
+    if (stats?.active_satellites && payload === 0) payload = stats.active_satellites;
+
+    return { all, operational: payload, payload, starlink, oneweb, gps, debris, rocket, iss, leo, meo, geo };
   }, [objects, positions, stats]);
 
   // Filter Real Live Swarm Positions based on Active Fleet & Regime
@@ -257,18 +257,18 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
     } as OrbitalPosition)));
 
     return list.filter((pos) => {
-      const name = (pos.name || '').toUpperCase();
-      const type = (pos.type || '').toUpperCase();
+      const cat = getOrbitalIconCategory(pos.name, pos.type, pos.norad_id);
       const alt = pos.alt_km || 400;
 
-      if (isDebrisMode && type !== 'DEBRIS') return false;
+      if (isDebrisMode && cat !== 'DEBRIS') return false;
 
-      if (activeFleetFilter === 'PAYLOAD' && type !== 'ACTIVE_SATELLITE' && type !== 'PAYLOAD') return false;
-      if (activeFleetFilter === 'STARLINK' && !name.includes('STARLINK')) return false;
-      if (activeFleetFilter === 'ONEWEB' && !name.includes('ONEWEB')) return false;
-      if (activeFleetFilter === 'GPS' && !name.includes('NAVSTAR') && !name.includes('GPS') && !name.includes('GLONASS') && !name.includes('GALILEO') && !name.includes('BEIDOU') && !name.includes('GSAT')) return false;
-      if (activeFleetFilter === 'DEBRIS' && type !== 'DEBRIS') return false;
-      if (activeFleetFilter === 'ROCKET' && type !== 'ROCKET_BODY' && type !== 'ROCKET') return false;
+      if (activeFleetFilter === 'PAYLOAD' && cat !== 'PAYLOAD' && cat !== 'ISS') return false;
+      if (activeFleetFilter === 'STARLINK' && cat !== 'STARLINK') return false;
+      if (activeFleetFilter === 'ONEWEB' && cat !== 'ONEWEB') return false;
+      if (activeFleetFilter === 'GPS' && cat !== 'GPS') return false;
+      if (activeFleetFilter === 'DEBRIS' && cat !== 'DEBRIS') return false;
+      if (activeFleetFilter === 'ROCKET' && cat !== 'ROCKET') return false;
+      if (activeFleetFilter === 'ISS' && cat !== 'ISS') return false;
 
       if (altitudeFilter === 'LEO' && alt > 2000) return false;
       if (altitudeFilter === 'MEO' && (alt <= 2000 || alt > 20000)) return false;
@@ -623,29 +623,72 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
           const dotX = lonToX(satLon);
           const dotY = latToY(satLat);
+          const cat = getOrbitalIconCategory(pos.name, pos.type, pos.norad_id);
 
-          const nameUpper = (pos.name || '').toUpperCase();
-          const isStarlink = nameUpper.includes('STARLINK');
-          const isOneWeb = nameUpper.includes('ONEWEB');
-          const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO') || nameUpper.includes('GLONASS');
-
-          let dotColor = '#2563eb'; // Operational Blue
-          if (pos.type === 'DEBRIS') {
-            dotColor = '#ef4444'; // Debris Red
-          } else if (pos.type === 'ROCKET_BODY') {
-            dotColor = '#eab308'; // Rocket Yellow
-          } else if (isStarlink) {
-            dotColor = '#a855f7'; // Starlink Purple
-          } else if (isOneWeb) {
-            dotColor = '#ffffff'; // OneWeb White
-          } else if (isGps) {
-            dotColor = '#22c55e'; // GPS Green
+          // Vector Glyph Icon Notations on 2D World Map
+          if (cat === 'ROCKET') {
+            // Amber rocket booster notation
+            ctx.fillStyle = '#fbbf24';
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(dotX, dotY - 5);
+            ctx.lineTo(dotX + 3, dotY + 4);
+            ctx.lineTo(dotX - 3, dotY + 4);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            // Thruster flame
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(dotX - 1, dotY + 4, 2, 2.5);
+          } else if (cat === 'DEBRIS') {
+            // Red jagged fragmentation shard notation
+            ctx.fillStyle = '#ef4444';
+            ctx.strokeStyle = '#fecaca';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(dotX, dotY - 3.5);
+            ctx.lineTo(dotX + 3.5, dotY);
+            ctx.lineTo(dotX, dotY + 3.5);
+            ctx.lineTo(dotX - 3.5, dotY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+          } else if (cat === 'GPS') {
+            // Emerald green navigation satellite with cross solar wings
+            ctx.fillStyle = '#10b981';
+            ctx.fillRect(dotX - 2, dotY - 2, 4, 4);
+            ctx.fillStyle = '#34d399';
+            ctx.fillRect(dotX - 5.5, dotY - 1, 3, 2);
+            ctx.fillRect(dotX + 2.5, dotY - 1, 3, 2);
+          } else if (cat === 'STARLINK') {
+            // Purple Starlink flat bus with single solar wing
+            ctx.fillStyle = '#c084fc';
+            ctx.fillRect(dotX - 3.5, dotY - 1, 7, 2);
+            ctx.fillStyle = '#a855f7';
+            ctx.fillRect(dotX - 1, dotY - 4.5, 2, 3.5);
+          } else if (cat === 'ONEWEB') {
+            // White dual-array comm satellite
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(dotX - 1.5, dotY - 2, 3, 4);
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(dotX - 5.5, dotY - 1, 3, 2);
+            ctx.fillRect(dotX + 2.5, dotY - 1, 3, 2);
+          } else if (cat === 'ISS') {
+            // Space station multi-truss solar arrays
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(dotX - 1, dotY - 3, 2, 6);
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillRect(dotX - 6, dotY - 4, 3, 8);
+            ctx.fillRect(dotX + 3, dotY - 4, 3, 8);
+          } else {
+            // Cyan operational payload satellite
+            ctx.fillStyle = '#00f0ff';
+            ctx.fillRect(dotX - 2, dotY - 2, 4, 4);
+            ctx.fillStyle = '#0284c7';
+            ctx.fillRect(dotX - 5.5, dotY - 1, 3, 2);
+            ctx.fillRect(dotX + 2.5, dotY - 1, 3, 2);
           }
-
-          ctx.fillStyle = dotColor;
-          ctx.beginPath();
-          ctx.arc(dotX, dotY, 2.3, 0, Math.PI * 2);
-          ctx.fill();
         });
       }
 
@@ -1331,13 +1374,14 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
 
                 <div className="grid grid-cols-2 gap-1 text-[11px]">
                   {[
-                    { key: 'ALL', label: 'All Objects', count: fleetCounts.all, color: 'text-slate-200' },
-                    { key: 'PAYLOAD', label: '◆ Operational', count: fleetCounts.operational, color: 'text-blue-400' },
-                    { key: 'DEBRIS', label: '⬟ Debris Clouds', count: fleetCounts.debris, color: 'text-red-400' },
-                    { key: 'STARLINK', label: '◆ Starlink', count: fleetCounts.starlink, color: 'text-purple-400' },
-                    { key: 'ONEWEB', label: '◆ OneWeb', count: fleetCounts.oneweb, color: 'text-white' },
-                    { key: 'ROCKET', label: '❚ Rocket Bodies', count: fleetCounts.rocket, color: 'text-yellow-400' },
-                    { key: 'GPS', label: '◆ GPS / GNSS', count: fleetCounts.gps, color: 'text-green-400' }
+                    { key: 'ALL', label: '🌐 All Objects', count: fleetCounts.all, color: 'text-slate-200' },
+                    { key: 'PAYLOAD', label: '🛰️ Operational', count: fleetCounts.operational, color: 'text-cyan-400' },
+                    { key: 'DEBRIS', label: '💥 Debris Clouds', count: fleetCounts.debris, color: 'text-red-400' },
+                    { key: 'ROCKET', label: '🚀 Rocket Bodies', count: fleetCounts.rocket, color: 'text-yellow-400' },
+                    { key: 'GPS', label: '📡 GPS / GNSS', count: fleetCounts.gps, color: 'text-green-400' },
+                    { key: 'STARLINK', label: '🛰️ Starlink', count: fleetCounts.starlink, color: 'text-purple-400' },
+                    { key: 'ONEWEB', label: '🛰️ OneWeb / Comm', count: fleetCounts.oneweb, color: 'text-white' },
+                    { key: 'ISS', label: '🛰️ Space Stations', count: fleetCounts.iss, color: 'text-sky-400' }
                   ].map((f) => (
                     <button
                       key={f.key}
@@ -1495,6 +1539,20 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
             )}
           </div>
         )}
+
+        {/* Floating 2D Map Notation Key */}
+        <div className="absolute bottom-4 left-4 z-30 pointer-events-none hidden md:flex">
+          <div className="pointer-events-auto bg-space-950/90 backdrop-blur-xl border border-white/10 px-3 py-1.5 rounded-xl shadow-2xl flex items-center flex-wrap gap-2 text-[10px] font-mono">
+            <span className="text-[9px] uppercase font-bold text-cyan-400 border-r border-space-700 pr-1.5">MAP KEY:</span>
+            <span className="flex items-center gap-1 text-amber-300"><span>🚀</span>Rocket</span>
+            <span className="flex items-center gap-1 text-red-400"><span>💥</span>Debris</span>
+            <span className="flex items-center gap-1 text-emerald-400"><span>📡</span>GPS/GNSS</span>
+            <span className="flex items-center gap-1 text-purple-300"><span>🛰️</span>Starlink</span>
+            <span className="flex items-center gap-1 text-slate-200"><span>🛰️</span>OneWeb</span>
+            <span className="flex items-center gap-1 text-sky-300"><span>🛰️</span>ISS</span>
+            <span className="flex items-center gap-1 text-cyan-400"><span>🛰️</span>Payload</span>
+          </div>
+        </div>
       </div>
     </div>
   );

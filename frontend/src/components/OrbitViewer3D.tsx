@@ -9,6 +9,10 @@ import {
 } from '../types';
 import { api } from '../services/api';
 import {
+  getOrbitalCanvasTexture,
+  getOrbitalIconCategory
+} from '../utils/orbitalIcons';
+import {
   Play,
   Pause,
   RotateCcw,
@@ -253,12 +257,14 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
   const sunLightRef = useRef<THREE.DirectionalLight | null>(null);
   const sunMeshRef = useRef<THREE.Mesh | null>(null);
   const moonMeshRef = useRef<THREE.Mesh | null>(null);
-  const instancedMeshRef = useRef<THREE.InstancedMesh | null>(null);
+  const debrisMeshRef = useRef<THREE.InstancedMesh | null>(null);
+  const satMeshRef = useRef<THREE.InstancedMesh | null>(null);
+  const rocketMeshRef = useRef<THREE.InstancedMesh | null>(null);
+  const gpsMeshRef = useRef<THREE.InstancedMesh | null>(null);
+  const targetReticleRef = useRef<THREE.Mesh | null>(null);
   const trajectoryLineRef = useRef<THREE.Line | null>(null);
   const conjLineRef = useRef<THREE.Line | null>(null);
   const animationFrameId = useRef<number | null>(null);
-  const raycaster = useRef(new THREE.Raycaster());
-  const mouse = useRef(new THREE.Vector2());
 
   // Fetch real-time batch positions
   useEffect(() => {
@@ -490,38 +496,109 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
     scene.add(moonMesh);
     moonMeshRef.current = moonMesh;
 
-    // 11. Instanced Mesh for High-Performance Orbital Assets
+    // 11. High-Performance Billboard Instanced Meshes for Orbital Icon Notations
+    const createBillboardMaterial = (texture: THREE.CanvasTexture): THREE.MeshBasicMaterial => {
+      const mat = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        alphaTest: 0.02,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.NormalBlending
+      });
+
+      mat.onBeforeCompile = (shader) => {
+        shader.vertexShader = shader.vertexShader.replace(
+          '#include <project_vertex>',
+          `
+          #include <project_vertex>
+          #ifdef USE_INSTANCING
+            vec4 instanceCenter = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+            vec4 mvPosition = modelViewMatrix * instanceCenter;
+            float scaleX = length(vec3(instanceMatrix[0].xyz));
+            float scaleY = length(vec3(instanceMatrix[1].xyz));
+            mvPosition.xy += transformed.xy * vec2(scaleX, scaleY) * 0.72;
+            gl_Position = projectionMatrix * mvPosition;
+          #endif
+          `
+        );
+      };
+
+      return mat;
+    };
+
     const maxObjects = 1000;
-    const instGeom = new THREE.SphereGeometry(0.12, 12, 12);
-    const instMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const instMesh = new THREE.InstancedMesh(instGeom, instMat, maxObjects);
-    instMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    scene.add(instMesh);
-    instancedMeshRef.current = instMesh;
+    const quadGeom = new THREE.PlaneGeometry(1.0, 1.0);
+
+    const satMesh = new THREE.InstancedMesh(quadGeom, createBillboardMaterial(getOrbitalCanvasTexture('PAYLOAD', 128)), maxObjects);
+    satMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(satMesh);
+    satMeshRef.current = satMesh;
+
+    const debrisMesh = new THREE.InstancedMesh(quadGeom, createBillboardMaterial(getOrbitalCanvasTexture('DEBRIS', 128)), maxObjects);
+    debrisMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(debrisMesh);
+    debrisMeshRef.current = debrisMesh;
+
+    const rocketMesh = new THREE.InstancedMesh(quadGeom, createBillboardMaterial(getOrbitalCanvasTexture('ROCKET', 128)), maxObjects);
+    rocketMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(rocketMesh);
+    rocketMeshRef.current = rocketMesh;
+
+    const gpsMesh = new THREE.InstancedMesh(quadGeom, createBillboardMaterial(getOrbitalCanvasTexture('GPS', 128)), maxObjects);
+    gpsMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(gpsMesh);
+    gpsMeshRef.current = gpsMesh;
+
+    // Target Lock Reticle
+    const targetMat = new THREE.MeshBasicMaterial({
+      map: getOrbitalCanvasTexture('TARGET', 128),
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    });
+    const targetMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.4), targetMat);
+    targetMesh.visible = false;
+    scene.add(targetMesh);
+    targetReticleRef.current = targetMesh;
 
     // Raycasting Click Handler
     const handleCanvasClick = (e: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
-      mouse.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
 
-      raycaster.current.setFromCamera(mouse.current, camera);
-      if (instancedMeshRef.current && positions.length > 0) {
-        const intersects = raycaster.current.intersectObject(instancedMeshRef.current);
-        if (intersects.length > 0 && intersects[0].instanceId !== undefined) {
-          const clickedPos = positions[intersects[0].instanceId];
-          if (clickedPos) {
-            const foundObj = objects.find((o) => o.norad_id === clickedPos.norad_id);
-            if (foundObj) {
-              onSelectObject(foundObj);
-              const targetVec = new THREE.Vector3(
-                clickedPos.x_km / 1000,
-                clickedPos.z_km / 1000,
-                -clickedPos.y_km / 1000
-              );
-              controls.target.copy(targetVec);
-            }
+      let closest: { pos: OrbitalPosition; dist: number } | null = null;
+      const tempVec = new THREE.Vector3();
+
+      for (const pos of positions) {
+        tempVec.set(pos.x_km / 1000, pos.z_km / 1000, -pos.y_km / 1000);
+        tempVec.project(camera);
+        if (tempVec.z > 1.0) continue;
+
+        const sx = (tempVec.x * 0.5 + 0.5) * rect.width;
+        const sy = (-(tempVec.y * 0.5) + 0.5) * rect.height;
+        const dx = mouseX - sx;
+        const dy = mouseY - sy;
+        const d = Math.sqrt(dx * dx + dy * dy);
+
+        if (d <= 28) {
+          if (!closest || d < closest.dist) {
+            closest = { pos, dist: d };
           }
+        }
+      }
+
+      if (closest) {
+        const foundObj = objects.find((o) => o.norad_id === closest!.pos.norad_id);
+        if (foundObj) {
+          onSelectObject(foundObj);
+          controls.target.set(
+            closest.pos.x_km / 1000,
+            closest.pos.z_km / 1000,
+            -closest.pos.y_km / 1000
+          );
         }
       }
     };
@@ -584,40 +661,86 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
     }
   }, [simTime]);
 
-  // Update Instanced Orbital Objects Positions & Colors
+  // Update Instanced Orbital Objects Positions & Icon Meshes
   useEffect(() => {
-    if (!instancedMeshRef.current || positions.length === 0) return;
-    const mesh = instancedMeshRef.current;
+    if (positions.length === 0) return;
     const dummy = new THREE.Object3D();
-    const color = new THREE.Color();
 
-    positions.forEach((pos, i) => {
+    let satIdx = 0;
+    let debrisIdx = 0;
+    let rocketIdx = 0;
+    let gpsIdx = 0;
+
+    positions.forEach((pos) => {
       const x = pos.x_km / 1000;
       const y = pos.z_km / 1000;
       const z = -pos.y_km / 1000;
 
       dummy.position.set(x, y, z);
       const isSelected = selectedObject?.norad_id === pos.norad_id;
-      const scale = isSelected ? 2.5 : 1.0;
+      const cat = getOrbitalIconCategory(pos.name, pos.type, pos.norad_id);
+
+      let scale = isSelected ? 2.4 : 0.9;
+      if (cat === 'DEBRIS') scale = isSelected ? 2.4 : 0.78;
+      if (cat === 'ROCKET') scale = isSelected ? 2.4 : 0.95;
+      if (cat === 'GPS') scale = isSelected ? 2.4 : 0.95;
+
       dummy.scale.set(scale, scale, scale);
       dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
 
-      if (isSelected) {
-        color.setHex(0xffffff);
-      } else if (pos.type === 'DEBRIS') {
-        color.setHex(0xff3344);
-      } else if (pos.type === 'ROCKET_BODY') {
-        color.setHex(0xffaa00);
+      if (cat === 'DEBRIS') {
+        if (debrisMeshRef.current && debrisIdx < 1000) {
+          debrisMeshRef.current.setMatrixAt(debrisIdx, dummy.matrix);
+          debrisIdx++;
+        }
+      } else if (cat === 'ROCKET') {
+        if (rocketMeshRef.current && rocketIdx < 1000) {
+          rocketMeshRef.current.setMatrixAt(rocketIdx, dummy.matrix);
+          rocketIdx++;
+        }
+      } else if (cat === 'GPS') {
+        if (gpsMeshRef.current && gpsIdx < 1000) {
+          gpsMeshRef.current.setMatrixAt(gpsIdx, dummy.matrix);
+          gpsIdx++;
+        }
       } else {
-        color.setHex(0x00f0ff);
+        if (satMeshRef.current && satIdx < 1000) {
+          satMeshRef.current.setMatrixAt(satIdx, dummy.matrix);
+          satIdx++;
+        }
       }
-      mesh.setColorAt(i, color);
     });
 
-    mesh.count = positions.length;
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    if (satMeshRef.current) {
+      satMeshRef.current.count = satIdx;
+      satMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (debrisMeshRef.current) {
+      debrisMeshRef.current.count = debrisIdx;
+      debrisMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (rocketMeshRef.current) {
+      rocketMeshRef.current.count = rocketIdx;
+      rocketMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (gpsMeshRef.current) {
+      gpsMeshRef.current.count = gpsIdx;
+      gpsMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    if (targetReticleRef.current) {
+      if (selectedObject) {
+        const p = positions.find((pos) => pos.norad_id === selectedObject.norad_id);
+        if (p) {
+          targetReticleRef.current.visible = true;
+          targetReticleRef.current.position.set(p.x_km / 1000, p.z_km / 1000, -p.y_km / 1000);
+        } else {
+          targetReticleRef.current.visible = false;
+        }
+      } else {
+        targetReticleRef.current.visible = false;
+      }
+    }
   }, [positions, selectedObject]);
 
   // Update Selected Object Trajectory Line
@@ -912,28 +1035,32 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
         </div>
       )}
 
-      {/* 3D Scene Legend Footer */}
-      <div className="bg-space-900 border-t border-space-800 px-4 py-2 flex items-center justify-between text-xs font-mono text-slate-400 z-20">
-        <div className="flex items-center gap-4">
+      {/* 3D Scene Legend Footer with Meaningful Image Notations */}
+      <div className="bg-space-900 border-t border-space-800 px-4 py-2 flex items-center justify-between text-xs font-mono text-slate-300 z-20">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-            <span>Active Satellite</span>
+            <span>🚀</span>
+            <span className="text-amber-300 font-semibold">Rocket Body</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-danger-500"></span>
-            <span>Debris</span>
+            <span>💥</span>
+            <span className="text-red-400 font-semibold">Space Debris</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-warning-500"></span>
-            <span>Rocket Body</span>
+            <span>📡</span>
+            <span className="text-emerald-400 font-semibold">GPS / GNSS</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-white"></span>
-            <span>Selected</span>
+            <span>🛰️</span>
+            <span className="text-cyan-400 font-semibold">Operational Satellites</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+            <span className="text-white font-semibold">Selected Target</span>
           </div>
         </div>
-        <div className="text-[11px] text-slate-500">
-          GPU Instanced Ephemeris • Astronomical Day/Night Terminator
+        <div className="text-[11px] text-slate-400">
+          GPU Billboard Icon Sprites • SGP4 Ephemeris
         </div>
       </div>
     </div>
