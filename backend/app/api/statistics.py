@@ -64,6 +64,13 @@ def get_system_statistics(db: Session = Depends(get_db)):
         OrbitalObject.name.ilike('%IRNSS%') |
         OrbitalObject.name.ilike('%NAVIC%')
     ).count()
+    iss_count = db.query(OrbitalObject).filter(
+        OrbitalObject.name.ilike('%ISS%') | 
+        OrbitalObject.name.ilike('%ZARYA%') | 
+        OrbitalObject.name.ilike('%TIANGONG%') | 
+        OrbitalObject.name.ilike('%CSS%') |
+        OrbitalObject.norad_id.in_([25544, 48274])
+    ).count()
 
     result = {
         "tracked_objects": total_objects,
@@ -82,6 +89,7 @@ def get_system_statistics(db: Session = Depends(get_db)):
             "gps": gps_count,
             "debris": debris_count,
             "rocket": rocket_bodies_count,
+            "iss": iss_count,
             "leo": leo_count,
             "meo": meo_count,
             "geo": geo_count

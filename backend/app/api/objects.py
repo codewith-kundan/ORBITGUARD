@@ -166,8 +166,8 @@ def get_batch_positions(
 
     # Refresh cached sample objects every 5 minutes
     if (now - _batch_objects_cache["last_fetched"]).total_seconds() > 300 or not _batch_objects_cache["objects"]:
-        starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(500).all()
-        oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(150).all()
+        starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(600).all()
+        oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(200).all()
         gps = db.query(OrbitalObject).filter(
             OrbitalObject.name.ilike("%GPS%") | 
             OrbitalObject.name.ilike("%NAVSTAR%") | 
@@ -176,21 +176,23 @@ def get_batch_positions(
             OrbitalObject.name.ilike("%GLONASS%") |
             OrbitalObject.name.ilike("%QZSS%") |
             OrbitalObject.name.ilike("%IRNSS%")
-        ).limit(120).all()
+        ).limit(150).all()
         
         stations = db.query(OrbitalObject).filter(
             OrbitalObject.name.ilike("%ISS %") | 
+            OrbitalObject.name.ilike("%ZARYA%") |
             OrbitalObject.name.ilike("%TIANGONG%") | 
             OrbitalObject.name.ilike("%HUBBLE%") |
-            OrbitalObject.name.ilike("%CHANDRAYAAN%")
-        ).limit(20).all()
+            OrbitalObject.name.ilike("%CHANDRAYAAN%") |
+            OrbitalObject.norad_id.in_([25544, 48274])
+        ).limit(30).all()
 
         other_sats = db.query(OrbitalObject).filter(
             OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE
-        ).limit(350).all()
+        ).limit(400).all()
 
-        debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(450).all()
-        rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(210).all()
+        debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(600).all()
+        rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(300).all()
 
         selected_map = {}
         for obj in list(starlink) + list(oneweb) + list(gps) + list(stations) + list(other_sats) + list(debris) + list(rockets):
@@ -200,7 +202,7 @@ def get_batch_positions(
         _batch_objects_cache["last_fetched"] = now
         _batch_objects_cache["total_count"] = db.query(OrbitalObject).count()
 
-    cached_objs = _batch_objects_cache["objects"][:min(limit, 1800)]
+    cached_objs = _batch_objects_cache["objects"][:min(limit, len(_batch_objects_cache["objects"]))]
     total_catalog_count = _batch_objects_cache["total_count"] or len(cached_objs)
 
     # Return cached propagation if within 4 seconds of last calculation
