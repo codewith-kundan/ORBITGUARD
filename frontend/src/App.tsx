@@ -18,7 +18,6 @@ import { CriticalAlertBanner } from './components/CriticalAlertBanner';
 import { SpaceWeatherModal } from './components/SpaceWeatherModal';
 import { LaunchRadarModal } from './components/LaunchRadarModal';
 import { KesslerDensityModal } from './components/KesslerDensityModal';
-import { AICopilotModal } from './components/AICopilotModal';
 import { SITREPModal } from './components/SITREPModal';
 import { ASATSimulatorModal } from './components/ASATSimulatorModal';
 import { OperatorGameModal } from './components/OperatorGameModal';
@@ -56,7 +55,6 @@ export default function App() {
   const [isSpaceWeatherOpen, setIsSpaceWeatherOpen] = useState<boolean>(false);
   const [isLaunchRadarOpen, setIsLaunchRadarOpen] = useState<boolean>(false);
   const [isKesslerDensityOpen, setIsKesslerDensityOpen] = useState<boolean>(false);
-  const [isAICopilotOpen, setIsAICopilotOpen] = useState<boolean>(false);
   const [isSITREPOpen, setIsSITREPOpen] = useState<boolean>(false);
   const [isASATOpen, setIsASATOpen] = useState<boolean>(false);
   const [isGameOpen, setIsGameOpen] = useState<boolean>(false);
@@ -251,7 +249,6 @@ export default function App() {
         onOpenSpaceWeather={() => setIsSpaceWeatherOpen(true)}
         onOpenLaunchRadar={() => setIsLaunchRadarOpen(true)}
         onOpenKesslerDensity={() => setIsKesslerDensityOpen(true)}
-        onOpenAICopilot={() => setIsAICopilotOpen(true)}
         onOpenSITREP={() => setIsSITREPOpen(true)}
         onOpenASAT={() => setIsASATOpen(true)}
         onOpenGame={() => setIsGameOpen(true)}
@@ -484,12 +481,6 @@ export default function App() {
         stats={stats}
       />
 
-      {/* Autonomous AI Flight Copilot Modal */}
-      <AICopilotModal
-        isOpen={isAICopilotOpen}
-        onClose={() => setIsAICopilotOpen(false)}
-        conjunction={selectedConjunction}
-      />
 
       {/* Executive Defense SITREP Dossier Modal */}
       <SITREPModal

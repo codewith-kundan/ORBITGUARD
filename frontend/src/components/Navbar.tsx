@@ -7,7 +7,6 @@ import {
   RefreshCw, 
   Radio, 
   Sun,
-  Bot,
   Eye,
   Rocket,
   ChevronDown,
@@ -32,7 +31,6 @@ interface NavbarProps {
   onOpenSpaceWeather?: () => void;
   onOpenLaunchRadar?: () => void;
   onOpenKesslerDensity?: () => void;
-  onOpenAICopilot?: () => void;
   onOpenSITREP?: () => void;
   onOpenASAT?: () => void;
   onOpenGame?: () => void;
@@ -52,7 +50,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSpaceWeather,
   onOpenLaunchRadar,
   onOpenKesslerDensity,
-  onOpenAICopilot,
   onOpenSITREP,
   onOpenASAT,
   onOpenGame,
@@ -213,17 +210,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Autonomous AI Flight Copilot */}
-            {onOpenAICopilot && (
-              <button
-                onClick={onOpenAICopilot}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
-                title="Open Autonomous AI Flight Copilot"
-              >
-                <Bot className="w-3 h-3 text-cyan-400 animate-pulse" />
-                <span>AI COPILOT</span>
-              </button>
-            )}
 
             {/* Citizen Sky Spotter */}
             {onOpenSpotter && (
