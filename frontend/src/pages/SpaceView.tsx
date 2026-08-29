@@ -138,6 +138,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const [isFollowMode, setIsFollowMode] = useState<boolean>(false);
   const [showGroundTrack, setShowGroundTrack] = useState<boolean>(true);
   const [showOrbitRings, setShowOrbitRings] = useState<boolean>(true);
+  const [swarmDensity, setSwarmDensity] = useState<number>(3000);
 
   // Debounced live suggestions from full 32,282 catalog API
   useEffect(() => {
@@ -315,7 +316,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     let isMounted = true;
     const fetchPositions = async () => {
       try {
-        const batch = await api.getBatchPositions(simTime.toISOString(), 2000);
+        const batch = await api.getBatchPositions(simTime.toISOString(), swarmDensity);
         if (isMounted && batch.positions && batch.positions.length > 0) {
           setPositions(batch.positions);
           livePositionsRef.current = batch.positions.map((p: OrbitalPosition) => ({ ...p }));
@@ -350,7 +351,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       isMounted = false;
       clearInterval(interval);
     };
-  }, [selectedObject]);
+  }, [selectedObject, swarmDensity]);
 
   // Simulation Clock Progression
   useEffect(() => {
@@ -1511,6 +1512,40 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Swarm Density Preset Toggle */}
+            <div className="mb-2 pb-2 border-b border-space-800">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1 font-bold text-slate-300">
+                  <Radio className="w-3 h-3 text-cyan-400" />
+                  Swarm Density
+                </span>
+                <span className="text-[9px] font-mono text-emerald-400 bg-emerald-950/40 px-1 py-0.5 rounded border border-emerald-800/40">
+                  60 FPS Smooth
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1 text-[10px]">
+                {[
+                  { val: 1200, label: '⚡ Lite', desc: '1.2k Sats' },
+                  { val: 3000, label: '🚀 Standard', desc: '3.0k Sats' },
+                  { val: 5000, label: '🛰️ Ultra', desc: '5.0k Sats' }
+                ].map((d) => (
+                  <button
+                    key={d.val}
+                    type="button"
+                    onClick={() => setSwarmDensity(d.val)}
+                    className={`py-1 px-1 rounded text-center flex flex-col items-center justify-center transition ${
+                      swarmDensity === d.val
+                        ? 'bg-cyan-500/20 text-cyan-neon font-bold border border-cyan-500/40 shadow-sm shadow-cyan-500/20'
+                        : 'bg-space-950 text-slate-400 hover:text-slate-200 border border-space-800'
+                    }`}
+                  >
+                    <span className="font-bold">{d.label}</span>
+                    <span className="text-[8px] text-slate-500 font-mono">{d.desc}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* LeoLabs Fleet & Constellation Filters */}

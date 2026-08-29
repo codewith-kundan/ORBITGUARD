@@ -21,7 +21,9 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     temperature: Optional[float] = 0.7
-    max_tokens: Optional[int] = 800
+    max_tokens: Optional[int] = 1024
+    api_key: Optional[str] = None
+    model: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str
@@ -78,11 +80,11 @@ def _get_live_platform_context() -> str:
 async def _handle_chat_logic(payload: ChatRequest) -> ChatResponse:
     """
     Handles user chat prompts with priority:
-    1. Google Gemini 2.5 Flash (gemini-2.5-flash) via Google AI Studio API
+    1. Google Gemini via Google AI Studio API (gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-pro)
     2. OpenAI ChatGPT (gpt-4o-mini)
     3. Built-in OrbitBot Astrodynamics Fallback
     """
-    gemini_key = (os.getenv("GEMINI_API_KEY") or settings.GEMINI_API_KEY or "").strip().strip("'\"")
+    gemini_key = (payload.api_key or os.getenv("GEMINI_API_KEY") or settings.GEMINI_API_KEY or "").strip().strip("'\"")
     openai_key = (os.getenv("OPENAI_API_KEY") or settings.OPENAI_API_KEY or "").strip().strip("'\"")
 
     last_user_msg = payload.messages[-1].content if payload.messages else ""
@@ -92,58 +94,74 @@ async def _handle_chat_logic(payload: ChatRequest) -> ChatResponse:
     dynamic_system_prompt = ORBITBOT_SYSTEM_PROMPT + live_context
 
     # =========================================================================
-    # 1. GOOGLE GEMINI 2.5 FLASH (gemini-2.5-flash)
+    # 1. GOOGLE AI STUDIO (GEMINI 2.0 FLASH / 1.5 FLASH / 1.5 PRO)
     # =========================================================================
     if gemini_key:
-        try:
-            logger.info("[OrbitBot] Gemini request started (model: gemini-2.5-flash)...")
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}"
-            
-            # Format contents turns for Gemini API
-            contents = []
-            for msg in payload.messages:
-                role = "user" if msg.role == "user" else "model"
-                contents.append({
-                    "role": role,
-                    "parts": [{"text": msg.content}]
-                })
+        candidate_models = []
+        if payload.model:
+            candidate_models.append(payload.model)
+        for m in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+            if m not in candidate_models:
+                candidate_models.append(m)
 
-            req_body = {
-                "system_instruction": {
-                    "parts": [{"text": dynamic_system_prompt}]
-                },
-                "contents": contents,
-                "generationConfig": {
-                    "temperature": payload.temperature or 0.7,
-                    "maxOutputTokens": payload.max_tokens or 800
-                }
+        # Format contents turns for Google AI Studio Gemini API
+        contents = []
+        for msg in payload.messages:
+            role = "user" if msg.role == "user" else "model"
+            contents.append({
+                "role": role,
+                "parts": [{"text": msg.content}]
+            })
+
+        req_body = {
+            "system_instruction": {
+                "parts": [{"text": dynamic_system_prompt}]
+            },
+            "contents": contents,
+            "generationConfig": {
+                "temperature": payload.temperature if payload.temperature is not None else 0.7,
+                "maxOutputTokens": payload.max_tokens or 1024
             }
+        }
 
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                resp = await client.post(gemini_url, json=req_body)
-                logger.info(f"[OrbitBot] Gemini response received. HTTP status: {resp.status_code}")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for model_name in candidate_models:
+                try:
+                    logger.info(f"[OrbitBot] Google AI Studio request started (model: {model_name})...")
+                    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
+                    
+                    resp = await client.post(gemini_url, json=req_body)
+                    logger.info(f"[OrbitBot] Gemini response received ({model_name}). HTTP status: {resp.status_code}")
 
-                if resp.status_code == 200:
-                    data = resp.json()
-                    candidates = data.get("candidates", [])
-                    if candidates and "content" in candidates[0]:
-                        parts = candidates[0]["content"].get("parts", [])
-                        if parts and "text" in parts[0]:
-                            bot_text = parts[0]["text"]
-                            logger.info("[OrbitBot] Gemini response successfully returned.")
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        candidates = data.get("candidates", [])
+                        if candidates and "content" in candidates[0]:
+                            parts = candidates[0]["content"].get("parts", [])
+                            if parts and "text" in parts[0]:
+                                bot_text = parts[0]["text"]
+                                model_display_name = f"Gemini {model_name.replace('gemini-', '').replace('-', ' ').title()} (Google AI Studio)"
+                                logger.info(f"[OrbitBot] Gemini response successfully generated via {model_name}.")
+                                return ChatResponse(
+                                    response=bot_text,
+                                    model=model_display_name,
+                                    status="LIVE_GEMINI"
+                                )
+                    else:
+                        error_json = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                        err_msg = error_json.get("error", {}).get("message", resp.text)
+                        logger.warning(f"[OrbitBot] Google AI Studio model {model_name} returned HTTP {resp.status_code}: {err_msg}")
+                        # If invalid API key (400 / 403), no need to retry other models
+                        if resp.status_code in [400, 403] and ("API_KEY_INVALID" in err_msg or "key not valid" in err_msg.lower()):
                             return ChatResponse(
-                                response=bot_text,
-                                model="Gemini 2.5 Flash (Google AI)",
-                                status="LIVE_GEMINI"
+                                response=f"⚠️ **Google AI Studio API Key Error**: The provided Gemini API Key is invalid or expired ({err_msg}).\n\nPlease check your key in the AI Copilot Settings or get a free API key from [Google AI Studio](https://aistudio.google.com).",
+                                model="Google AI Studio Error",
+                                status="ERROR_INVALID_KEY"
                             )
-                else:
-                    error_json = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
-                    err_msg = error_json.get("error", {}).get("message", resp.text)
-                    logger.error(f"[OrbitBot] Gemini API Error HTTP {resp.status_code}: {err_msg}")
-        except httpx.TimeoutException:
-            logger.error("[OrbitBot] Gemini API request timed out (25s limit).")
-        except Exception as e:
-            logger.error(f"[OrbitBot] Gemini request exception: {e}")
+                except httpx.TimeoutException:
+                    logger.warning(f"[OrbitBot] Gemini request to {model_name} timed out.")
+                except Exception as e:
+                    logger.warning(f"[OrbitBot] Gemini request to {model_name} exception: {e}")
 
     # =========================================================================
     # 2. OPENAI CHATGPT (gpt-4o-mini fallback if configured)
@@ -195,7 +213,7 @@ async def _handle_chat_logic(payload: ChatRequest) -> ChatResponse:
 
     return ChatResponse(
         response=direct_reply,
-        model="OrbitBot SDA Engine",
+        model="OrbitBot Astrodynamics Engine (Built-in)",
         status="ACTIVE"
     )
 

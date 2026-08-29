@@ -271,7 +271,7 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
     let isMounted = true;
     const fetchPositions = async () => {
       try {
-        const batch = await api.getBatchPositions(simTime.toISOString(), 500);
+        const batch = await api.getBatchPositions(simTime.toISOString(), 3000);
         if (isMounted && batch.positions) {
           setPositions(batch.positions);
         }
@@ -530,7 +530,7 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
       return mat;
     };
 
-    const maxObjects = 1000;
+    const maxObjects = 2500;
     const quadGeom = new THREE.PlaneGeometry(1.0, 1.0);
 
     const satMesh = new THREE.InstancedMesh(quadGeom, createBillboardMaterial(getOrbitalCanvasTexture('PAYLOAD', 128)), maxObjects);
@@ -692,22 +692,22 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
       dummy.updateMatrix();
 
       if (cat === 'DEBRIS') {
-        if (debrisMeshRef.current && debrisIdx < 1000) {
+        if (debrisMeshRef.current && debrisIdx < 2500) {
           debrisMeshRef.current.setMatrixAt(debrisIdx, dummy.matrix);
           debrisIdx++;
         }
       } else if (cat === 'ROCKET') {
-        if (rocketMeshRef.current && rocketIdx < 1000) {
+        if (rocketMeshRef.current && rocketIdx < 2500) {
           rocketMeshRef.current.setMatrixAt(rocketIdx, dummy.matrix);
           rocketIdx++;
         }
       } else if (cat === 'GPS') {
-        if (gpsMeshRef.current && gpsIdx < 1000) {
+        if (gpsMeshRef.current && gpsIdx < 2500) {
           gpsMeshRef.current.setMatrixAt(gpsIdx, dummy.matrix);
           gpsIdx++;
         }
       } else {
-        if (satMeshRef.current && satIdx < 1000) {
+        if (satMeshRef.current && satIdx < 2500) {
           satMeshRef.current.setMatrixAt(satIdx, dummy.matrix);
           satIdx++;
         }
