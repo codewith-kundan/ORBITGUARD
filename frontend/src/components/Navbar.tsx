@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Globe, 
   Satellite, 
@@ -9,7 +9,6 @@ import {
   Sun,
   Eye,
   Rocket,
-  ChevronDown,
   Flame,
   FileText
 } from 'lucide-react';
@@ -52,7 +51,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenASAT,
   onOpenSpotter
 }) => {
-  const [isMoreToolsOpen, setIsMoreToolsOpen] = useState<boolean>(false);
 
   const handleSelectTab = (tab: NavTabKey) => {
     if (setActiveTab) setActiveTab(tab);
@@ -185,112 +183,85 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Tier 2: Streamlined Single-Line SSA Tactical Bar */}
+      {/* Tier 2: Streamlined Single-Line SSA & Defense Tactical Bar */}
       <div className="px-3 sm:px-5 py-1.5 bg-space-900/80 border-t border-space-800/80 text-[11px]">
-        <div className="flex items-center justify-between gap-2 max-w-[1920px] mx-auto w-full">
-          {/* Main 4 Primary SSA Tools (Always Visible and Neatly Fitted) */}
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none flex-nowrap">
-            <span className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wider font-bold pr-1.5 border-r border-space-800 flex items-center gap-1 flex-shrink-0">
-              <Radio className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-cyan-400" />
-              SSA TOOLS:
-            </span>
+        <div className="flex items-center gap-1.5 sm:gap-2 max-w-[1920px] mx-auto w-full overflow-x-auto scrollbar-none flex-nowrap">
+          <span className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wider font-bold pr-1.5 border-r border-space-800 flex items-center gap-1 flex-shrink-0">
+            <Radio className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-cyan-400" />
+            SSA TOOLS:
+          </span>
 
-            {/* NOAA Space Weather Monitor */}
-            {onOpenSpaceWeather && (
-              <button
-                onClick={onOpenSpaceWeather}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
-                title="Open NOAA Space Weather & Solar Storm Monitor"
-              >
-                <Sun className="w-3 h-3 text-amber-400 animate-spin-slow" />
-                <span>SPACE WEATHER</span>
-              </button>
-            )}
-
-
-            {/* Citizen Sky Spotter */}
-            {onOpenSpotter && (
-              <button
-                onClick={onOpenSpotter}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
-                title="View Tonight's Visible Naked-Eye Satellite Passes"
-              >
-                <Eye className="w-3 h-3 text-blue-400" />
-                <span>SKY SPOTTER</span>
-              </button>
-            )}
-
-            {/* Global Launch & Reentry Radar */}
-            {onOpenLaunchRadar && (
-              <button
-                onClick={onOpenLaunchRadar}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
-                title="Open Global Upcoming Missions & Decaying Debris Tracker"
-              >
-                <Rocket className="w-3 h-3 text-purple-400" />
-                <span>UPCOMING MISSIONS</span>
-              </button>
-            )}
-          </div>
-
-          {/* Right Side: Clean "More Ops / Simulators" Dropdown Menu */}
-          <div className="relative flex-shrink-0">
+          {/* NOAA Space Weather Monitor */}
+          {onOpenSpaceWeather && (
             <button
-              onClick={() => setIsMoreToolsOpen(!isMoreToolsOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-space-950 hover:bg-space-800 text-slate-300 hover:text-white border border-space-700 font-bold transition shadow-sm"
+              onClick={onOpenSpaceWeather}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Open NOAA Space Weather & Solar Storm Monitor"
             >
-              <span>DEFENSE & SIMS</span>
-              <ChevronDown className={`w-3.5 h-3.5 text-cyan-400 transition-transform ${isMoreToolsOpen ? 'rotate-180' : ''}`} />
+              <Sun className="w-3 h-3 text-amber-400 animate-spin-slow" />
+              <span>SPACE WEATHER</span>
             </button>
+          )}
 
-            {/* Dropdown Menu */}
-            {isMoreToolsOpen && (
-              <div 
-                className="absolute right-0 top-full mt-1.5 w-60 bg-space-950/95 backdrop-blur-xl border border-cyan-500/40 rounded-xl shadow-2xl p-1.5 z-50 flex flex-col gap-1 text-xs animate-fade-in"
-                onMouseLeave={() => setIsMoreToolsOpen(false)}
-              >
-                {onOpenKesslerDensity && (
-                  <button
-                    onClick={() => { onOpenKesslerDensity(); setIsMoreToolsOpen(false); }}
-                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-red-500/20 text-slate-300 hover:text-red-300 transition text-left"
-                  >
-                    <Flame className="w-4 h-4 text-red-400" />
-                    <div>
-                      <span className="font-bold block">Kessler Heatmap</span>
-                      <span className="text-[10px] text-slate-500 block">Debris Spatial Density</span>
-                    </div>
-                  </button>
-                )}
+          {/* Citizen Sky Spotter */}
+          {onOpenSpotter && (
+            <button
+              onClick={onOpenSpotter}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="View Tonight's Visible Naked-Eye Satellite Passes"
+            >
+              <Eye className="w-3 h-3 text-blue-400" />
+              <span>SKY SPOTTER</span>
+            </button>
+          )}
 
-                {onOpenSITREP && (
-                  <button
-                    onClick={() => { onOpenSITREP(); setIsMoreToolsOpen(false); }}
-                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition text-left"
-                  >
-                    <FileText className="w-4 h-4 text-slate-400" />
-                    <div>
-                      <span className="font-bold block">Defense SITREP</span>
-                      <span className="text-[10px] text-slate-500 block">Executive Threat Dossier</span>
-                    </div>
-                  </button>
-                )}
+          {/* Global Launch & Reentry Radar */}
+          {onOpenLaunchRadar && (
+            <button
+              onClick={onOpenLaunchRadar}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Open Global Upcoming Missions & Decaying Debris Tracker"
+            >
+              <Rocket className="w-3 h-3 text-purple-400" />
+              <span>UPCOMING MISSIONS</span>
+            </button>
+          )}
 
-                {onOpenASAT && (
-                  <button
-                    onClick={() => { onOpenASAT(); setIsMoreToolsOpen(false); }}
-                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-orange-500/20 text-slate-300 hover:text-orange-300 transition text-left"
-                  >
-                    <Flame className="w-4 h-4 text-orange-400" />
-                    <div>
-                      <span className="font-bold block">ASAT Missile Sim</span>
-                      <span className="text-[10px] text-slate-500 block">Kinetic Intercept & Cascade</span>
-                    </div>
-                  </button>
-                )}
+          {/* Kessler Syndrome Spatial Density Heatmap */}
+          {onOpenKesslerDensity && (
+            <button
+              onClick={onOpenKesslerDensity}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Open Kessler Syndrome Debris Spatial Density Heatmap"
+            >
+              <Flame className="w-3 h-3 text-rose-400" />
+              <span>KESSLER HEATMAP</span>
+            </button>
+          )}
 
-              </div>
-            )}
-          </div>
+          {/* Defense SITREP Executive Threat Dossier */}
+          {onOpenSITREP && (
+            <button
+              onClick={onOpenSITREP}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Generate Formal Defense SITREP & Printable Mission Dossier"
+            >
+              <FileText className="w-3 h-3 text-cyan-400" />
+              <span>DEFENSE SITREP</span>
+            </button>
+          )}
+
+          {/* Direct-Ascent ASAT Missile Simulator */}
+          {onOpenASAT && (
+            <button
+              onClick={onOpenASAT}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/40 text-orange-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="Simulate Direct-Ascent Kinetic ASAT Intercept & Fragmentation Cascade"
+            >
+              <Flame className="w-3 h-3 text-orange-400" />
+              <span>ASAT MISSILE SIM</span>
+            </button>
+          )}
         </div>
       </div>
     </header>
