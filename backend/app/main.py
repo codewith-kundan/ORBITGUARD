@@ -27,6 +27,7 @@ from backend.app.models.orbital_object import OrbitalObject, SyncLog
 from backend.app.models.conjunction import Conjunction
 from backend.app.services.tle_service import TLEService
 from backend.app.services.conjunction_service import ConjunctionService
+from backend.app.services.cache_service import fast_cache
 
 # Initialize database schema & indexes
 Base.metadata.create_all(bind=engine)
@@ -86,6 +87,7 @@ async def periodic_sync_worker():
                             threshold_km=settings.CONJUNCTION_THRESHOLD_KM,
                             coarse_step_minutes=3
                         )
+                        fast_cache.clear()
                     finally:
                         db.close()
                 await asyncio.to_thread(_do_sync)
@@ -118,6 +120,9 @@ async def periodic_conjunction_auto_updater():
                         threshold_km=settings.CONJUNCTION_THRESHOLD_KM or 100.0,
                         coarse_step_minutes=3.0
                     )
+                    fast_cache.invalidate("conjunctions:")
+                    fast_cache.invalidate("system_statistics")
+                    fast_cache.invalidate("alerts:")
                 finally:
                     db.close()
             await asyncio.to_thread(_do_update)
@@ -158,6 +163,7 @@ async def startup_event():
                                 threshold_km=settings.CONJUNCTION_THRESHOLD_KM or 100.0,
                                 coarse_step_minutes=3.0
                             )
+                            fast_cache.clear()
                         finally:
                             db.close()
                     await asyncio.to_thread(_insert_records)
@@ -177,6 +183,7 @@ async def startup_event():
                                 threshold_km=settings.CONJUNCTION_THRESHOLD_KM or 100.0,
                                 coarse_step_minutes=3.0
                             )
+                        fast_cache.clear()
                     finally:
                         db.close()
                 await asyncio.to_thread(_quick_prune_and_screen)
@@ -200,13 +207,18 @@ async def root():
 @app.get("/health")
 @app.get("/api/health")
 async def health_check(db: Session = Depends(get_db)):
-    """System health check and operational service status."""
+    """System health check and operational service status with fast cache."""
+    cache_key = "health_check"
+    cached_res = fast_cache.get(cache_key)
+    if cached_res is not None:
+        return cached_res
+
     try:
         obj_count = db.query(OrbitalObject).count()
         last_sync_log = db.query(SyncLog).order_by(SyncLog.created_at.desc()).first()
         last_conj = db.query(Conjunction).order_by(Conjunction.created_at.desc()).first()
         
-        return {
+        res = {
             "status": "ok",
             "service": "ORBITGUARD",
             "database_connected": True,
@@ -216,6 +228,8 @@ async def health_check(db: Session = Depends(get_db)):
             "last_conjunction_scan": last_conj.created_at.isoformat() if last_conj else None,
             "propagation_status": "ONLINE (SGP4/WGS84)"
         }
+        fast_cache.set(cache_key, res, ttl_seconds=10.0)
+        return res
     except Exception as e:
         return {
             "status": "degraded",
@@ -224,6 +238,7 @@ async def health_check(db: Session = Depends(get_db)):
             "orbital_provider_connected": False,
             "error": str(e)
         }
+
 
 if __name__ == "__main__":
     import uvicorn

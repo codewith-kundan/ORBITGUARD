@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime
+
 from backend.app.models.base import get_db
 from backend.app.models.conjunction import Conjunction
 from backend.app.schemas.conjunction import ConjunctionResponse, RiskLevel, ConjunctionSummary
 from backend.app.services.conjunction_service import ConjunctionService
 from backend.app.services.alert_service import AlertService
+from backend.app.services.cache_service import fast_cache
 
 router = APIRouter(prefix="/api/conjunctions", tags=["Conjunctions"])
 
@@ -28,9 +31,13 @@ def trigger_conjunction_screening(
     # Sync alerts automatically
     alerts_created = AlertService.sync_alerts_from_conjunctions(db)
     result["alerts_created"] = alerts_created
+    
+    # Invalidate cached conjunction and statistics queries
+    fast_cache.invalidate("conjunctions:")
+    fast_cache.invalidate("system_statistics")
+    fast_cache.invalidate("alerts:")
+    
     return result
-
-from datetime import datetime
 
 @router.get("", response_model=List[ConjunctionResponse])
 def list_conjunctions(
@@ -42,7 +49,12 @@ def list_conjunctions(
     offset: int = 0,
     db: Session = Depends(get_db)
 ):
-    """Retrieves active upcoming conjunctions sorted by risk score descending."""
+    """Retrieves active upcoming conjunctions sorted by risk score descending with fast caching."""
+    cache_key = f"conjunctions:list:{risk_level}:{min_risk_score}:{max_miss_distance_km}:{include_passed}:{limit}:{offset}"
+    cached_data = fast_cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     now = datetime.utcnow()
     query = db.query(Conjunction)
 
@@ -56,23 +68,38 @@ def list_conjunctions(
     if max_miss_distance_km is not None:
         query = query.filter(Conjunction.miss_distance_km <= max_miss_distance_km)
 
-    return query.order_by(Conjunction.risk_score.desc(), Conjunction.tca.asc()).offset(offset).limit(limit).all()
+    results = query.order_by(Conjunction.risk_score.desc(), Conjunction.tca.asc()).offset(offset).limit(limit).all()
+    fast_cache.set(cache_key, results, ttl_seconds=15.0)
+    return results
 
 @router.get("/high-risk", response_model=List[ConjunctionResponse])
 def list_high_risk_conjunctions(
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """Retrieves active high and critical risk upcoming conjunctions."""
+    """Retrieves active high and critical risk upcoming conjunctions with fast caching."""
+    cache_key = f"conjunctions:high_risk:{limit}"
+    cached_data = fast_cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     now = datetime.utcnow()
-    return db.query(Conjunction).filter(
+    results = db.query(Conjunction).filter(
         Conjunction.tca > now,
         Conjunction.risk_level.in_([RiskLevel.HIGH, RiskLevel.CRITICAL])
     ).order_by(Conjunction.risk_score.desc()).limit(limit).all()
+    
+    fast_cache.set(cache_key, results, ttl_seconds=15.0)
+    return results
 
 @router.get("/summary", response_model=ConjunctionSummary)
 def get_conjunction_summary(db: Session = Depends(get_db)):
     """Provides high-level aggregate summary of active upcoming conjunction screening results."""
+    cache_key = "conjunctions:summary"
+    cached_data = fast_cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     now = datetime.utcnow()
     conjunctions = db.query(Conjunction).filter(Conjunction.tca > now).all()
     total = len(conjunctions)
@@ -84,7 +111,7 @@ def get_conjunction_summary(db: Session = Depends(get_db)):
     closest_miss = min([c.miss_distance_km for c in conjunctions], default=None)
     earliest_tca = min([c.tca for c in conjunctions], default=None)
 
-    return ConjunctionSummary(
+    summary = ConjunctionSummary(
         total_screened=total,
         conjunctions_detected=total,
         critical_count=critical_cnt,
@@ -94,6 +121,9 @@ def get_conjunction_summary(db: Session = Depends(get_db)):
         closest_miss_km=round(closest_miss, 3) if closest_miss is not None else None,
         earliest_tca=earliest_tca
     )
+    fast_cache.set(cache_key, summary, ttl_seconds=15.0)
+    return summary
+
 
 from backend.app.services.risk_service import RiskService
 from backend.app.services.history_service import HistoryService

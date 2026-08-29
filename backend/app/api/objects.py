@@ -23,6 +23,7 @@ from backend.app.schemas.orbital_object import (
 from backend.app.schemas.conjunction import ConjunctionResponse
 from backend.app.services.tle_service import TLEService
 from backend.app.services.propagation_service import PropagationService
+from backend.app.services.cache_service import fast_cache
 from backend.app.utils.time_utils import to_utc
 
 # Ensure tables exist
@@ -74,6 +75,10 @@ async def sync_orbital_data(
     else:
         sync_result = TLEService.sync_to_database(db, records, mode=status_mode, source=source_name)
     
+    # Invalidate fast cache
+    fast_cache.clear()
+    _batch_objects_cache["objects"] = []
+
     return {
         "status": "success",
         "data_source": source_name,
@@ -98,6 +103,9 @@ async def upload_custom_tle_file(
         raise HTTPException(status_code=400, detail="No valid TLE pairs found in payload")
 
     sync_result = TLEService.sync_to_database(db, records, mode="LIVE", source=source_name)
+    fast_cache.clear()
+    _batch_objects_cache["objects"] = []
+    
     return {
         "status": "success",
         "data_source": source_name,
@@ -109,14 +117,27 @@ async def upload_custom_tle_file(
 
 @router.get("/data/status", response_model=DataStatusResponse)
 def get_data_status(db: Session = Depends(get_db)):
-    """Retrieves live data synchronization, mode, catalog counts, and data freshness."""
-    return TLEService.get_data_status(db)
+    """Retrieves live data synchronization, mode, catalog counts, and data freshness with fast cache."""
+    cache_key = "data:status"
+    cached_val = fast_cache.get(cache_key)
+    if cached_val is not None:
+        return cached_val
+    status = TLEService.get_data_status(db)
+    fast_cache.set(cache_key, status, ttl_seconds=15.0)
+    return status
 
 @router.get("/data/health")
 async def get_data_health(db: Session = Depends(get_db)):
     """Retrieves comprehensive data provider health, latencies, stale TLE counts, and sync history."""
+    cache_key = "data:health"
+    cached_val = fast_cache.get(cache_key)
+    if cached_val is not None:
+        return cached_val
     from backend.app.services.data_providers.manager import provider_manager
-    return await provider_manager.get_system_health(db=db)
+    health = await provider_manager.get_system_health(db=db)
+    fast_cache.set(cache_key, health, ttl_seconds=15.0)
+    return health
+
 
 # In-memory fast cache for high-speed 3D swarm delivery
 _batch_objects_cache = {
@@ -225,7 +246,12 @@ def list_orbital_objects(
     order: Optional[str] = Query("asc"),
     db: Session = Depends(get_db)
 ):
-    """Retrieves paginated, searchable, and sortable orbital objects catalog."""
+    """Retrieves paginated, searchable, and sortable orbital objects catalog with fast in-memory caching."""
+    cache_key = f"objects:list:{object_type}:{search}:{page}:{page_size}:{sort_by}:{order}"
+    cached_val = fast_cache.get(cache_key)
+    if cached_val is not None:
+        return cached_val
+
     query = db.query(OrbitalObject)
     
     if object_type:
@@ -249,13 +275,16 @@ def list_orbital_objects(
     offset = (page - 1) * page_size
     items = query.offset(offset).limit(page_size).all()
 
-    return PaginatedObjectsResponse(
+    res = PaginatedObjectsResponse(
         items=items,
         total=total,
         page=page,
         page_size=page_size,
         total_pages=total_pages
     )
+    fast_cache.set(cache_key, res, ttl_seconds=30.0)
+    return res
+
 
 @router.get("/objects/{id}", response_model=OrbitalObjectResponse)
 @router.get("/objects/{id}/details", response_model=OrbitalObjectResponse)

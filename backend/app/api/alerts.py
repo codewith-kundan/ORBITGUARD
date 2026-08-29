@@ -6,6 +6,7 @@ from backend.app.models.alert import Alert
 from backend.app.schemas.alert import AlertResponse, AlertStatus
 from backend.app.schemas.conjunction import RiskLevel
 from backend.app.services.alert_service import AlertService
+from backend.app.services.cache_service import fast_cache
 
 router = APIRouter(prefix="/api/alerts", tags=["Alerts"])
 
@@ -17,6 +18,11 @@ def list_alerts(
     db: Session = Depends(get_db)
 ):
     """Lists system collision alerts with severity and status filters."""
+    cache_key = f"alerts:list:{status}:{severity}:{limit}"
+    cached_data = fast_cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     query = db.query(Alert)
     if status:
         query = query.filter(Alert.status == status)
@@ -30,6 +36,7 @@ def list_alerts(
         AlertService.sync_alerts_from_conjunctions(db, include_all_levels=True)
         alerts = db.query(Alert).order_by(Alert.created_at.desc()).limit(limit).all()
         
+    fast_cache.set(cache_key, alerts, ttl_seconds=15.0)
     return alerts
 
 @router.post("/{id}/acknowledge", response_model=AlertResponse)
@@ -38,4 +45,7 @@ def acknowledge_alert(id: int, db: Session = Depends(get_db)):
     alert = AlertService.acknowledge_alert(db, id)
     if not alert:
         raise HTTPException(status_code=404, detail=f"Alert with ID {id} not found")
+    fast_cache.invalidate("alerts:")
+    fast_cache.invalidate("system_statistics")
     return alert
+

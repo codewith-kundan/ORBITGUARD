@@ -8,12 +8,17 @@ from backend.app.models.alert import Alert
 from backend.app.schemas.orbital_object import ObjectType
 from backend.app.schemas.conjunction import RiskLevel
 from backend.app.schemas.alert import AlertStatus
+from backend.app.services.cache_service import fast_cache
 
 router = APIRouter(prefix="/api/statistics", tags=["Statistics & Analytics"])
 
 @router.get("")
 def get_system_statistics(db: Session = Depends(get_db)):
-    """Computes comprehensive situational awareness statistics directly from live database."""
+    """Computes comprehensive situational awareness statistics directly from live database with in-memory caching."""
+    cached_stats = fast_cache.get("system_statistics")
+    if cached_stats is not None:
+        return cached_stats
+
     total_objects = db.query(OrbitalObject).count()
     satellites_count = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE).count()
     debris_count = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).count()
@@ -60,7 +65,7 @@ def get_system_statistics(db: Session = Depends(get_db)):
         OrbitalObject.name.ilike('%NAVIC%')
     ).count()
 
-    return {
+    result = {
         "tracked_objects": total_objects,
         "active_satellites": satellites_count,
         "space_debris": debris_count,
@@ -97,3 +102,7 @@ def get_system_statistics(db: Session = Depends(get_db)):
         "last_sync": last_sync_time,
         "data_age_minutes": data_age_min
     }
+    
+    fast_cache.set("system_statistics", result, ttl_seconds=20.0)
+    return result
+
