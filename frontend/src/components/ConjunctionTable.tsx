@@ -245,7 +245,7 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
                               onFocus3D(c);
                             }}
                             className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
-                            title="Focus in 3D Orbit View (Blinking Objects)"
+                            title="Focus in 3D Orbit View"
                           >
                             <span>🌐 3D</span>
                           </button>

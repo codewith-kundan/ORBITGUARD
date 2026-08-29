@@ -879,9 +879,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             let scale = 1.15;
             if (isSelected) scale = 3.4;
             if (isConjunctionA || isConjunctionB) {
-              // Rapid high-visibility pulsing blink animation for both conjunction objects
-              const pulse = Math.sin(tumbleAngle * 7.0) * 2.5 + 4.2;
-              scale = Math.max(2.0, pulse);
+              // Solid high-visibility scale for conjunction objects (clean, steady highlight)
+              scale = 3.6;
             }
             dummy.scale.set(scale, scale, scale);
 
@@ -964,8 +963,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
           let scale = 1.15;
           if (isSelected) scale = 3.4;
           if (isConjunctionA || isConjunctionB) {
-            const pulse = Math.sin(tumbleAngle * 7.0) * 2.5 + 4.2;
-            scale = Math.max(2.0, pulse);
+            scale = 3.6;
           }
           dummy.scale.set(scale, scale, scale);
 

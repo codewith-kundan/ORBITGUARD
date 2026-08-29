@@ -790,11 +790,10 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         ctx.lineWidth = 2.5;
         ctx.stroke();
 
-        const pulseR = 9 + (Date.now() % 1200) / 80;
         ctx.strokeStyle = primaryGlow;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(curX, curY, pulseR, 0, Math.PI * 2);
+        ctx.arc(curX, curY, 11, 0, Math.PI * 2);
         ctx.stroke();
 
         // Telemetry Label HUD
@@ -828,7 +827,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
           ctx.stroke();
         }
 
-        // Marker Beacon for Object B (Red Pulsing Dot)
+        // Marker Beacon for Object B (Solid Red Beacon)
         ctx.fillStyle = '#ef4444';
         ctx.beginPath();
         ctx.arc(curX, curY, 7.5, 0, Math.PI * 2);
@@ -838,11 +837,10 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         ctx.lineWidth = 2.5;
         ctx.stroke();
 
-        const pulseR = 9 + (Date.now() % 1200) / 80;
         ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(curX, curY, pulseR, 0, Math.PI * 2);
+        ctx.arc(curX, curY, 11, 0, Math.PI * 2);
         ctx.stroke();
 
         // Telemetry Label HUD for Object B
