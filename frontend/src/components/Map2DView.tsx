@@ -862,7 +862,7 @@ export const Map2DView: React.FC<Map2DViewProps> = ({
         const tcaX = lonToX(selectedConjunction.longitude_deg);
         const tcaY = latToY(selectedConjunction.latitude_deg);
 
-        const haloR = 12 + (Date.now() % 1000) / 60;
+        const haloR = 16;
         ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 2;
