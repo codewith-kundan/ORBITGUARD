@@ -613,7 +613,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       const mat = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
-        alphaTest: 0.02,
+        alphaTest: 0.01,
         depthWrite: false,
         side: THREE.DoubleSide,
         blending: THREE.NormalBlending
@@ -623,13 +623,16 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         shader.vertexShader = shader.vertexShader.replace(
           '#include <project_vertex>',
           `
-          #include <project_vertex>
           #ifdef USE_INSTANCING
             vec4 instanceCenter = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
             vec4 mvPosition = modelViewMatrix * instanceCenter;
             float scaleX = length(vec3(instanceMatrix[0].xyz));
             float scaleY = length(vec3(instanceMatrix[1].xyz));
-            mvPosition.xy += transformed.xy * vec2(scaleX, scaleY) * 0.72;
+            mvPosition.xy += transformed.xy * vec2(scaleX, scaleY) * 0.45;
+            gl_Position = projectionMatrix * mvPosition;
+          #else
+            vec4 mvPosition = vec4( transformed, 1.0 );
+            mvPosition = modelViewMatrix * mvPosition;
             gl_Position = projectionMatrix * mvPosition;
           #endif
           `
