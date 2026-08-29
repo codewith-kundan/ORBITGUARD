@@ -194,7 +194,7 @@ async def startup_event():
     asyncio.create_task(periodic_sync_worker())
     asyncio.create_task(periodic_conjunction_auto_updater())
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     """Root status endpoint."""
     return {
@@ -204,10 +204,11 @@ async def root():
         "health": "/api/health"
     }
 
-@app.get("/health")
-@app.get("/api/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 async def health_check(db: Session = Depends(get_db)):
     """System health check and operational service status with fast cache."""
+
     cache_key = "health_check"
     cached_res = fast_cache.get(cache_key)
     if cached_res is not None:
