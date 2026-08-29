@@ -11,8 +11,7 @@ import {
   Rocket,
   ChevronDown,
   Flame,
-  FileText,
-  Gamepad2
+  FileText
 } from 'lucide-react';
 import { DataStatus, SystemStatistics } from '../types';
 
@@ -33,7 +32,6 @@ interface NavbarProps {
   onOpenKesslerDensity?: () => void;
   onOpenSITREP?: () => void;
   onOpenASAT?: () => void;
-  onOpenGame?: () => void;
   onOpenSpotter?: () => void;
 }
 
@@ -52,7 +50,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenKesslerDensity,
   onOpenSITREP,
   onOpenASAT,
-  onOpenGame,
   onOpenSpotter
 }) => {
   const [isMoreToolsOpen, setIsMoreToolsOpen] = useState<boolean>(false);
@@ -291,18 +288,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 )}
 
-                {onOpenGame && (
-                  <button
-                    onClick={() => { onOpenGame(); setIsMoreToolsOpen(false); }}
-                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-300 transition text-left"
-                  >
-                    <Gamepad2 className="w-4 h-4 text-emerald-400" />
-                    <div>
-                      <span className="font-bold block">Evasion Sandbox</span>
-                      <span className="text-[10px] text-slate-500 block">Operator Thruster Challenge</span>
-                    </div>
-                  </button>
-                )}
               </div>
             )}
           </div>

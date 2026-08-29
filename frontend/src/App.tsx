@@ -20,7 +20,6 @@ import { LaunchRadarModal } from './components/LaunchRadarModal';
 import { KesslerDensityModal } from './components/KesslerDensityModal';
 import { SITREPModal } from './components/SITREPModal';
 import { ASATSimulatorModal } from './components/ASATSimulatorModal';
-import { OperatorGameModal } from './components/OperatorGameModal';
 import { SkySpotterModal } from './components/SkySpotterModal';
 import { api } from './services/api';
 import { 
@@ -57,7 +56,6 @@ export default function App() {
   const [isKesslerDensityOpen, setIsKesslerDensityOpen] = useState<boolean>(false);
   const [isSITREPOpen, setIsSITREPOpen] = useState<boolean>(false);
   const [isASATOpen, setIsASATOpen] = useState<boolean>(false);
-  const [isGameOpen, setIsGameOpen] = useState<boolean>(false);
   const [isSpotterOpen, setIsSpotterOpen] = useState<boolean>(false);
   const [isCAMModalOpen, setIsCAMModalOpen] = useState<boolean>(false);
   const [isOverpassModalOpen, setIsOverpassModalOpen] = useState<boolean>(false);
@@ -251,7 +249,6 @@ export default function App() {
         onOpenKesslerDensity={() => setIsKesslerDensityOpen(true)}
         onOpenSITREP={() => setIsSITREPOpen(true)}
         onOpenASAT={() => setIsASATOpen(true)}
-        onOpenGame={() => setIsGameOpen(true)}
         onOpenSpotter={() => setIsSpotterOpen(true)}
       />
 
@@ -496,11 +493,6 @@ export default function App() {
         onClose={() => setIsASATOpen(false)}
       />
 
-      {/* Satellite Operator Evasion Sandbox Challenge */}
-      <OperatorGameModal
-        isOpen={isGameOpen}
-        onClose={() => setIsGameOpen(false)}
-      />
 
       {/* Naked-Eye Citizen Sky Spotter Modal */}
       <SkySpotterModal
