@@ -21,6 +21,10 @@ import { KesslerDensityModal } from './components/KesslerDensityModal';
 import { SITREPModal } from './components/SITREPModal';
 import { ASATSimulatorModal } from './components/ASATSimulatorModal';
 import { SkySpotterModal } from './components/SkySpotterModal';
+import { OrbitalSafetyBanner } from './components/OrbitalSafetyBanner';
+import { CinematicReplayModal } from './components/CinematicReplayModal';
+import { TrustCenterModal } from './components/TrustCenterModal';
+import { JudgeDemoModal } from './components/JudgeDemoModal';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -48,8 +52,12 @@ export default function App() {
   
   const [selectedObject, setSelectedObject] = useState<OrbitalObject | null>(null);
   const [selectedConjunction, setSelectedConjunction] = useState<Conjunction | null>(null);
+  const [replayConjunction, setReplayConjunction] = useState<Conjunction | null>(null);
   const [isObjectModalOpen, setIsObjectModalOpen] = useState<boolean>(false);
   const [isConjunctionModalOpen, setIsConjunctionModalOpen] = useState<boolean>(false);
+  const [isReplayModalOpen, setIsReplayModalOpen] = useState<boolean>(false);
+  const [isTrustCenterOpen, setIsTrustCenterOpen] = useState<boolean>(false);
+  const [isJudgeDemoOpen, setIsJudgeDemoOpen] = useState<boolean>(false);
   const [isSystemHealthModalOpen, setIsSystemHealthModalOpen] = useState<boolean>(false);
   const [isSpaceWeatherOpen, setIsSpaceWeatherOpen] = useState<boolean>(false);
   const [isLaunchRadarOpen, setIsLaunchRadarOpen] = useState<boolean>(false);
@@ -228,6 +236,11 @@ export default function App() {
     setIsCDMModalOpen(true);
   };
 
+  const handleOpenReplay = (conj: Conjunction) => {
+    setReplayConjunction(conj);
+    setIsReplayModalOpen(true);
+  };
+
   const alertCount = alerts.filter(
     (a) => a.status === 'ACTIVE' && (a.severity === 'HIGH' || a.severity === 'CRITICAL')
   ).length;
@@ -250,6 +263,8 @@ export default function App() {
         onOpenSITREP={() => setIsSITREPOpen(true)}
         onOpenASAT={() => setIsASATOpen(true)}
         onOpenSpotter={() => setIsSpotterOpen(true)}
+        onOpenTrustCenter={() => setIsTrustCenterOpen(true)}
+        onOpenJudgeDemo={() => setIsJudgeDemoOpen(true)}
       />
 
       {/* Global Data Provider Status Bar */}
@@ -273,6 +288,14 @@ export default function App() {
 
       {/* Main Container */}
       <main className="flex-1 p-2 sm:p-3 lg:p-4 max-w-[1920px] mx-auto w-full">
+        {/* Real-Time Orbital Safety Status Banner */}
+        <OrbitalSafetyBanner
+          conjunctions={conjunctions}
+          dataStatus={dataStatus}
+          stats={stats}
+          onSelectConjunction={handleOpenConjunctionModal}
+          onNavigateToConjunctions={() => setActiveTab('conjunctions')}
+        />
         {error && (
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 sm:p-4 mb-4 font-mono text-amber-300 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-300">
             <div className="flex items-center gap-2">
@@ -365,6 +388,9 @@ export default function App() {
                   if (conj.object_a) setSelectedObject(conj.object_a);
                   setActiveTab('map2d');
                 }}
+                onOpenReplay={handleOpenReplay}
+                onOpenCAM={handleOpenCAM}
+                onOpenCDM={handleOpenCDM}
                 onScreenNew={handleScreenConjunctions}
                 isScreening={isScreening}
               />
@@ -413,6 +439,7 @@ export default function App() {
             if (conj.object_a) setSelectedObject(conj.object_a);
             setActiveTab('map2d');
           }}
+          onOpenReplay={handleOpenReplay}
           onOpenCAM={handleOpenCAM}
           onOpenBreakup={handleOpenBreakup}
           onOpenCDM={handleOpenCDM}
@@ -498,6 +525,40 @@ export default function App() {
       <SkySpotterModal
         isOpen={isSpotterOpen}
         onClose={() => setIsSpotterOpen(false)}
+      />
+
+      {/* Cinematic Encounter Replay Modal */}
+      <CinematicReplayModal
+        isOpen={isReplayModalOpen}
+        conjunction={replayConjunction || selectedConjunction}
+        onClose={() => setIsReplayModalOpen(false)}
+        onOpenCAM={handleOpenCAM}
+        onOpenCDM={handleOpenCDM}
+      />
+
+      {/* Scientific Credibility & Trust Center Modal */}
+      <TrustCenterModal
+        isOpen={isTrustCenterOpen}
+        onClose={() => setIsTrustCenterOpen(false)}
+      />
+
+      {/* 3-5 Minute Presentation & Judge Demo Tour Modal */}
+      <JudgeDemoModal
+        isOpen={isJudgeDemoOpen}
+        onClose={() => setIsJudgeDemoOpen(false)}
+        conjunctions={conjunctions}
+        objects={objects}
+        stats={stats}
+        onNavigateToTab={(tab) => setActiveTab(tab)}
+        onSelectConjunction={handleSelectConjunction}
+        onOpenConjunctionDetails={handleOpenConjunctionModal}
+        onOpenReplay={handleOpenReplay}
+        onOpenCAM={handleOpenCAM}
+        onOpenCDM={handleOpenCDM}
+        onOpenTrustCenter={() => {
+          setIsJudgeDemoOpen(false);
+          setIsTrustCenterOpen(true);
+        }}
       />
 
       {/* System & Database Diagnostics Modal */}

@@ -308,7 +308,7 @@ class OverpassService:
                     if current_pass_points and aos_time:
                         los_time = current_pass_points[-1].timestamp
                         los_az = current_pass_points[-1].azimuth_deg
-                        duration = (los_time - aos_time).total_seconds()
+                        duration = max(float(step_seconds), (los_time - aos_time).total_seconds())
 
                         # Find peak elevation point
                         peak_pt = max(current_pass_points, key=lambda p: p.elevation_deg)

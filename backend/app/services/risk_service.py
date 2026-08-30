@@ -195,43 +195,43 @@ class RiskService:
         # Factor A: Miss Distance
         if miss_distance_km <= 1.0:
             score_dist = 100.0
-            dist_desc = "Critical (<1.0 km)"
+            dist_desc = "Critical"
         elif miss_distance_km <= 5.0:
-            score_dist = 85.0
+            score_dist = 80.0
             dist_desc = "High (1.0-5.0 km)"
-        elif miss_distance_km <= 25.0:
-            score_dist = 50.0
-            dist_desc = "Moderate (5.0-25.0 km)"
-        elif miss_distance_km <= 80.0:
+        elif miss_distance_km <= 20.0:
+            score_dist = 45.0
+            dist_desc = "Moderate (5.0-20.0 km)"
+        elif miss_distance_km <= 40.0:
             score_dist = 25.0
-            dist_desc = "Low-Medium (25-80 km)"
+            dist_desc = "Low-Medium (20-40 km)"
         else:
             score_dist = 10.0
-            dist_desc = "Low (>80 km)"
+            dist_desc = "Low (>40 km)"
 
         # Factor B: Relative Velocity
         if relative_velocity_km_s >= 14.0:
             score_vel = 100.0
             vel_desc = "Extreme Hypervelocity (>14 km/s)"
         elif relative_velocity_km_s >= 8.0:
-            score_vel = 75.0
+            score_vel = 70.0
             vel_desc = "High Orbital Velocity (8-14 km/s)"
-        elif relative_velocity_km_s >= 2.0:
-            score_vel = 45.0
-            vel_desc = "Moderate Velocity (2-8 km/s)"
+        elif relative_velocity_km_s > 3.0:
+            score_vel = 40.0
+            vel_desc = "Moderate Velocity (3-8 km/s)"
         else:
             score_vel = 15.0
-            vel_desc = "Low Velocity"
+            vel_desc = "Low Velocity (<=3 km/s)"
 
         # Factor C: Approach Geometry
         if 70.0 <= approach_angle_deg <= 110.0:
-            score_geom = 90.0
+            score_geom = 85.0
             geom_desc = f"Orthogonal Plane Crossing ({approach_angle_deg:.1f}°)"
         elif approach_angle_deg >= 150.0:
             score_geom = 100.0
             geom_desc = f"Head-On Counter-Rotating ({approach_angle_deg:.1f}°)"
         else:
-            score_geom = 35.0 + (approach_angle_deg / 180.0) * 45.0
+            score_geom = 20.0 + (approach_angle_deg / 180.0) * 40.0
             geom_desc = f"Coplanar / Shallow Angle ({approach_angle_deg:.1f}°)"
 
         # Factor D: Physical Size
@@ -243,14 +243,14 @@ class RiskService:
             score_time = 100.0
             time_desc = "Immediate Urgency (<2h)"
         elif hours_to_tca <= 6.0:
-            score_time = 75.0
+            score_time = 70.0
             time_desc = "High Urgency (2-6h)"
-        elif hours_to_tca <= 24.0:
-            score_time = 45.0
-            time_desc = "Standard Lead Time (12-24h)"
+        elif hours_to_tca <= 18.0:
+            score_time = 35.0
+            time_desc = "Standard Lead Time (6-18h)"
         else:
-            score_time = 15.0
-            time_desc = "Extended Horizon (>24h)"
+            score_time = 10.0
+            time_desc = "Extended Horizon (>18h)"
 
         # Weighted Composite Score (0-100)
         total_score = (

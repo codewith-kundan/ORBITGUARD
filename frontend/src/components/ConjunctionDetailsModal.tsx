@@ -20,6 +20,7 @@ interface ConjunctionDetailsModalProps {
   conjunction: Conjunction | null;
   isOpen?: boolean;
   onClose: () => void;
+  onOpenReplay?: (conjunction: Conjunction) => void;
   onOpenCAM?: (conjunction: Conjunction) => void;
   onOpenCDM?: (conjunction: Conjunction) => void;
   onOpenBreakup?: (conjunction: Conjunction) => void;
@@ -31,6 +32,7 @@ export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = (
   conjunction,
   isOpen = true,
   onClose,
+  onOpenReplay,
   onOpenCAM,
   onOpenCDM,
   onOpenBreakup,
@@ -282,6 +284,30 @@ export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = (
         </div>
 
 
+        {/* Explainable Risk Factors Breakdown */}
+        {conjunction.factors && (
+          <div className="bg-space-950 p-3.5 rounded-xl border border-space-800 mb-4 space-y-2 font-mono text-xs">
+            <span className="text-[11px] font-bold text-white uppercase flex items-center gap-1.5">
+              <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
+              Explainable Risk Score Drivers (Weighted SGP4 Astrodynamics)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+              <div className="p-2 bg-space-900 rounded-lg border border-space-800">
+                <span className="text-slate-500 block text-[9px]">MISS DISTANCE WEIGHT (50%):</span>
+                <span className="text-cyan-300 font-semibold">{conjunction.factors.miss_distance_factor?.description || 'Optimal'}</span>
+              </div>
+              <div className="p-2 bg-space-900 rounded-lg border border-space-800">
+                <span className="text-slate-500 block text-[9px]">RELATIVE VELOCITY (20%):</span>
+                <span className="text-amber-300 font-semibold">{conjunction.factors.relative_velocity_factor?.description || 'Hypervelocity'}</span>
+              </div>
+              <div className="p-2 bg-space-900 rounded-lg border border-space-800">
+                <span className="text-slate-500 block text-[9px]">APPROACH GEOMETRY (10%):</span>
+                <span className="text-purple-300 font-semibold">{conjunction.factors.approach_geometry_factor?.description || 'Planar Crossing'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Evidence & Calculation Provenance Audit */}
         <EvidenceFooter
           evidence={{
@@ -302,6 +328,18 @@ export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = (
             SGP4 Multi-Factor Encounter Assessment
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {onOpenReplay && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenReplay(conjunction);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition"
+              >
+                <span>🎬 REPLAY ENCOUNTER</span>
+              </button>
+            )}
+
             {onNavigateTo3D && (
               <button
                 onClick={() => {

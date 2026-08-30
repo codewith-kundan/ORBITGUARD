@@ -32,6 +32,8 @@ interface NavbarProps {
   onOpenSITREP?: () => void;
   onOpenASAT?: () => void;
   onOpenSpotter?: () => void;
+  onOpenTrustCenter?: () => void;
+  onOpenJudgeDemo?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -49,7 +51,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenKesslerDensity,
   onOpenSITREP,
   onOpenASAT,
-  onOpenSpotter
+  onOpenSpotter,
+  onOpenTrustCenter,
+  onOpenJudgeDemo
 }) => {
 
   const handleSelectTab = (tab: NavTabKey) => {
@@ -260,6 +264,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Flame className="w-3 h-3 text-orange-400" />
               <span>ASAT MISSILE SIM</span>
+            </button>
+          )}
+
+          {/* Judge & Presentation Demo Tour */}
+          {onOpenJudgeDemo && (
+            <button
+              onClick={onOpenJudgeDemo}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-500/50 text-amber-300 hover:text-white transition shadow-sm font-extrabold whitespace-nowrap flex-shrink-0 ml-auto"
+              title="Launch 3-5 minute Guided Presentation Demo Tour"
+            >
+              <span className="text-amber-400 animate-pulse">★</span>
+              <span>JUDGE DEMO</span>
+            </button>
+          )}
+
+          {/* Scientific Credibility & Trust Center */}
+          {onOpenTrustCenter && (
+            <button
+              onClick={onOpenTrustCenter}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap flex-shrink-0"
+              title="View Scientific Foundations, Mathematical Derivations & Test Coverage"
+            >
+              <span>🛡️ TRUST CENTER</span>
             </button>
           )}
         </div>

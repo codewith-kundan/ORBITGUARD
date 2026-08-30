@@ -140,6 +140,27 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
   const [showOrbitRings, setShowOrbitRings] = useState<boolean>(true);
   const [swarmDensity, setSwarmDensity] = useState<number>(3000);
 
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Global keyboard shortcut '/' to focus search, and 'Escape' to clear
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '/' && document.activeElement !== searchInputRef.current) {
+        // Prevent typing '/' into another field if already typing
+        const tag = (document.activeElement?.tagName || '').toLowerCase();
+        if (tag !== 'input' && tag !== 'textarea') {
+          e.preventDefault();
+          searchInputRef.current?.focus();
+        }
+      } else if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        searchInputRef.current?.blur();
+        setSearchSuggestions([]);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Debounced live suggestions from full 32,282 catalog API
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
@@ -1472,15 +1493,19 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
             <div className="relative">
               <form onSubmit={handleSearchSubmit} className="relative">
                 <input
+                  ref={searchInputRef}
                   type="text"
-                  placeholder="Search Satellite, Starlink, Debris, NORAD..."
+                  placeholder="Search Satellite, Starlink, Debris, NORAD... (/)"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-space-950 border border-space-700 rounded-lg px-3 py-1.5 pl-8 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 shadow-inner"
+                  className="w-full bg-space-950 border border-space-700 rounded-lg px-3 py-1.5 pl-8 pr-8 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 shadow-inner"
                 />
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                <span className="absolute right-2 top-2 text-[10px] text-slate-500 bg-space-900 px-1.5 py-0.2 rounded border border-space-800 font-bold pointer-events-none">
+                  /
+                </span>
                 {isSearchingCatalog && (
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping absolute right-2.5 top-3" />
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping absolute right-7 top-3" />
                 )}
               </form>
 

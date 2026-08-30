@@ -29,7 +29,7 @@ class FastCandidateObject:
     """Lightweight in-memory container for high-speed conjunction screening."""
     __slots__ = (
         'id', 'norad_id', 'name', 'object_type', 'tle_line1', 'tle_line2',
-        'perigee_km', 'apogee_km', 'inclination', 'rcs_size'
+        'perigee_km', 'apogee_km', 'inclination', 'rcs_size', '__dict__'
     )
 
     def __init__(
@@ -56,6 +56,20 @@ class FastCandidateObject:
         self.inclination = inclination or 0.0
         self.rcs_size = rcs_size
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'norad_id': self.norad_id,
+            'name': self.name,
+            'object_type': self.object_type.value if hasattr(self.object_type, 'value') else str(self.object_type),
+            'tle_line1': self.tle_line1,
+            'tle_line2': self.tle_line2,
+            'perigee_km': self.perigee_km,
+            'apogee_km': self.apogee_km,
+            'inclination': self.inclination,
+            'rcs_size': self.rcs_size
+        }
+
 
 class ConjunctionService:
     """
@@ -69,6 +83,65 @@ class ConjunctionService:
     5. Dynamic Hard-Body RCS Collision Cross-Sections & Anisotropic 2D B-Plane Covariance.
     6. Multi-Threaded Parallel Screening Pool across candidate pairs.
     """
+
+    @staticmethod
+    def find_tca_between_objects(
+        obj_a: Any,
+        obj_b: Any,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        coarse_step_minutes: float = 2.0,
+        threshold_km: float = 120.0
+    ) -> List[Dict[str, Any]]:
+        """
+        Calculates all close encounters (TCA, miss distance, risk) between two specific objects.
+        """
+        if start_time is None:
+            start_time = datetime.now(timezone.utc)
+        if end_time is None:
+            end_time = start_time + timedelta(hours=24)
+
+        def _to_fast(o, default_id=1):
+            if isinstance(o, FastCandidateObject):
+                return o
+            return FastCandidateObject(
+                id=getattr(o, 'id', default_id) or default_id,
+                norad_id=getattr(o, 'norad_id', default_id) or default_id,
+                name=getattr(o, 'name', f"Object-{default_id}") or f"Object-{default_id}",
+                object_type=getattr(o, 'object_type', ObjectType.UNKNOWN) or ObjectType.UNKNOWN,
+                tle_line1=getattr(o, 'tle_line1', '') or '',
+                tle_line2=getattr(o, 'tle_line2', '') or '',
+                perigee_km=float(getattr(o, 'perigee_km', 500.0) or 500.0),
+                apogee_km=float(getattr(o, 'apogee_km', 550.0) or 550.0),
+                inclination=float(getattr(o, 'inclination', 50.0) or 50.0),
+                rcs_size=getattr(o, 'rcs_size', None)
+            )
+
+        fast_a = _to_fast(obj_a, 1)
+        fast_b = _to_fast(obj_b, 2)
+
+        duration_hours = max(0.25, (end_time - start_time).total_seconds() / 3600.0)
+        step_minutes = max(0.5, coarse_step_minutes)
+        n_steps = int(duration_hours * 60 / step_minutes) + 1
+
+        time_points = [start_time + timedelta(minutes=i * step_minutes) for i in range(n_steps)]
+        jd_list, fr_list = [], []
+        for tp in time_points:
+            jd, fr = jday(tp.year, tp.month, tp.day, tp.hour, tp.minute, tp.second + tp.microsecond / 1e6)
+            jd_list.append(jd)
+            fr_list.append(fr)
+
+        jd_arr = np.array(jd_list, dtype=np.float64)
+        fr_arr = np.array(fr_list, dtype=np.float64)
+
+        return ConjunctionService.screen_single_pair(
+            (fast_a, fast_b),
+            jd_arr,
+            fr_arr,
+            time_points,
+            threshold_km=threshold_km,
+            start_time=start_time
+        )
 
     @staticmethod
     def broad_phase_filter(
@@ -363,13 +436,16 @@ class ConjunctionService:
                         combined_size_m=combined_size
                     )
 
+                    obj_a_dict = obj_a.to_dict() if hasattr(obj_a, 'to_dict') else {"id": obj_a.id, "norad_id": obj_a.norad_id, "name": obj_a.name, "object_type": str(obj_a.object_type)}
+                    obj_b_dict = obj_b.to_dict() if hasattr(obj_b, 'to_dict') else {"id": obj_b.id, "norad_id": obj_b.norad_id, "name": obj_b.name, "object_type": str(obj_b.object_type)}
+
                     events.append({
                         "object_a_id": obj_a.id,
                         "object_b_id": obj_b.id,
                         "object_a_name": obj_a.name,
                         "object_b_name": obj_b.name,
-                        "object_a": obj_a,
-                        "object_b": obj_b,
+                        "object_a": obj_a_dict,
+                        "object_b": obj_b_dict,
                         "tca": exact_tca,
                         "miss_distance_km": round(min_dist_km, 3),
                         "relative_velocity_km_s": round(rel_vel_km_s, 3),
