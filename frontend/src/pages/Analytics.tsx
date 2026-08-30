@@ -145,7 +145,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({
               <Flame className="w-4 h-4 text-red-400" />
               TRACKED SPACE DEBRIS
             </span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30 font-bold">HAZARDS</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30 font-bold">INACTIVE DEBRIS</span>
           </div>
           <div className="text-2xl sm:text-3xl font-bold text-red-400 tracking-wider">
             {debrisCount.toLocaleString()}

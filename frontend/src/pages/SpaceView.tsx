@@ -1701,22 +1701,22 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         </div>
       </div>
 
-      {/* RIGHT PANEL: Persistent Real-Time Collision Hazards & Hotspots HUD */}
+      {/* RIGHT PANEL: Real-Time Screened Conjunctions & Telemetry HUD */}
       {isRightPanelMinimized ? (
         <button
           type="button"
           onClick={() => setIsRightPanelMinimized(false)}
-          className="absolute top-14 sm:top-16 right-3 sm:right-4 z-30 bg-slate-900/90 hover:bg-slate-900 backdrop-blur-xl border border-danger-500/60 shadow-[0_0_25px_rgba(239,68,68,0.4)] px-3.5 py-2 rounded-xl font-mono text-xs text-white flex items-center gap-2.5 transition active:scale-95 group cursor-pointer"
+          className="absolute top-14 sm:top-16 right-3 sm:right-4 z-30 bg-slate-900/90 hover:bg-slate-900 backdrop-blur-xl border border-cyan-500/60 shadow-[0_0_25px_rgba(0,240,255,0.3)] px-3.5 py-2 rounded-xl font-mono text-xs text-white flex items-center gap-2.5 transition active:scale-95 group cursor-pointer"
         >
           <div className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-danger-500"></span>
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
           </div>
-          <AlertTriangle className="w-4 h-4 text-danger-400 animate-pulse" />
-          <span className="font-bold tracking-wider text-danger-300 text-xs animate-pulse">
-            {conjunctions.length > 0 ? `${conjunctions.length} HAZARDS` : 'ALERTS HUD'}
+          <Crosshair className="w-4 h-4 text-cyan-400 animate-pulse" />
+          <span className="font-bold tracking-wider text-cyan-300 text-xs">
+            {conjunctions.length > 0 ? `${conjunctions.length} SCREENED EVENTS` : 'CONJUNCTIONS HUD'}
           </span>
-          <ChevronLeft className="w-4 h-4 text-danger-400 group-hover:-translate-x-0.5 transition-transform" />
+          <ChevronLeft className="w-4 h-4 text-cyan-400 group-hover:-translate-x-0.5 transition-transform" />
         </button>
       ) : (
         <div className="absolute top-14 sm:top-16 right-3 sm:right-4 z-30 w-80 sm:w-96 max-w-[92vw] bg-slate-900/80 backdrop-blur-xl border border-white/10 p-3 sm:p-3.5 rounded-2xl font-mono text-[11px] shadow-2xl text-slate-200 animate-fade-in max-h-[calc(100vh-140px)] flex flex-col gap-2.5">
@@ -1729,15 +1729,15 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                 onClick={() => setRightPanelTab('ALERTS')}
                 className={`px-2.5 py-1 rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
                   rightPanelTab === 'ALERTS'
-                    ? 'bg-danger-500/20 text-danger-neon border border-danger-500/40 shadow-sm'
+                    ? 'bg-cyan-500/20 text-cyan-neon border border-cyan-500/40 shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
                 <div className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-danger-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
                 </div>
-                <span>HOTSPOTS ({conjunctions.length > 0 ? conjunctions.length : 0})</span>
+                <span>SCREENED CONJUNCTIONS ({conjunctions.length > 0 ? conjunctions.length : 0})</span>
               </button>
 
               {selectedObject && (

@@ -25,6 +25,7 @@ import { OrbitalSafetyBanner } from './components/OrbitalSafetyBanner';
 import { CinematicReplayModal } from './components/CinematicReplayModal';
 import { TrustCenterModal } from './components/TrustCenterModal';
 import { JudgeDemoModal } from './components/JudgeDemoModal';
+import { OrbitAIAssistant } from './components/OrbitAIAssistant';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -40,7 +41,7 @@ import {
   fallbackStats,
   fallbackDataStatus
 } from './services/fallbackData';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTabKey>('space');
@@ -58,6 +59,7 @@ export default function App() {
   const [isReplayModalOpen, setIsReplayModalOpen] = useState<boolean>(false);
   const [isTrustCenterOpen, setIsTrustCenterOpen] = useState<boolean>(false);
   const [isJudgeDemoOpen, setIsJudgeDemoOpen] = useState<boolean>(false);
+  const [isOrbitAIOpen, setIsOrbitAIOpen] = useState<boolean>(false);
   const [isSystemHealthModalOpen, setIsSystemHealthModalOpen] = useState<boolean>(false);
   const [isSpaceWeatherOpen, setIsSpaceWeatherOpen] = useState<boolean>(false);
   const [isLaunchRadarOpen, setIsLaunchRadarOpen] = useState<boolean>(false);
@@ -256,6 +258,7 @@ export default function App() {
         alertCount={alertCount}
         onRefresh={loadAllData}
         isRefreshing={loading}
+        onOpenOrbitAI={() => setIsOrbitAIOpen(true)}
         onOpenSystemHealth={() => setIsSystemHealthModalOpen(true)}
         onOpenSpaceWeather={() => setIsSpaceWeatherOpen(true)}
         onOpenLaunchRadar={() => setIsLaunchRadarOpen(true)}
@@ -560,6 +563,42 @@ export default function App() {
           setIsTrustCenterOpen(true);
         }}
       />
+
+      {/* Specialized Orbit AI Copilot Assistant Modal */}
+      <OrbitAIAssistant
+        isOpen={isOrbitAIOpen}
+        onClose={() => setIsOrbitAIOpen(false)}
+        conjunctions={conjunctions}
+        objects={objects}
+        stats={stats}
+        dataStatus={dataStatus}
+        onFocus3D={(target) => {
+          if ('object_a' in target) {
+            setSelectedConjunction(target);
+            if (target.object_a) setSelectedObject(target.object_a);
+          } else {
+            setSelectedObject(target);
+          }
+          setActiveTab('space');
+        }}
+        onSelectConjunction={handleOpenConjunctionModal}
+        onOpenReplay={handleOpenReplay}
+        onOpenCAM={handleOpenCAM}
+        onOpenTrustCenter={() => setIsTrustCenterOpen(true)}
+        onNavigateToTab={(tab) => setActiveTab(tab)}
+      />
+
+      {/* Floating ✦ ASK ORBIT AI Action Trigger */}
+      {!isOrbitAIOpen && (
+        <button
+          onClick={() => setIsOrbitAIOpen(true)}
+          className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-40 bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-space-950 font-extrabold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full shadow-[0_0_25px_rgba(0,240,255,0.4)] flex items-center gap-2 font-mono text-xs sm:text-sm tracking-wide transition transform hover:scale-105 active:scale-95 group border border-white/20"
+          title="Open Orbit AI Specialized Copilot"
+        >
+          <Sparkles className="w-4 h-4 text-space-950 animate-pulse group-hover:rotate-12 transition-transform" />
+          <span>✦ ASK ORBIT AI</span>
+        </button>
+      )}
 
       {/* System & Database Diagnostics Modal */}
       <SystemHealthModal

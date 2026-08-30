@@ -284,29 +284,119 @@ export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = (
         </div>
 
 
-        {/* Explainable Risk Factors Breakdown */}
-        {conjunction.factors && (
-          <div className="bg-space-950 p-3.5 rounded-xl border border-space-800 mb-4 space-y-2 font-mono text-xs">
-            <span className="text-[11px] font-bold text-white uppercase flex items-center gap-1.5">
-              <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
-              Explainable Risk Score Drivers (Weighted SGP4 Astrodynamics)
+        {/* WHY IS THIS RISKY? - Comprehensive Astrodynamics Factor Explainability */}
+        <div className="bg-space-950 p-4 rounded-xl border border-space-800 mb-4 space-y-3 font-mono text-xs shadow-inner">
+          <div className="flex items-center justify-between border-b border-space-800 pb-2">
+            <span className="text-xs font-bold text-white uppercase flex items-center gap-1.5">
+              <Crosshair className="w-4 h-4 text-cyan-400" />
+              WHY IS THIS RISKY? (MULTI-FACTOR DECOMPOSITION)
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
-              <div className="p-2 bg-space-900 rounded-lg border border-space-800">
-                <span className="text-slate-500 block text-[9px]">MISS DISTANCE WEIGHT (50%):</span>
-                <span className="text-cyan-300 font-semibold">{conjunction.factors.miss_distance_factor?.description || 'Optimal'}</span>
+            <span className="text-[10px] text-cyan-300 font-semibold bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">
+              SCORE: {conjunction.risk_score} / 100 ({conjunction.risk_level})
+            </span>
+          </div>
+
+          {/* Factor Contribution Progress Bars */}
+          <div className="space-y-2 text-[11px]">
+            {/* Factor 1: Miss Distance */}
+            <div>
+              <div className="flex justify-between text-slate-300 mb-1">
+                <span>Miss Distance (50% Weight)</span>
+                <span className="font-bold text-cyan-300">
+                  {conjunction.miss_distance_km.toFixed(2)} km • {conjunction.factors?.miss_distance_factor?.description || (conjunction.miss_distance_km < 5 ? 'Critical Clearance' : 'Moderate Distance')}
+                </span>
               </div>
-              <div className="p-2 bg-space-900 rounded-lg border border-space-800">
-                <span className="text-slate-500 block text-[9px]">RELATIVE VELOCITY (20%):</span>
-                <span className="text-amber-300 font-semibold">{conjunction.factors.relative_velocity_factor?.description || 'Hypervelocity'}</span>
+              <div className="w-full h-2 bg-space-900 rounded-full overflow-hidden border border-space-800">
+                <div 
+                  className={`h-full rounded-full ${conjunction.miss_distance_km < 5 ? 'bg-red-500' : conjunction.miss_distance_km < 25 ? 'bg-amber-400' : 'bg-cyan-400'}`}
+                  style={{ width: `${Math.min(100, Math.max(10, (1 - Math.min(1, conjunction.miss_distance_km / 80)) * 100))}%` }}
+                />
               </div>
-              <div className="p-2 bg-space-900 rounded-lg border border-space-800">
-                <span className="text-slate-500 block text-[9px]">APPROACH GEOMETRY (10%):</span>
-                <span className="text-purple-300 font-semibold">{conjunction.factors.approach_geometry_factor?.description || 'Planar Crossing'}</span>
+            </div>
+
+            {/* Factor 2: Relative Velocity */}
+            <div>
+              <div className="flex justify-between text-slate-300 mb-1">
+                <span>Relative Velocity (20% Weight)</span>
+                <span className="font-bold text-amber-300">
+                  {conjunction.relative_velocity_km_s.toFixed(2)} km/s • {conjunction.factors?.relative_velocity_factor?.description || 'Orbital Hypervelocity'}
+                </span>
+              </div>
+              <div className="w-full h-2 bg-space-900 rounded-full overflow-hidden border border-space-800">
+                <div 
+                  className="h-full bg-amber-400 rounded-full"
+                  style={{ width: `${Math.min(100, Math.max(15, (conjunction.relative_velocity_km_s / 15) * 100))}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Factor 3: Approach Crossing Geometry */}
+            <div>
+              <div className="flex justify-between text-slate-300 mb-1">
+                <span>Approach Crossing Geometry (10% Weight)</span>
+                <span className="font-bold text-purple-300">
+                  {(conjunction.approach_angle_deg || 45.0).toFixed(1)}° Crossing • {conjunction.factors?.approach_geometry_factor?.description || 'Planar Intersection'}
+                </span>
+              </div>
+              <div className="w-full h-2 bg-space-900 rounded-full overflow-hidden border border-space-800">
+                <div 
+                  className="h-full bg-purple-400 rounded-full"
+                  style={{ width: `${Math.min(100, Math.max(20, ((conjunction.approach_angle_deg || 45) / 180) * 100))}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Factor 4: Hard-Body Physical Size */}
+            <div>
+              <div className="flex justify-between text-slate-300 mb-1">
+                <span>Combined Hard-Body Size (5% Weight)</span>
+                <span className="font-bold text-slate-300">
+                  {(conjunction.combined_size_m || 5.0).toFixed(1)} m Combined Diameter
+                </span>
+              </div>
+              <div className="w-full h-2 bg-space-900 rounded-full overflow-hidden border border-space-800">
+                <div 
+                  className="h-full bg-blue-400 rounded-full"
+                  style={{ width: `${Math.min(100, Math.max(15, ((conjunction.combined_size_m || 5) / 20) * 100))}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Factor 5: Lead Time Urgency */}
+            <div>
+              <div className="flex justify-between text-slate-300 mb-1">
+                <span>Time to TCA Urgency (15% Weight)</span>
+                <span className="font-bold text-emerald-400">
+                  {diffHours}h Horizon Remaining
+                </span>
+              </div>
+              <div className="w-full h-2 bg-space-900 rounded-full overflow-hidden border border-space-800">
+                <div 
+                  className="h-full bg-emerald-400 rounded-full"
+                  style={{ width: `${Math.min(100, Math.max(10, (1 - Math.min(1, parseFloat(diffHours) / 48)) * 100))}%` }}
+                />
               </div>
             </div>
           </div>
-        )}
+
+          {/* Plain Language Synthesis */}
+          <div className="p-3 bg-space-900/90 rounded-xl border border-space-800 text-[11px] text-slate-300 leading-relaxed">
+            <span className="font-bold text-white">OPERATIONAL SYNTHESIS: </span>
+            {conjunction.miss_distance_km < 5.0 ? (
+              <span className="text-red-300">
+                This encounter is classified as <strong>HIGH / CRITICAL RISK</strong> primarily because the predicted miss distance ({conjunction.miss_distance_km.toFixed(2)} km) is within the emergency safety threshold under hypervelocity ({conjunction.relative_velocity_km_s.toFixed(2)} km/s) crossing conditions. Collision avoidance maneuver planning is recommended.
+              </span>
+            ) : conjunction.miss_distance_km < 25.0 ? (
+              <span className="text-amber-200">
+                This encounter is classified as <strong>ELEVATED RISK</strong> due to a close planar intersection ({conjunction.miss_distance_km.toFixed(2)} km). Active tracking and covariance refinement are recommended as the lead time decreases.
+              </span>
+            ) : (
+              <span className="text-slate-300">
+                This event represents a <strong>NOMINAL / LOW RISK</strong> screening pass ({conjunction.miss_distance_km.toFixed(2)} km separation). The objects maintain safe orbital clearance with no evasion maneuver required.
+              </span>
+            )}
+          </div>
+        </div>
 
         {/* Evidence & Calculation Provenance Audit */}
         <EvidenceFooter
