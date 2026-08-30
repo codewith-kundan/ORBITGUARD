@@ -564,14 +564,17 @@ export default function App() {
         }}
       />
 
-      {/* Specialized Orbit AI Copilot Assistant Modal */}
+      {/* Specialized Orbit AI Space Intelligence Copilot Modal */}
       <OrbitAIAssistant
         isOpen={isOrbitAIOpen}
         onClose={() => setIsOrbitAIOpen(false)}
         conjunctions={conjunctions}
         objects={objects}
+        selectedObject={selectedObject}
+        selectedConjunction={selectedConjunction}
         stats={stats}
         dataStatus={dataStatus}
+        activeTab={activeTab}
         onFocus3D={(target) => {
           if ('object_a' in target) {
             setSelectedConjunction(target);
@@ -584,6 +587,8 @@ export default function App() {
         onSelectConjunction={handleOpenConjunctionModal}
         onOpenReplay={handleOpenReplay}
         onOpenCAM={handleOpenCAM}
+        onOpenSpaceWeather={() => setIsSpaceWeatherOpen(true)}
+        onOpenLaunchRadar={() => setIsLaunchRadarOpen(true)}
         onOpenTrustCenter={() => setIsTrustCenterOpen(true)}
         onNavigateToTab={(tab) => setActiveTab(tab)}
       />

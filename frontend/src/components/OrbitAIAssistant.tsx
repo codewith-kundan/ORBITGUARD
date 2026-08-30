@@ -10,23 +10,33 @@ import {
   Crosshair, 
   Play, 
   Activity, 
+  Sun,
+  Rocket,
   Maximize2,
   Minimize2,
-  Trash2
+  Trash2,
+  SlidersHorizontal,
+  Info
 } from 'lucide-react';
 import { Conjunction, OrbitalObject, SystemStatistics, DataStatus } from '../types';
+import { SpaceIntelligenceEngine, CopilotResponse, CopilotAction } from '../services/spaceIntelligenceEngine';
 
 interface OrbitAIAssistantProps {
   isOpen: boolean;
   onClose: () => void;
   conjunctions: Conjunction[];
   objects: OrbitalObject[];
+  selectedObject?: OrbitalObject | null;
+  selectedConjunction?: Conjunction | null;
   stats?: SystemStatistics | null;
   dataStatus?: DataStatus | null;
+  activeTab?: string;
   onFocus3D?: (target: OrbitalObject | Conjunction) => void;
   onSelectConjunction?: (conj: Conjunction) => void;
   onOpenReplay?: (conj: Conjunction) => void;
   onOpenCAM?: (conj: Conjunction) => void;
+  onOpenSpaceWeather?: () => void;
+  onOpenLaunchRadar?: () => void;
   onOpenTrustCenter?: () => void;
   onNavigateToTab?: (tab: 'space' | 'map2d' | 'catalog' | 'conjunctions' | 'analytics') => void;
 }
@@ -36,11 +46,11 @@ interface ChatMessage {
   sender: 'ai' | 'user';
   text: string;
   timestamp: string;
-  actions?: {
-    label: string;
-    icon?: 'globe' | 'crosshair' | 'play' | 'activity' | 'shield';
-    onClick: () => void;
-  }[];
+  source?: string;
+  sourceType?: string;
+  retrievedAt?: string;
+  confidence?: string;
+  actions?: CopilotAction[];
 }
 
 export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
@@ -48,12 +58,17 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
   onClose,
   conjunctions,
   objects,
+  selectedObject,
+  selectedConjunction,
   stats,
   dataStatus,
+  activeTab = 'space',
   onFocus3D,
   onSelectConjunction,
   onOpenReplay,
   onOpenCAM,
+  onOpenSpaceWeather,
+  onOpenLaunchRadar,
   onOpenTrustCenter,
   onNavigateToTab
 }) => {
@@ -61,41 +76,27 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
   const [inputValue, setInputValue] = useState<string>('');
   const [isTyping, setIsTyping] = useState<boolean>(false);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const [analysisMode, setAnalysisMode] = useState<'quick' | 'deep'>('quick');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Derive current highest threat and closest encounter from live data
-  const sortedUpcoming = [...conjunctions]
-    .map(c => ({
-      ...c,
-      _tcaMs: new Date(c.tca).getTime()
-    }))
-    .filter(c => !isNaN(c._tcaMs))
-    .sort((a, b) => b.risk_score - a.risk_score);
-
-  const highestRisk = sortedUpcoming.length > 0 ? sortedUpcoming[0] : null;
-  const closestEncounter = [...sortedUpcoming].sort((a, b) => a.miss_distance_km - b.miss_distance_km)[0] || null;
-  const criticalEvents = sortedUpcoming.filter(c => c.risk_level === 'CRITICAL' || c.risk_score >= 80);
-  const highEvents = sortedUpcoming.filter(c => c.risk_level === 'HIGH' || (c.risk_score >= 60 && c.risk_score < 80));
 
   // Initialize welcoming message on first mount
   useEffect(() => {
     if (messages.length === 0) {
-      const initialActions = [];
-      if (highestRisk && onFocus3D) {
+      const highestRisk = [...conjunctions].sort((a, b) => b.risk_score - a.risk_score)[0];
+      const initialActions: CopilotAction[] = [];
+
+      if (highestRisk) {
         initialActions.push({
           label: `Focus ${highestRisk.object_a?.name || 'Primary'} in 3D`,
-          icon: 'globe' as const,
-          onClick: () => {
-            onFocus3D(highestRisk);
-            if (onNavigateToTab) onNavigateToTab('space');
-          }
+          icon: 'globe',
+          actionType: 'FOCUS_CONJUNCTION',
+          payload: highestRisk
         });
-      }
-      if (highestRisk && onSelectConjunction) {
         initialActions.push({
           label: 'Inspect Highest-Risk Encounter',
-          icon: 'crosshair' as const,
-          onClick: () => onSelectConjunction(highestRisk)
+          icon: 'crosshair',
+          actionType: 'OPEN_CONJUNCTION',
+          payload: highestRisk
         });
       }
 
@@ -103,168 +104,108 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
         {
           id: 'welcome-1',
           sender: 'ai',
-          text: `👋 Greetings, Space Operations Officer. I am **Orbit AI**, your specialized Space Situational Awareness copilot.\n\nI continuously monitor the active **${(stats?.tracked_objects || dataStatus?.total_objects || 32340).toLocaleString()} tracked orbital objects** and currently evaluate **${conjunctions.length} screened conjunction events** across the 24-hour horizon.\n\nHow may I assist your mission analysis today?`,
+          text: `👋 Greetings, Space Operations Officer. I am **Orbit AI**, your specialized Space Intelligence & Astrodynamics Copilot.\n\nI am grounded in live **SGP4 orbital propagation**, NOAA space weather, global launch radar, and authoritative astrodynamics.\n\n**Current Environment Snapshot:**\n• Tracking **${(stats?.tracked_objects || dataStatus?.total_objects || 32340).toLocaleString()} space objects**\n• Evaluating **${conjunctions.length} screened conjunctions (24h)**\n• Upstream ephemeris: **${dataStatus?.source || 'Space-Track / CelesTrak'}**\n\nHow may I assist your mission analysis today?`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          source: 'OrbitGuard Space Intelligence Engine',
+          sourceType: 'ORBITGUARD_LIVE',
+          retrievedAt: new Date().toUTCString().slice(5, 25) + ' UTC',
+          confidence: 'REAL-TIME PROCESSED SGP4',
           actions: initialActions
         }
       ]);
     }
-  }, [conjunctions, highestRisk, stats, dataStatus]);
+  }, [conjunctions, stats, dataStatus]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  const generateAIResponse = (userQuery: string) => {
-    const q = userQuery.toLowerCase().trim();
-    setIsTyping(true);
-
-    setTimeout(() => {
-      let responseText = '';
-      const responseActions: ChatMessage['actions'] = [];
-
-      if (q.includes('high-risk') || q.includes('critical') || q.includes('danger') || q.includes('threat')) {
-        if (criticalEvents.length > 0 || highEvents.length > 0) {
-          const target = criticalEvents[0] || highEvents[0];
-          responseText = `⚠️ **Active High-Risk Conjunction Alert:**\n\nThere are **${criticalEvents.length} CRITICAL** and **${highEvents.length} HIGH** risk close approaches in the current screening window.\n\n• **Primary Pair**: ${target.object_a?.name || 'Asset A'} ↔ ${target.object_b?.name || 'Asset B'}\n• **Predicted Miss Distance**: ${target.miss_distance_km.toFixed(2)} km\n• **Relative Velocity**: ${target.relative_velocity_km_s.toFixed(2)} km/s\n• **Time to TCA**: ${new Date(target.tca).toUTCString().slice(5, 22)}\n• **Composite Risk Score**: ${target.risk_score} / 100 (${target.risk_level})\n• **Estimated $P_c$**: ${target.collision_probability != null ? target.collision_probability.toFixed(3) : '<0.01'}%`;
-
-          if (onFocus3D) {
-            responseActions.push({
-              label: 'View Encounter in 3D',
-              icon: 'globe',
-              onClick: () => {
-                onFocus3D(target);
-                if (onNavigateToTab) onNavigateToTab('space');
-              }
-            });
-          }
-          if (onOpenReplay) {
-            responseActions.push({
-              label: 'Cinematic Replay',
-              icon: 'play',
-              onClick: () => onOpenReplay(target)
-            });
-          }
-          if (onOpenCAM) {
-            responseActions.push({
-              label: 'Plan Avoidance Maneuver',
-              icon: 'activity',
-              onClick: () => onOpenCAM(target)
-            });
-          }
-        } else {
-          responseText = `🟢 **Nominal Orbital Environment:**\n\nThere are currently **0 Critical** and **0 High-Risk** conjunctions detected across the 24-hour screening horizon. All ${conjunctions.length} screened close approaches maintain safe operational separation boundaries.\n\n• **Closest Screened Pair**: ${closestEncounter ? `${closestEncounter.object_a?.name} ↔ ${closestEncounter.object_b?.name} (${closestEncounter.miss_distance_km.toFixed(2)} km)` : 'None'}`;
-          if (closestEncounter && onFocus3D) {
-            responseActions.push({
-              label: 'Focus Closest Pair in 3D',
-              icon: 'globe',
-              onClick: () => {
-                onFocus3D(closestEncounter);
-                if (onNavigateToTab) onNavigateToTab('space');
-              }
-            });
-          }
-        }
-      } else if (q.includes('status') || q.includes('what is happening') || q.includes('overview') || q.includes('summary')) {
-        const statusLabel = criticalEvents.length > 0 ? '🔴 CRITICAL HAZARD' : highEvents.length > 0 ? '🟡 ELEVATED RISK' : '🟢 NOMINAL (SAFE)';
-        responseText = `📊 **Current Orbital Situational Assessment:**\n\n• **Status**: ${statusLabel}\n• **Total Tracked Catalog**: ${(stats?.tracked_objects || dataStatus?.total_objects || 32340).toLocaleString()} objects\n• **Screened Conjunctions (24h)**: ${conjunctions.length} events\n• **Active Risk Distribution**: ${criticalEvents.length} Critical, ${highEvents.length} High, ${conjunctions.length - criticalEvents.length - highEvents.length} Low/Medium\n• **Upstream Ephemeris**: ${dataStatus?.source || 'Space-Track.org / CelesTrak SGP4'}\n• **Last Propagation Sync**: ${dataStatus?.last_updated ? new Date(dataStatus.last_updated).toUTCString().slice(17, 25) + ' UTC' : 'Synchronized'}`;
-
-        if (onNavigateToTab) {
-          responseActions.push({
-            label: 'Open Conjunction Matrix',
-            icon: 'shield',
-            onClick: () => onNavigateToTab('conjunctions')
-          });
-        }
-      } else if (q.includes('why') && (q.includes('risk') || q.includes('dangerous') || q.includes('score'))) {
-        const target = highestRisk || closestEncounter;
-        if (target) {
-          const descDist = target.factors?.miss_distance_factor?.description || `${target.miss_distance_km.toFixed(2)} km`;
-          const descVel = target.factors?.relative_velocity_factor?.description || `${target.relative_velocity_km_s.toFixed(2)} km/s`;
-          const descGeom = target.factors?.approach_geometry_factor?.description || `${(target.approach_angle_deg || 45).toFixed(1)}° crossing`;
-
-          responseText = `🎯 **Why is Event #${target.id} Classified as ${target.risk_level}?**\n\nOrbitGuard decomposes collision risk using ISO-26900 astrodynamics criteria:\n\n1. **Radial Miss Distance (50% Weight)**: ${descDist}\n2. **Relative Velocity (20% Weight)**: ${descVel}\n3. **Approach Geometry (10% Weight)**: ${descGeom}\n4. **Combined Hard-Body Size (5% Weight)**: ${(target.combined_size_m || 5).toFixed(1)} meters\n5. **Time Urgency (15% Weight)**: Lead time until TCA\n\n**Verdict**: The composite score is **${target.risk_score} / 100**, indicating ${target.risk_level === 'LOW' ? 'nominal orbital clearance without immediate evasion requirement.' : 'elevated hazard requiring close telemetry tracking.'}`;
-
-          if (onSelectConjunction) {
-            responseActions.push({
-              label: 'View 2D B-Plane Covariance',
-              icon: 'crosshair',
-              onClick: () => onSelectConjunction(target)
-            });
-          }
-        } else {
-          responseText = `Please select a conjunction event from the Conjunction Center to analyze its physical risk drivers.`;
-        }
-      } else if (q.includes('3d') || q.includes('show') || q.includes('view')) {
-        const target: Conjunction | OrbitalObject | undefined = highestRisk || closestEncounter || objects[0];
-        if (target && onFocus3D) {
-          let targetLabel = 'Primary Asset';
-          if ('object_a' in target) {
-            targetLabel = target.object_a?.name || `ID-${target.object_a_id}`;
-          } else if ('name' in target) {
-            targetLabel = (target as OrbitalObject).name;
-          }
-          responseText = `🌐 **Focusing 3D Orbital Scene on ${targetLabel}:**\n\nThe 3D camera is now centering on the orbital state vector. You can rotate with left-click, pan with right-click, and zoom with the scroll wheel.`;
-          onFocus3D(target);
-          if (onNavigateToTab) onNavigateToTab('space');
-        } else {
-          responseText = `Switching view to the 3D Mission Control Globe.`;
+  const executeAction = (action: CopilotAction) => {
+    switch (action.actionType) {
+      case 'FOCUS_OBJECT':
+      case 'FOCUS_CONJUNCTION':
+        if (onFocus3D && action.payload) {
+          onFocus3D(action.payload);
           if (onNavigateToTab) onNavigateToTab('space');
         }
-      } else if (q.includes('cam') || q.includes('avoid') || q.includes('maneuver')) {
-        const target = highestRisk || closestEncounter;
-        if (target) {
-          responseText = `🚀 **Collision Avoidance Maneuver (CAM) Recommendation:**\n\nFor pair **${target.object_a?.name} ↔ ${target.object_b?.name}**:\n\n• **Recommended Burn**: Prograde/Retrograde along in-track axis ($\Delta V \\approx 0.12 - 0.45\\text{ m/s}$)\n• **Lead Time**: Execute $\\ge 0.5$ orbital revolutions prior to TCA\n• **Predicted Miss Distance Gain**: $> 15.0\\text{ km}$ safety clearance\n• **Fuel Cost (Tsiolkovsky)**: $\\approx 0.08\\text{ kg}$ hydrazine equivalent`;
-
-          if (onOpenCAM) {
-            responseActions.push({
-              label: 'Open CAM Maneuver Planner',
-              icon: 'activity',
-              onClick: () => onOpenCAM(target)
-            });
-          }
+        break;
+      case 'OPEN_CONJUNCTION':
+        if (onSelectConjunction && action.payload) {
+          onSelectConjunction(action.payload);
         }
-      } else if (q.includes('trust') || q.includes('math') || q.includes('algorithm') || q.includes('sgp4')) {
-        responseText = `🛡️ **Scientific Validation & Trust Standards:**\n\nOrbitGuard implements rigorous astrodynamics:\n• **SGP4/SDP4 Perturbations**: WGS-84 datum with J2-J4 geopotential harmonics.\n• **Microsecond Root Solver**: Exact numerical root finding for $r_{\\text{rel}}(t) \\cdot v_{\\text{rel}}(t) = 0$.\n• **Foster-2D & Monte Carlo (10k)**: Probability density projected onto B-plane.\n• **44/44 Verified Automated Tests**: Continuous mathematical verification.`;
+        break;
+      case 'OPEN_REPLAY':
+        if (onOpenReplay && action.payload) {
+          onOpenReplay(action.payload);
+        }
+        break;
+      case 'OPEN_CAM':
+        if (onOpenCAM && action.payload) {
+          onOpenCAM(action.payload);
+        }
+        break;
+      case 'OPEN_WEATHER':
+        if (onOpenSpaceWeather) {
+          onOpenSpaceWeather();
+        }
+        break;
+      case 'OPEN_LAUNCH':
+        if (onOpenLaunchRadar) {
+          onOpenLaunchRadar();
+        }
+        break;
+      case 'OPEN_TRUST':
         if (onOpenTrustCenter) {
-          responseActions.push({
-            label: 'Open Trust Center Dossier',
-            icon: 'shield',
-            onClick: onOpenTrustCenter
-          });
+          onOpenTrustCenter();
         }
-      } else {
-        responseText = `📡 **Orbit AI Operational Analysis for "${userQuery}":**\n\nI analyzed your query against the live space catalog and conjunction screening matrix. OrbitGuard is actively tracking **${conjunctions.length} close approaches**.\n\nYou can ask me to:\n• *Show the highest-risk conjunction*\n• *Explain why an event is risky*\n• *Calculate collision avoidance maneuvers*\n• *Focus any satellite in 3D*\n• *Review scientific trust & SGP4 validation*`;
-      }
-
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `ai-${Date.now()}`,
-          sender: 'ai',
-          text: responseText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          actions: responseActions
-        }
-      ]);
-      setIsTyping(false);
-    }, 600);
+        break;
+    }
+    onClose();
   };
 
   const handleSendMessage = (textToSend?: string) => {
-    const text = textToSend || inputValue;
-    if (!text.trim()) return;
+    const query = textToSend || inputValue;
+    if (!query.trim()) return;
 
-    const newMsg: ChatMessage = {
+    const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
-      text: text.trim(),
+      text: query.trim(),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setMessages(prev => [...prev, newMsg]);
+    setMessages(prev => [...prev, userMsg]);
     setInputValue('');
-    generateAIResponse(text.trim());
+    setIsTyping(true);
+
+    setTimeout(() => {
+      const response: CopilotResponse = SpaceIntelligenceEngine.processQuery(query.trim(), {
+        activeTab,
+        selectedObject,
+        selectedConjunction,
+        objects,
+        conjunctions,
+        stats,
+        dataStatus,
+        mode: analysisMode,
+        conversationHistory: messages.map(m => ({ sender: m.sender, text: m.text }))
+      });
+
+      const aiMsg: ChatMessage = {
+        id: `ai-${Date.now()}`,
+        sender: 'ai',
+        text: response.text,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        source: response.source,
+        sourceType: response.sourceType,
+        retrievedAt: response.retrievedAt,
+        confidence: response.confidence,
+        actions: response.actions
+      };
+
+      setMessages(prev => [...prev, aiMsg]);
+      setIsTyping(false);
+    }, 450);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -276,9 +217,11 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
   const starterPrompts = [
     'Are there any high-risk conjunctions?',
     'What is happening in orbit right now?',
-    'Show the closest screened event in 3D',
+    'Show the closest screened encounter in 3D',
     'Why is the highest-risk conjunction dangerous?',
-    'Explain CAM avoidance maneuver'
+    'Is there a solar storm right now?',
+    'What is a TLE?',
+    'How do rockets reach orbit?'
   ];
 
   if (!isOpen) return null;
@@ -287,9 +230,9 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end sm:justify-end sm:pr-6 sm:pb-6 bg-black/60 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none font-mono animate-in fade-in duration-200 pointer-events-auto">
       {/* AI Assistant Floating Window */}
       <div 
-        className={`w-full sm:w-[450px] ${
-          isExpanded ? 'sm:w-[620px] h-[85vh]' : 'h-[540px] sm:h-[580px]'
-        } bg-space-950/95 border border-cyan-500/40 rounded-t-3xl sm:rounded-2xl shadow-[0_0_40px_rgba(0,240,255,0.2)] flex flex-col overflow-hidden transition-all duration-300 backdrop-blur-xl`}
+        className={`w-full sm:w-[480px] ${
+          isExpanded ? 'sm:w-[680px] h-[88vh]' : 'h-[560px] sm:h-[600px]'
+        } bg-space-950/95 border border-cyan-500/40 rounded-t-3xl sm:rounded-2xl shadow-[0_0_50px_rgba(0,240,255,0.25)] flex flex-col overflow-hidden transition-all duration-300 backdrop-blur-2xl`}
       >
         {/* Header */}
         <div className="p-3.5 bg-gradient-to-r from-space-900 via-space-950 to-space-900 border-b border-space-800 flex items-center justify-between gap-2 flex-shrink-0">
@@ -303,17 +246,31 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
                 <h3 className="text-xs sm:text-sm font-bold text-white tracking-wider flex items-center gap-1.5">
                   <span>ORBIT AI</span>
                   <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold">
-                    v2.5 SSA COPILOT
+                    SPACE INTELLIGENCE COPILOT
                   </span>
                 </h3>
               </div>
               <p className="text-[9px] text-slate-400 leading-none mt-0.5">
-                Live Astrodynamics Reasoning & 3D Telemetry Integration
+                Astrodynamics Reasoning • NOAA Weather • Launch Radar • 3D Actions
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Quick vs Deep Mode Switcher */}
+            <button
+              onClick={() => setAnalysisMode(analysisMode === 'quick' ? 'deep' : 'quick')}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition flex items-center gap-1 ${
+                analysisMode === 'deep'
+                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm'
+                  : 'bg-space-900 text-slate-400 border-space-800 hover:text-white'
+              }`}
+              title="Toggle Quick Answer vs Deep Analysis"
+            >
+              <SlidersHorizontal className="w-3 h-3" />
+              <span className="hidden sm:inline">{analysisMode === 'deep' ? 'DEEP ANALYSIS' : 'QUICK'}</span>
+            </button>
+
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className="hidden sm:flex p-1.5 hover:bg-space-800 rounded-lg text-slate-400 hover:text-white transition"
@@ -338,6 +295,19 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
           </div>
         </div>
 
+        {/* Context Status Strip */}
+        <div className="px-3.5 py-1 bg-space-950/80 border-b border-space-800/80 text-[10px] text-slate-400 flex items-center justify-between gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1.5 truncate">
+            <Info className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+            <span className="truncate">
+              {selectedObject ? `Context: ${selectedObject.name} (#${selectedObject.norad_id || selectedObject.id})` : (selectedConjunction ? `Context: Conjunction #${selectedConjunction.id}` : `Context: Global Catalog (${(stats?.tracked_objects || 32340).toLocaleString()} Objects)`)}
+            </span>
+          </div>
+          <span className="text-cyan-400 font-bold flex-shrink-0">
+            {analysisMode === 'deep' ? '🔬 DEEP REASONING' : '⚡ FAST SGP4'}
+          </span>
+        </div>
+
         {/* Chat History Messages Scroll Area */}
         <div className="flex-1 p-3.5 overflow-y-auto space-y-3.5 text-xs text-slate-200">
           {messages.map((m) => {
@@ -350,15 +320,15 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
                 <div
                   className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${
                     isAI
-                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
-                      : 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm'
+                      : 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm'
                   }`}
                 >
                   {isAI ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
                 </div>
 
                 <div
-                  className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed space-y-2 shadow-md ${
+                  className={`max-w-[88%] rounded-2xl p-3 text-xs leading-relaxed space-y-2.5 shadow-md ${
                     isAI
                       ? 'bg-space-900/95 border border-space-800 text-slate-200 rounded-tl-sm'
                       : 'bg-cyan-500/15 border border-cyan-500/40 text-cyan-100 rounded-tr-sm'
@@ -374,10 +344,7 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
                       {m.actions.map((act, idx) => (
                         <button
                           key={idx}
-                          onClick={() => {
-                            act.onClick();
-                            onClose();
-                          }}
+                          onClick={() => executeAction(act)}
                           className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-[10px] font-bold transition flex items-center gap-1 shadow-sm"
                         >
                           {act.icon === 'globe' && <Globe className="w-3 h-3 text-cyan-400" />}
@@ -385,24 +352,34 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
                           {act.icon === 'play' && <Play className="w-3 h-3 text-amber-400" />}
                           {act.icon === 'activity' && <Activity className="w-3 h-3 text-emerald-400" />}
                           {act.icon === 'shield' && <ShieldAlert className="w-3 h-3 text-cyan-400" />}
+                          {act.icon === 'sun' && <Sun className="w-3 h-3 text-amber-400" />}
+                          {act.icon === 'rocket' && <Rocket className="w-3 h-3 text-purple-400" />}
                           <span>{act.label}</span>
                         </button>
                       ))}
                     </div>
                   )}
 
-                  <div className={`text-[8px] text-right ${isAI ? 'text-slate-500' : 'text-cyan-400/60'}`}>
-                    {m.timestamp}
-                  </div>
+                  {/* Provenance & Scientific Source Badge */}
+                  {isAI && m.source && (
+                    <div className="pt-2 border-t border-space-800/60 flex items-center justify-between text-[9px] text-slate-400 font-mono">
+                      <span className="truncate max-w-[200px] text-slate-400">
+                        SRC: <span className="text-cyan-400 font-semibold">{m.source}</span>
+                      </span>
+                      <span className="text-slate-400">
+                        {m.confidence}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
 
           {isTyping && (
-            <div className="flex items-center gap-2 text-cyan-400 text-xs">
+            <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono">
               <Bot className="w-4 h-4 animate-bounce text-cyan-400" />
-              <span className="text-[11px] text-slate-400 italic">Orbit AI is reasoning over SGP4 state vectors...</span>
+              <span className="text-[11px] text-slate-400 italic">Orbit AI is reasoning over SGP4 ephemeris & multi-source telemetry...</span>
             </div>
           )}
 
@@ -429,7 +406,7 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
         <div className="p-3 bg-space-900 border-t border-space-800 flex items-center gap-2 flex-shrink-0">
           <input
             type="text"
-            placeholder="Ask about close approaches, risk, CAM, 3D orbit..."
+            placeholder="Ask about satellites, solar weather, launches, SGP4 math, 3D orbits..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -440,6 +417,7 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
             onClick={() => handleSendMessage()}
             disabled={!inputValue.trim() || isTyping}
             className="p-2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-30 disabled:pointer-events-none text-space-950 rounded-xl transition shadow-md flex-shrink-0"
+            title="Send Query"
           >
             <Send className="w-4 h-4" />
           </button>
