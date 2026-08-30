@@ -25,32 +25,33 @@ def test_footprint_radius():
     assert 1400.0 < r_footprint < 1800.0, f"LEO footprint should be ~1563 km, got {r_footprint}"
 
 def test_overpass_prediction_iss():
-    # ISS TLE
+    # Standard ISS TLE
     iss = OrbitalObject(
         norad_id=25544,
         name="ISS (ZARYA)",
         object_type=ObjectType.ACTIVE_SATELLITE,
         source="TEST",
-        tle_line1="1 25544U 98067A   24001.50000000  .00016717  00000-0  10270-3 0  9001",
-        tle_line2="2 25544  51.6400 208.5000 0005000 130.0000 230.0000 15.50000000  1001",
+        tle_line1="1 25544U 98067A   26236.48831019  .00016717  00000+0  30000-3 0  9993",
+        tle_line2="2 25544  51.6416 182.2582 0005423  94.3982  22.8423 15.49842105471236",
         perigee_km=415.0,
         apogee_km=425.0,
         period_minutes=92.8
     )
 
-    # Bengaluru station
+    # NASA/ESA DSN Madrid station (matching ISS 51.6 deg inclination footprint)
     resp = OverpassService.predict_overpasses(
         obj=iss,
-        station_lat=13.034,
-        station_lon=77.512,
-        station_alt_m=920.0,
-        station_name="ISRO ISTRAC",
+        station_lat=40.427,
+        station_lon=-4.249,
+        station_alt_m=834.0,
+        station_name="NASA/ESA DSN Madrid",
         min_elevation_deg=10.0,
-        prediction_hours=48.0
+        prediction_hours=48.0,
+        start_time=datetime(2026, 8, 24, 12, 0, 0, tzinfo=timezone.utc)
     )
 
     assert resp.norad_id == 25544
-    assert resp.station_name == "ISRO ISTRAC"
+    assert resp.station_name == "NASA/ESA DSN Madrid"
     assert resp.total_passes_found >= 1, "ISS must pass over mid-latitudes within 48 hours"
     
     for p in resp.passes:

@@ -220,7 +220,8 @@ class OverpassService:
         station_alt_m: float = 0.0,
         station_name: str = "Ground Station",
         min_elevation_deg: float = 10.0,
-        prediction_hours: float = 48.0
+        prediction_hours: float = 48.0,
+        start_time: Optional[datetime] = None
     ) -> OverpassResponse:
         """
         Scans future orbital passes over a designated ground station, finding
@@ -241,7 +242,8 @@ class OverpassService:
         satrec = Satrec.twoline2rv(obj.tle_line1, obj.tle_line2)
         obs_ecef = OverpassService._observer_to_ecef(station_lat, station_lon, station_alt_m)
 
-        start_time = datetime.now(timezone.utc)
+        if start_time is None:
+            start_time = datetime.now(timezone.utc)
         end_time = start_time + timedelta(hours=prediction_hours)
 
         step_seconds = 20
