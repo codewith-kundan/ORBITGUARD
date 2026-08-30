@@ -14,7 +14,8 @@ import {
   ChevronDown,
   Sparkles,
   Layers,
-  Crosshair
+  Crosshair,
+  Compass
 } from 'lucide-react';
 import { DataStatus, SystemStatistics } from '../types';
 
@@ -38,6 +39,7 @@ interface NavbarProps {
   onOpenASAT?: () => void;
   onOpenSpotter?: () => void;
   onOpenTrustCenter?: () => void;
+  onOpenLiveGuide?: () => void;
   onOpenJudgeDemo?: () => void;
 }
 
@@ -59,6 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenASAT,
   onOpenSpotter,
   onOpenTrustCenter,
+  onOpenLiveGuide,
   onOpenJudgeDemo
 }) => {
   const [isToolsOpen, setIsToolsOpen] = useState<boolean>(false);
@@ -296,15 +299,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Judge & Presentation Demo Tour */}
-          {onOpenJudgeDemo && (
+          {/* Live Web Tour & Interactive Platform Guide */}
+          {(onOpenLiveGuide || onOpenJudgeDemo) && (
             <button
-              onClick={onOpenJudgeDemo}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-500/50 text-amber-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
-              title="Launch 3-5 minute Guided Presentation Demo Tour"
+              onClick={onOpenLiveGuide || onOpenJudgeDemo}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 via-blue-600/20 to-indigo-600/20 hover:from-cyan-500/30 hover:to-indigo-600/30 border border-cyan-500/50 text-cyan-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
+              title="Launch Live Interactive Web Platform Tour & Guide"
             >
-              <span className="text-amber-400">★</span>
-              <span className="hidden sm:inline">DEMO TOUR</span>
+              <Compass className="w-3.5 h-3.5 text-cyan-400 animate-spin-slow" />
+              <span className="hidden sm:inline">LIVE GUIDE</span>
             </button>
           )}
 

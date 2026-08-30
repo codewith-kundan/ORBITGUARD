@@ -24,7 +24,7 @@ import { SkySpotterModal } from './components/SkySpotterModal';
 import { OrbitalSafetyBanner } from './components/OrbitalSafetyBanner';
 import { CinematicReplayModal } from './components/CinematicReplayModal';
 import { TrustCenterModal } from './components/TrustCenterModal';
-import { JudgeDemoModal } from './components/JudgeDemoModal';
+import { LiveWebGuide } from './components/LiveWebGuide';
 import { OrbitAIAssistant } from './components/OrbitAIAssistant';
 import { api } from './services/api';
 import { 
@@ -58,7 +58,7 @@ export default function App() {
   const [isConjunctionModalOpen, setIsConjunctionModalOpen] = useState<boolean>(false);
   const [isReplayModalOpen, setIsReplayModalOpen] = useState<boolean>(false);
   const [isTrustCenterOpen, setIsTrustCenterOpen] = useState<boolean>(false);
-  const [isJudgeDemoOpen, setIsJudgeDemoOpen] = useState<boolean>(false);
+  const [isLiveGuideOpen, setIsLiveGuideOpen] = useState<boolean>(false);
   const [isOrbitAIOpen, setIsOrbitAIOpen] = useState<boolean>(false);
   const [isSystemHealthModalOpen, setIsSystemHealthModalOpen] = useState<boolean>(false);
   const [isSpaceWeatherOpen, setIsSpaceWeatherOpen] = useState<boolean>(false);
@@ -267,7 +267,7 @@ export default function App() {
         onOpenASAT={() => setIsASATOpen(true)}
         onOpenSpotter={() => setIsSpotterOpen(true)}
         onOpenTrustCenter={() => setIsTrustCenterOpen(true)}
-        onOpenJudgeDemo={() => setIsJudgeDemoOpen(true)}
+        onOpenLiveGuide={() => setIsLiveGuideOpen(true)}
       />
 
       {/* Global Data Provider Status Bar */}
@@ -545,23 +545,28 @@ export default function App() {
         onClose={() => setIsTrustCenterOpen(false)}
       />
 
-      {/* 3-5 Minute Presentation & Judge Demo Tour Modal */}
-      <JudgeDemoModal
-        isOpen={isJudgeDemoOpen}
-        onClose={() => setIsJudgeDemoOpen(false)}
+      {/* Live Interactive Web Platform Guide & Feature Tour */}
+      <LiveWebGuide
+        isOpen={isLiveGuideOpen}
+        onClose={() => setIsLiveGuideOpen(false)}
         conjunctions={conjunctions}
         objects={objects}
         stats={stats}
         onNavigateToTab={(tab) => setActiveTab(tab)}
+        onSelectObject={handleSelectObject}
         onSelectConjunction={handleSelectConjunction}
         onOpenConjunctionDetails={handleOpenConjunctionModal}
         onOpenReplay={handleOpenReplay}
         onOpenCAM={handleOpenCAM}
         onOpenCDM={handleOpenCDM}
         onOpenTrustCenter={() => {
-          setIsJudgeDemoOpen(false);
+          setIsLiveGuideOpen(false);
           setIsTrustCenterOpen(true);
         }}
+        onOpenOrbitAI={() => setIsOrbitAIOpen(true)}
+        onOpenSpaceWeather={() => setIsSpaceWeatherOpen(true)}
+        onOpenBreakup={handleOpenBreakup}
+        onTriggerScreening={handleScreenConjunctions}
       />
 
       {/* Specialized Orbit AI Space Intelligence Copilot Modal */}
