@@ -1701,20 +1701,16 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
         </div>
       </div>
 
-      {/* RIGHT PANEL: Real-Time Screened Conjunctions & Telemetry HUD */}
+      {/* RIGHT PANEL: 3D Telemetry & Encounter HUD */}
       {isRightPanelMinimized ? (
         <button
           type="button"
           onClick={() => setIsRightPanelMinimized(false)}
           className="absolute top-14 sm:top-16 right-3 sm:right-4 z-30 bg-slate-900/90 hover:bg-slate-900 backdrop-blur-xl border border-cyan-500/60 shadow-[0_0_25px_rgba(0,240,255,0.3)] px-3.5 py-2 rounded-xl font-mono text-xs text-white flex items-center gap-2.5 transition active:scale-95 group cursor-pointer"
         >
-          <div className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
-          </div>
           <Crosshair className="w-4 h-4 text-cyan-400 animate-pulse" />
           <span className="font-bold tracking-wider text-cyan-300 text-xs">
-            {conjunctions.length > 0 ? `${conjunctions.length} SCREENED EVENTS` : 'CONJUNCTIONS HUD'}
+            {selectedObject ? selectedObject.name : (selectedConjunction ? 'ENCOUNTER HUD' : 'TELEMETRY HUD')}
           </span>
           <ChevronLeft className="w-4 h-4 text-cyan-400 group-hover:-translate-x-0.5 transition-transform" />
         </button>
@@ -1733,11 +1729,8 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                <div className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
-                </div>
-                <span>SCREENED CONJUNCTIONS ({conjunctions.length > 0 ? conjunctions.length : 0})</span>
+                <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
+                <span>3D CLOSE PASSES ({conjunctions.length > 0 ? conjunctions.length : 0})</span>
               </button>
 
               {selectedObject && (
@@ -1750,7 +1743,6 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
                   <span className="truncate max-w-[90px]">{selectedObject.name}</span>
                 </button>
               )}

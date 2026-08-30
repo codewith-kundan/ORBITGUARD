@@ -140,7 +140,7 @@ export const OrbitalSafetyBanner: React.FC<OrbitalSafetyBannerProps> = ({
               <span className="text-[10px] text-slate-400 hidden sm:inline">•</span>
               <span className="text-[10px] text-cyan-300 font-semibold flex items-center gap-1">
                 <Radio className="w-3 h-3 text-cyan-400 animate-pulse" />
-                {upcoming.length} Screened Conjunction Events ({syncTimeFormatted})
+                {upcoming.length} Screened Conjunctions ({syncTimeFormatted})
               </span>
             </div>
             <h3 className="text-xs sm:text-sm font-bold text-white tracking-wide mt-0.5">

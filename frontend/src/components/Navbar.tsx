@@ -83,7 +83,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { key: 'space', label: '3D Globe', icon: Globe },
     { key: 'map2d', label: '2D Ground Track', icon: Radio },
     { key: 'catalog', label: 'Catalog', icon: Satellite },
-    { key: 'conjunctions', label: 'Conjunctions', icon: ShieldAlert, count: alertCount > 0 ? alertCount : undefined, isAlert: alertCount > 0 },
+    { key: 'conjunctions', label: 'Conjunction Center', icon: ShieldAlert, count: alertCount > 0 ? alertCount : undefined, isAlert: alertCount > 0 },
     { key: 'analytics', label: 'Analytics', icon: BarChart3 },
   ];
 
