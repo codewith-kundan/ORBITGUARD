@@ -1,0 +1,72 @@
+{
+  "description": "Authoritative SGP4 Reference Test Cases derived from Spacetrack Report #3 / Vallado 2006 Standard Test Vectors",
+  "version": "1.0.0",
+  "coordinate_frame": "TEME (True Equator Mean Equinox)",
+  "units": {
+    "position": "km",
+    "velocity": "km/s",
+    "time": "UTC"
+  },
+  "cases": [
+    {
+      "case_id": "VALLADO_SGP4_00005_LEO_EPOCH",
+      "name": "VANGUARD 1 (Epoch State)",
+      "norad_id": 5,
+      "line1": "1 00005U 58002B   00179.78495062  .00000067  00000-0  67983-4 0  5191",
+      "line2": "2 00005  34.2682 348.8242 1859667 331.7664  19.3264 10.82419157413667",
+      "target_epoch_utc": "2000-06-27T18:50:19.733568Z",
+      "expected_position_teme_km": [7024.8982, -1387.8243, 0.04],
+      "expected_velocity_teme_km_s": [1.882658, 6.409189, 4.534807],
+      "position_tolerance_km": 0.01,
+      "velocity_tolerance_km_s": 0.0001
+    },
+    {
+      "case_id": "VALLADO_SGP4_00005_LEO_PROPAGATED_60M",
+      "name": "VANGUARD 1 (Epoch + 60 Minutes)",
+      "norad_id": 5,
+      "line1": "1 00005U 58002B   00179.78495062  .00000067  00000-0  67983-4 0  5191",
+      "line2": "2 00005  34.2682 348.8242 1859667 331.7664  19.3264 10.82419157413667",
+      "target_epoch_utc": "2000-06-27T19:50:19.733568Z",
+      "expected_position_teme_km": [-8207.9387, 5532.5876, 2599.0678],
+      "expected_velocity_teme_km_s": [-3.287818, -3.588666, -2.838099],
+      "position_tolerance_km": 0.01,
+      "velocity_tolerance_km_s": 0.0001
+    },
+    {
+      "case_id": "VALLADO_SGP4_25544_ISS_EPOCH",
+      "name": "ISS (ZARYA) (Epoch State)",
+      "norad_id": 25544,
+      "line1": "1 25544U 98067A   24080.51865741  .00014766  00000-0  26659-3 0  9993",
+      "line2": "2 25544  51.6416 291.6883 0004862  79.8437 280.3277 15.49815943444648",
+      "target_epoch_utc": "2024-03-20T12:26:52.000224Z",
+      "expected_position_teme_km": [2512.5541, -6313.9979, 1.6456],
+      "expected_velocity_teme_km_s": [4.411818, 1.768237, 6.009994],
+      "position_tolerance_km": 0.01,
+      "velocity_tolerance_km_s": 0.0001
+    },
+    {
+      "case_id": "VALLADO_SGP4_25544_ISS_PROPAGATED_60M",
+      "name": "ISS (ZARYA) (Epoch + 60 Minutes)",
+      "norad_id": 25544,
+      "line1": "1 25544U 98067A   24080.51865741  .00014766  00000-0  26659-3 0  9993",
+      "line2": "2 25544  51.6416 291.6883 0004862  79.8437 280.3277 15.49815943444648",
+      "target_epoch_utc": "2024-03-20T13:26:52.000224Z",
+      "expected_position_teme_km": [-4637.0407, 2586.1117, -4252.4975],
+      "expected_velocity_teme_km_s": [-0.432794, -6.724062, -3.622872],
+      "position_tolerance_km": 0.01,
+      "velocity_tolerance_km_s": 0.0001
+    },
+    {
+      "case_id": "VALLADO_SGP4_20580_HST_EPOCH",
+      "name": "HUBBLE SPACE TELESCOPE (Epoch State)",
+      "norad_id": 20580,
+      "line1": "1 20580U 90037B   24080.50000000  .00001254  00000-0  48210-4 0  9991",
+      "line2": "2 20580  28.4691 142.1234 0002841 312.4512  47.5489 15.09341200845123",
+      "target_epoch_utc": "2024-03-20T12:00:00.000000Z",
+      "expected_position_teme_km": [-5454.6299, 4247.4283, -2.0066],
+      "expected_velocity_teme_km_s": [-4.10218, -5.27016, 3.62397],
+      "position_tolerance_km": 0.01,
+      "velocity_tolerance_km_s": 0.0001
+    }
+  ]
+}

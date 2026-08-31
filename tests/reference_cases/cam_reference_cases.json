@@ -1,0 +1,44 @@
+{
+  "description": "Deterministic Reference Collision Avoidance Maneuver (CAM) Test Cases for Gauss Impulses, Tsiolkovsky Hydrazine Mass, and Post-Maneuver State",
+  "version": "1.0.0",
+  "constants": {
+    "mu_earth_km3_s2": 398600.4418,
+    "g0_m_s2": 9.80665,
+    "hydrazine_isp_sec": 220.0,
+    "standard_dry_mass_kg": 500.0
+  },
+  "cases": [
+    {
+      "case_id": "CAM_REF_001_PROGRADE_IN_TRACK",
+      "strategy": "PROGRADE",
+      "spacecraft_mass_kg": 500.0,
+      "isp_sec": 220.0,
+      "semi_major_axis_km": 6798.137,
+      "initial_miss_distance_km": 0.85,
+      "delta_v_m_s": 0.505,
+      "lead_time_hours": 12.0,
+      "expected_fuel_cost_kg": 0.117,
+      "fuel_tolerance_kg": 0.005,
+      "expected_gain_km": 24.15,
+      "gain_tolerance_km": 1.0
+    },
+    {
+      "case_id": "CAM_REF_002_MIN_FUEL_MULTI_AXIS",
+      "strategy": "MINIMUM_FUEL",
+      "spacecraft_mass_kg": 500.0,
+      "isp_sec": 220.0,
+      "semi_major_axis_km": 6798.137,
+      "initial_miss_distance_km": 1.10,
+      "delta_v_vector_m_s": {
+        "delta_v_r": 0.0,
+        "delta_v_t": 0.303,
+        "delta_v_w": 0.126
+      },
+      "expected_total_delta_v_m_s": 0.328,
+      "expected_fuel_cost_kg": 0.076,
+      "fuel_tolerance_kg": 0.005,
+      "expected_gain_km": 26.29,
+      "gain_tolerance_km": 1.0
+    }
+  ]
+}

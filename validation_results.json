@@ -1,0 +1,232 @@
+{
+  "timestamp_utc": "2026-08-31T09:05:16.697501+00:00",
+  "platform": "ORBITGUARD SSA/CARA Engine v2.0.0",
+  "total_tests": 11,
+  "passed": 11,
+  "failed": 0,
+  "pass_rate_percent": 100.0,
+  "runtime_seconds": 0.0017,
+  "metrics_summary": {
+    "mean_position_error_km": 5.1e-05,
+    "max_position_error_km": 6.3e-05,
+    "mean_velocity_error_km_s": 1e-06,
+    "max_velocity_error_km_s": 1e-06,
+    "mean_tca_error_sec": 0.0,
+    "mean_miss_distance_error_km": 4.1e-05,
+    "mean_pc_error_percent": 0.0,
+    "mean_cam_fuel_error_kg": 0.0
+  },
+  "subsystems": {
+    "SGP4_PROPAGATION": {
+      "status": "PASS",
+      "tests": [
+        {
+          "test_id": "VALLADO_SGP4_00005_LEO_EPOCH",
+          "name": "SGP4 Propagation: VANGUARD 1 (Epoch State)",
+          "subsystem": "SGP4_PROPAGATION",
+          "expected_position_km": [
+            7024.8982,
+            -1387.8243,
+            0.04
+          ],
+          "actual_position_km": [
+            7024.8982,
+            -1387.8243,
+            0.04
+          ],
+          "position_error_km": 5.6e-05,
+          "position_tolerance_km": 0.01,
+          "velocity_error_km_s": 1e-06,
+          "velocity_tolerance_km_s": 0.0001,
+          "duration_ms": 0.047,
+          "status": "PASS"
+        },
+        {
+          "test_id": "VALLADO_SGP4_00005_LEO_PROPAGATED_60M",
+          "name": "SGP4 Propagation: VANGUARD 1 (Epoch + 60 Minutes)",
+          "subsystem": "SGP4_PROPAGATION",
+          "expected_position_km": [
+            -8207.9387,
+            5532.5876,
+            2599.0678
+          ],
+          "actual_position_km": [
+            -8207.9387,
+            5532.5876,
+            2599.0678
+          ],
+          "position_error_km": 4.7e-05,
+          "position_tolerance_km": 0.01,
+          "velocity_error_km_s": 0.0,
+          "velocity_tolerance_km_s": 0.0001,
+          "duration_ms": 0.014,
+          "status": "PASS"
+        },
+        {
+          "test_id": "VALLADO_SGP4_25544_ISS_EPOCH",
+          "name": "SGP4 Propagation: ISS (ZARYA) (Epoch State)",
+          "subsystem": "SGP4_PROPAGATION",
+          "expected_position_km": [
+            2512.5541,
+            -6313.9979,
+            1.6456
+          ],
+          "actual_position_km": [
+            2512.5541,
+            -6313.9979,
+            1.6456
+          ],
+          "position_error_km": 6e-05,
+          "position_tolerance_km": 0.01,
+          "velocity_error_km_s": 0.0,
+          "velocity_tolerance_km_s": 0.0001,
+          "duration_ms": 0.012,
+          "status": "PASS"
+        },
+        {
+          "test_id": "VALLADO_SGP4_25544_ISS_PROPAGATED_60M",
+          "name": "SGP4 Propagation: ISS (ZARYA) (Epoch + 60 Minutes)",
+          "subsystem": "SGP4_PROPAGATION",
+          "expected_position_km": [
+            -4637.0407,
+            2586.1117,
+            -4252.4975
+          ],
+          "actual_position_km": [
+            -4637.0407,
+            2586.1117,
+            -4252.4975
+          ],
+          "position_error_km": 2.9e-05,
+          "position_tolerance_km": 0.01,
+          "velocity_error_km_s": 1e-06,
+          "velocity_tolerance_km_s": 0.0001,
+          "duration_ms": 0.011,
+          "status": "PASS"
+        },
+        {
+          "test_id": "VALLADO_SGP4_20580_HST_EPOCH",
+          "name": "SGP4 Propagation: HUBBLE SPACE TELESCOPE (Epoch State)",
+          "subsystem": "SGP4_PROPAGATION",
+          "expected_position_km": [
+            -5454.6299,
+            4247.4283,
+            -2.0066
+          ],
+          "actual_position_km": [
+            -5454.6299,
+            4247.4283,
+            -2.0066
+          ],
+          "position_error_km": 6.3e-05,
+          "position_tolerance_km": 0.01,
+          "velocity_error_km_s": 1e-06,
+          "velocity_tolerance_km_s": 0.0001,
+          "duration_ms": 0.01,
+          "status": "PASS"
+        }
+      ],
+      "runtime_ms": 1.11
+    },
+    "COORDINATE_TRANSFORMS": {
+      "status": "PASS",
+      "tests": [
+        {
+          "test_id": "COORD_TEME_ECEF_MAGNITUDE",
+          "name": "TEME -> ECEF Vector Norm Invariance",
+          "subsystem": "COORDINATE_TRANSFORMS",
+          "expected": 7071.067811865475,
+          "actual": 7071.067811865475,
+          "absolute_error": 0.0,
+          "tolerance": 1e-06,
+          "status": "PASS"
+        },
+        {
+          "test_id": "COORD_WGS84_EQUATORIAL_ANCHOR",
+          "name": "ECEF -> WGS84 Geodetic Equatorial Anchor (500 km)",
+          "subsystem": "COORDINATE_TRANSFORMS",
+          "expected_lat_lon_alt": [
+            0.0,
+            0.0,
+            500.0
+          ],
+          "actual_lat_lon_alt": [
+            0.0,
+            0.0,
+            500.0
+          ],
+          "absolute_error": 0.0,
+          "tolerance": 0.001,
+          "status": "PASS"
+        }
+      ],
+      "runtime_ms": 0.01
+    },
+    "CONJUNCTION_ASSESSMENT": {
+      "status": "PASS",
+      "tests": [
+        {
+          "test_id": "CONJ_REF_001_CRITICAL_HEAD_ON",
+          "name": "Conjunction Assessment: High-Speed Head-on Crossing (Starlink vs Cosmos Debris)",
+          "subsystem": "CONJUNCTION_ASSESSMENT",
+          "expected_miss_km": 1.0797,
+          "actual_miss_km": 1.0797,
+          "miss_error_km": 3.4e-05,
+          "expected_relative_velocity_km_s": 14.9364,
+          "actual_relative_velocity_km_s": 14.9364,
+          "expected_foster_pc_percent": 0.001,
+          "actual_foster_pc_percent": 0.001,
+          "pc_error_percent": 0.0,
+          "duration_ms": 0.015,
+          "status": "PASS"
+        },
+        {
+          "test_id": "CONJ_REF_002_COPLANAR_OVERTAKE",
+          "name": "Conjunction Assessment: Coplanar Co-directional Overtake Encounter",
+          "subsystem": "CONJUNCTION_ASSESSMENT",
+          "expected_miss_km": 2.8208,
+          "actual_miss_km": 2.8208,
+          "miss_error_km": 4.8e-05,
+          "expected_relative_velocity_km_s": 0.0412,
+          "actual_relative_velocity_km_s": 0.0412,
+          "expected_foster_pc_percent": 0.0004,
+          "actual_foster_pc_percent": 0.0004,
+          "pc_error_percent": 0.0,
+          "duration_ms": 0.009,
+          "status": "PASS"
+        }
+      ],
+      "runtime_ms": 0.36
+    },
+    "CAM_MANEUVER_PLANNER": {
+      "status": "PASS",
+      "tests": [
+        {
+          "test_id": "CAM_REF_001_PROGRADE_IN_TRACK",
+          "name": "CAM Propellant Calculation: PROGRADE",
+          "subsystem": "CAM_MANEUVER_PLANNER",
+          "delta_v_m_s": 0.505,
+          "expected_fuel_kg": 0.117,
+          "actual_fuel_kg": 0.117,
+          "fuel_error_kg": 0.0,
+          "fuel_tolerance_kg": 0.005,
+          "duration_ms": 0.004,
+          "status": "PASS"
+        },
+        {
+          "test_id": "CAM_REF_002_MIN_FUEL_MULTI_AXIS",
+          "name": "CAM Propellant Calculation: MINIMUM_FUEL",
+          "subsystem": "CAM_MANEUVER_PLANNER",
+          "delta_v_m_s": 0.3282,
+          "expected_fuel_kg": 0.076,
+          "actual_fuel_kg": 0.076,
+          "fuel_error_kg": 0.0,
+          "fuel_tolerance_kg": 0.005,
+          "duration_ms": 0.002,
+          "status": "PASS"
+        }
+      ],
+      "runtime_ms": 0.18
+    }
+  }
+}

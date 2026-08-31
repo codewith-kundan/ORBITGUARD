@@ -21,9 +21,15 @@ from backend.app.api.decay import router as decay_router
 from backend.app.api.compliance import router as compliance_router
 from backend.app.api.launches import router as launches_router
 from backend.app.api.spotter import router as spotter_router
+from backend.app.api.validation import router as validation_router
+from backend.app.api.ai_copilot import router as ai_copilot_router
+from backend.app.api.cases import router as cases_router
+from backend.app.api.telemetry import router as telemetry_router
+from backend.app.api.demo import router as demo_router
 from backend.app.models.base import Base, engine, get_db, SessionLocal, auto_migrate_schema
 from backend.app.models.orbital_object import OrbitalObject, SyncLog
 from backend.app.models.conjunction import Conjunction
+from backend.app.models.conjunction_case import ConjunctionCase, AuditEvent, PerformanceRunLog
 from backend.app.services.tle_service import TLEService
 from backend.app.services.conjunction_service import ConjunctionService
 from backend.app.services.cache_service import fast_cache
@@ -37,7 +43,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="ORBITGUARD API",
     description="Space Debris Tracking & Real-Time Orbital Conjunction Screening Engine",
-    version="2.0.0",
+    version="2.1.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -62,6 +68,11 @@ app.include_router(decay_router)
 app.include_router(compliance_router)
 app.include_router(launches_router)
 app.include_router(spotter_router)
+app.include_router(validation_router)
+app.include_router(ai_copilot_router)
+app.include_router(cases_router)
+app.include_router(telemetry_router)
+app.include_router(demo_router)
 
 async def periodic_sync_worker():
     """Background task running periodic orbital ephemeris synchronization."""

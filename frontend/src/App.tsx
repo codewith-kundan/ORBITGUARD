@@ -26,6 +26,11 @@ import { CinematicReplayModal } from './components/CinematicReplayModal';
 import { TrustCenterModal } from './components/TrustCenterModal';
 import { LiveWebGuide } from './components/LiveWebGuide';
 import { OrbitAIAssistant } from './components/OrbitAIAssistant';
+import { LiveValidationCenter } from './components/LiveValidationCenter';
+import { ConjunctionCaseView } from './components/ConjunctionCaseView';
+import { PresentationMode } from './components/PresentationMode';
+import { PerformanceDashboardModal } from './components/PerformanceDashboardModal';
+import { EncounterReplayModal } from './components/EncounterReplayModal';
 import { api } from './services/api';
 import { 
   OrbitalObject, 
@@ -72,6 +77,10 @@ export default function App() {
   const [isBreakupModalOpen, setIsBreakupModalOpen] = useState<boolean>(false);
   const [isReentryModalOpen, setIsReentryModalOpen] = useState<boolean>(false);
   const [isCDMModalOpen, setIsCDMModalOpen] = useState<boolean>(false);
+  const [isPresentationModeOpen, setIsPresentationModeOpen] = useState<boolean>(false);
+  const [isPerformanceDashboardOpen, setIsPerformanceDashboardOpen] = useState<boolean>(false);
+  const [isEncounterReplayOpen, setIsEncounterReplayOpen] = useState<boolean>(false);
+  const [caseConjunctionId, setCaseConjunctionId] = useState<number | null>(null);
   const [overpassTargetObject, setOverpassTargetObject] = useState<OrbitalObject | null>(null);
   const [reentryTargetObject, setReentryTargetObject] = useState<OrbitalObject | null>(null);
 
@@ -268,6 +277,8 @@ export default function App() {
         onOpenSpotter={() => setIsSpotterOpen(true)}
         onOpenTrustCenter={() => setIsTrustCenterOpen(true)}
         onOpenLiveGuide={() => setIsLiveGuideOpen(true)}
+        onOpenPresentationMode={() => setIsPresentationModeOpen(true)}
+        onOpenPerformanceTelemetry={() => setIsPerformanceDashboardOpen(true)}
       />
 
       {/* Global Data Provider Status Bar */}
@@ -411,6 +422,33 @@ export default function App() {
                   setActiveTab('space');
                 }}
                 onSelectObject={handleSelectObject}
+              />
+            )}
+
+            {/* 6. SCIENTIFIC VALIDATION & PROVENANCE CENTER */}
+            {activeTab === 'validation' && (
+              <LiveValidationCenter
+                conjunctions={conjunctions}
+                onSelectConjunction={handleOpenConjunctionModal}
+                onOpenCAM={handleOpenCAM}
+              />
+            )}
+
+            {/* 7. CONJUNCTION CASE MANAGEMENT & OPERATIONAL WORKFLOW */}
+            {activeTab === 'case' && (
+              <ConjunctionCaseView
+                conjunctionId={caseConjunctionId || (selectedConjunction?.id ?? conjunctions[0]?.id ?? 1)}
+                onBack={() => setActiveTab('conjunctions')}
+                onOpen3D={(id) => {
+                  const target = conjunctions.find(c => c.id === id);
+                  if (target) setSelectedConjunction(target);
+                  setActiveTab('space');
+                }}
+                onOpenCAM={(id) => {
+                  const target = conjunctions.find(c => c.id === id);
+                  if (target) setSelectedConjunction(target);
+                  setIsCAMModalOpen(true);
+                }}
               />
             )}
           </>
@@ -619,6 +657,31 @@ export default function App() {
         onScreenConjunctions={handleScreenConjunctions}
         isScreening={isScreening}
       />
+
+      {/* SIH Official 8-Stage Presentation Mode Modal */}
+      <PresentationMode
+        isOpen={isPresentationModeOpen}
+        onClose={() => setIsPresentationModeOpen(false)}
+        onSelectConjunction={(id) => {
+          setCaseConjunctionId(id);
+          setActiveTab('case');
+        }}
+      />
+
+      {/* Performance Telemetry & Subsystem Profiler Modal */}
+      <PerformanceDashboardModal
+        isOpen={isPerformanceDashboardOpen}
+        onClose={() => setIsPerformanceDashboardOpen(false)}
+      />
+
+      {/* Physics-Grounded Encounter Replay Modal */}
+      {isEncounterReplayOpen && (replayConjunction || selectedConjunction || conjunctions[0]) && (
+        <EncounterReplayModal
+          isOpen={isEncounterReplayOpen}
+          onClose={() => setIsEncounterReplayOpen(false)}
+          conjunction={replayConjunction || selectedConjunction || conjunctions[0]}
+        />
+      )}
     </div>
   );
 }

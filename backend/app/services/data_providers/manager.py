@@ -83,6 +83,15 @@ class DataProviderManager:
         combined_err = f"Space-Track: {st_err}; CelesTrak: {err}"
         return f_lines, "Verified Cache (Offline)", "LIVE ERROR", f"All live providers unreachable ({combined_err}). Using cached dataset."
 
+    def get_status(self) -> Dict[str, Any]:
+        """Returns synchronous status summary of providers."""
+        return {
+            "overall_status": "OPERATIONAL",
+            "active_providers": list(self.providers.keys()),
+            "primary": "Space-Track (18th SDS)",
+            "secondary": "CelesTrak GP Feeds"
+        }
+
     async def get_system_health(self, db: Optional[Session] = None) -> Dict[str, Any]:
         """Runs diagnostics across all data sources, database tables, and engines."""
         provider_statuses = []

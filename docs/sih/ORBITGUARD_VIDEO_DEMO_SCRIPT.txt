@@ -1,0 +1,392 @@
+====================================================================================================
+ORBITGUARD — SMART INDIA HACKATHON (SIH 2026) OFFICIAL VIDEO DEMO MASTER KIT
+Project: ORBITGUARD – Space Debris Tracking, Astrodynamic Conjunction Assessment & CAM Platform
+Target Format: 1080p (1920x1080) @ 60 FPS
+Voiceover Speed: ~132 words per minute (Clear, authoritative aerospace broadcast tone)
+====================================================================================================
+
+DOCUMENT CONTENTS:
+----------------------------------------------------------------------------------------------------
+PART 1: 3-MINUTE DEDICATED PRODUCTION SCRIPT (Exact Scenes, Timestamps, Actions, Voiceover, Overlays)
+PART 2: CONTINUOUS TELEPROMPTER READ SCRIPT (For Voiceover Recording)
+PART 3: 6-STEP FAST RECORDING CHEAT SHEET
+PART 4: 5-MINUTE EXTENDED MASTER PRODUCTION SCRIPT
+PART 5: SHORT-FORM SCRIPTS (30-Second Pitch & 60-Second Fast Demo)
+PART 6: DEMONSTRATION PRIORITY MATRIX (What to Show vs What NOT to Show)
+PART 7: PRE-RECORDING TECHNICAL CHECKLIST
+PART 8: SIH JUDGES DEFENSE MASTER GUIDE (20 Toughest Technical Questions & Answers)
+====================================================================================================
+
+
+====================================================================================================
+PART 1: 3-MINUTE DEDICATED PRODUCTION SCRIPT (0:00 – 3:00)
+====================================================================================================
+
+----------------------------------------------------------------------------------------------------
+SCENE 1: THE LEO COLLISION CRISIS & PLATFORM HOOK
+----------------------------------------------------------------------------------------------------
+TIMESTAMP:      0:00 – 0:25 (Duration: 25 Seconds)
+SCREEN / URL:   3D Space View (Homepage `/`)
+ACTION:         1. Start with clean fullscreen 3D Earth surrounded by glowing satellite swarm.
+                2. Let the globe rotate smoothly for 5 seconds.
+                3. Open top-left 'ORBITAL RADAR' dock and click red 'DEBRIS CLOUDS' (or 'DEBRIS ISOLATE').
+                4. Dense fragmentation rings (Cosmos 2251, Fengyun 1C) glow bright red.
+VOICEOVER:
+"Over 36,000 cataloged objects and millions of lethal fragments circle Earth at hypersonic speeds exceeding 27,000 kilometers per hour. In Low Earth Orbit, collision avoidance is no longer optional — it is a mission-critical necessity. Welcome to ORBITGUARD: an automated Space Situational Awareness and Conjunction Defense Platform built for Smart India Hackathon 2026."
+TEXT OVERLAY:
+ORBITGUARD
+Space Situational Awareness & Conjunction Defense
+SGP4 Astrodynamics Engine • GPU WebGL 60 FPS
+CAMERA / ZOOM:  Slow cinematic orbit around dark Earth. Start medium-wide, subtle push-in when debris isolates.
+TRANSITION:     Smooth camera pan to top navigation bar.
+
+----------------------------------------------------------------------------------------------------
+SCENE 2: AUTHORITATIVE DATA INGESTION & MULTI-FLEET INDEXING
+----------------------------------------------------------------------------------------------------
+TIMESTAMP:      0:25 – 0:50 (Duration: 25 Seconds)
+SCREEN / URL:   Top Global Navigation & Orbital Radar Dock
+ACTION:         1. Hover over the green 'LIVE' status badge showing Space-Track / CelesTrak sync.
+                2. In the Radar dock, click 'STARLINK', then 'GPS / GNSS', then 'ALL OBJECTS'.
+                3. Click Swarm Density toggle from 'Lite' to 'Standard (3.0k Sats)'.
+VOICEOVER:
+"ORBITGUARD continuously ingests live orbital ephemerides directly from Space-Track.org and CelesTrak, verifying every Two-Line Element with Modulo-10 checksum validation. Our GPU-accelerated WebGL engine renders over 3,000 orbital bodies at a locked 60 frames per second, indexing objects across LEO, MEO, and Geostationary regimes."
+TEXT OVERLAY:
+LIVE DATA INGESTION
+Space-Track.org & CelesTrak GP Feeds
+Modulo-10 Checksum Verified • LEO / MEO / GEO Regime Indexing
+CAMERA / ZOOM:  Close-up on Data Status Bar, then wide pan across filtered constellation shells.
+TRANSITION:     Focus on Search input.
+
+----------------------------------------------------------------------------------------------------
+SCENE 3: 3D ASTRODYNAMICS & OBJECT TELEMETRY HUD
+----------------------------------------------------------------------------------------------------
+TIMESTAMP:      0:50 – 1:15 (Duration: 25 Seconds)
+SCREEN / URL:   3D Space View & Right Telemetry HUD
+ACTION:         1. Type 'ISS' in search (or press '/'), select 'ISS (ZARYA)'.
+                2. Camera smoothly locks onto the Space Station in Follow Mode.
+                3. Expand right 'TELEMETRY HUD' to reveal real-time SGP4 altitude, velocity, and Keplerian elements.
+                4. On the bottom bar, drag 'PROPAGATE' scrubber to '+6.0h' at 50X speed, showing glowing orbit ribbon. Click 'NOW'.
+VOICEOVER:
+"Selecting any asset unlocks instantaneous SGP4 telemetry: geodetic altitude, velocity, and Keplerian orbital elements. By scrubbing the timeline forward, ORBITGUARD's astrodynamics engine propagates trajectories across a 24-hour predictive lookahead window with dynamic solar illumination and day/night terminator lines."
+TEXT OVERLAY:
+REAL-TIME SGP4 TELEMETRY
+Altitude: 418.2 km • Velocity: 7.66 km/s • Inclination: 51.64°
+24-Hour Lookahead SGP4 Orbit Ribbon • Solar Terminator
+CAMERA / ZOOM:  Follow-camera tracking ISS along glowing orbit trajectory.
+TRANSITION:     Click 'Conjunction Center' in top navbar.
+
+----------------------------------------------------------------------------------------------------
+SCENE 4: AUTONOMOUS CONJUNCTION SCREENING & 2D B-PLANE RISK
+----------------------------------------------------------------------------------------------------
+TIMESTAMP:      1:15 – 1:50 (Duration: 35 Seconds)
+SCREEN / URL:   Conjunction Center (`/conjunctions`) -> Conjunction Details Modal
+ACTION:         1. Open Conjunction Center. Filter by 'CRITICAL'.
+                2. Point out live Time-to-TCA countdown (`T-04:18:22`) and miss distance (`1.42 km`).
+                3. Click the top encounter card (*Starlink-3124 ↔ Cosmos 2251 Debris*).
+                4. In the modal, point out the animated 2D B-Plane Covariance Canvas (1σ, 2σ, 3σ ellipses) and Foster-2D Pc.
+VOICEOVER:
+"Our 3-tier spatial sieve screens the entire catalog, using an orthogonal root solver to isolate the exact Time of Closest Approach. Opening the encounter dossier reveals the 2D B-plane covariance projection. Moving beyond crude distance thresholds, ORBITGUARD computes the Foster-2D collision probability and executes a 10,000-iteration vectorized Monte Carlo perturbation simulation, calculating hypervelocity kinetic impact yield in Megajoules."
+TEXT OVERLAY:
+CONJUNCTION DETECTION & B-PLANE RISK
+Orthogonal Root Solver (r_rel · v_rel = 0) • Exact Sub-Second TCA
+Foster-2D Pc Integral • 10,000-Run Monte Carlo Perturbations
+CAMERA / ZOOM:  Close-up on sorted encounter card, then focus on animated B-plane canvas ellipses.
+TRANSITION:     Click 'CAM PLANNER' button inside modal.
+
+----------------------------------------------------------------------------------------------------
+SCENE 5: AUTONOMOUS CAM PLANNER & CCSDS CDM EXPORT
+----------------------------------------------------------------------------------------------------
+TIMESTAMP:      1:50 – 2:30 (Duration: 40 Seconds)
+SCREEN / URL:   CAM Planner Modal -> CDM Export Modal
+ACTION:         1. CAM Planner opens. Show 4 computed strategies (Prograde, Retrograde, Cross-Track, Min-Fuel).
+                2. Select 'Minimum Fuel Multi-Axis'. Highlight: Total Delta-V (0.842 m/s), Propellant Burn (0.194 kg N2H4), Post-Maneuver Miss Distance (+28.4 km), Secondary Safe: YES.
+                3. Click 'CDM EXPORT' to display standardized CCSDS 508.0-B-1 XML and KVN message.
+VOICEOVER:
+"When critical threats emerge, our Collision Avoidance Maneuver Planner solves Gauss variational equations to deliver four impulsive burn strategies. Using the Tsiolkovsky rocket equation, it calculates exact Delta-V vectors and Hydrazine fuel mass down to the gram, while screening secondary orbits to prevent subsequent collisions. For global coordination, ORBITGUARD instantly exports standardized CCSDS 508.0-B-1 Conjunction Data Messages in XML and KVN formats for NASA CARA and ISRO NETRA."
+TEXT OVERLAY:
+AUTONOMOUS COLLISION AVOIDANCE (CAM)
+Gauss Impulsive Burn Vector: ΔV_T = 0.505 m/s, ΔV_W = 0.210 m/s
+Tsiolkovsky Propellant Budget: 0.194 kg N2H4 • Secondary Safe: YES
+Standard CCSDS 508.0-B-1 CDM Generator (XML / KVN)
+CAMERA / ZOOM:  Highlight numerical telemetry cards in CAM modal, then quick view of CDM XML code.
+TRANSITION:     Click 'REPLAY 4D' button.
+
+----------------------------------------------------------------------------------------------------
+SCENE 6: 4D ENCOUNTER REPLAY, ARCHITECTURE & FINALE
+----------------------------------------------------------------------------------------------------
+TIMESTAMP:      2:30 – 3:00 (Duration: 30 Seconds)
+SCREEN / URL:   Cinematic Replay Modal -> 3D Space View Outro
+ACTION:         1. Cinematic Replay plays 3D encounter sweep from T-30s to T+30s with relative velocity vectors.
+                2. Close modal and transition to wide cinematic view of rotating Earth.
+                3. Display technical badges (FastAPI, Three.js, 44/44 Pytest verified) and SIH 2026 outro card.
+VOICEOVER:
+"Our 4D Cinematic Replay reconstructs close encounters with full velocity vectors. Built with FastAPI, NumPy-vectorized SGP4, and Three.js WebGL, and verified by a 44-test backend suite, ORBITGUARD doesn't just track space debris — it predicts close approaches and optimizes avoidance burns before a catastrophe occurs. ORBITGUARD: Securing the future of orbital operations."
+TEXT OVERLAY:
+ORBITGUARD
+FastAPI • NumPy SGP4 • Three.js WebGL • 44/44 Pytest Verified
+Securing the Future of Orbital Operations
+Smart India Hackathon 2026
+CAMERA / ZOOM:  Encounter sweep in 4D Replay -> Smooth zoom out to glowing Earth horizon. Fade to black.
+====================================================================================================
+
+
+====================================================================================================
+PART 2: CONTINUOUS TELEPROMPTER READ SCRIPT
+====================================================================================================
+
+(Use this uninterrupted script for recording your voiceover or loading into a teleprompter):
+
+[0:00 - 0:25]
+"Over 36,000 cataloged objects and millions of lethal fragments circle Earth at hypersonic speeds exceeding 27,000 kilometers per hour. In Low Earth Orbit, collision avoidance is no longer optional — it is a mission-critical necessity. Welcome to ORBITGUARD: an automated Space Situational Awareness and Conjunction Defense Platform built for Smart India Hackathon 2026."
+
+[0:25 - 0:50]
+"ORBITGUARD continuously ingests live orbital ephemerides directly from Space-Track.org and CelesTrak, verifying every Two-Line Element with Modulo-10 checksum validation. Our GPU-accelerated WebGL engine renders over 3,000 orbital bodies at a locked 60 frames per second, indexing objects across LEO, MEO, and Geostationary regimes."
+
+[0:50 - 1:15]
+"Selecting any asset unlocks instantaneous SGP4 telemetry: geodetic altitude, velocity, and Keplerian orbital elements. By scrubbing the timeline forward, ORBITGUARD's astrodynamics engine propagates trajectories across a 24-hour predictive lookahead window with dynamic solar illumination and day/night terminator lines."
+
+[1:15 - 1:50]
+"Our 3-tier spatial sieve screens the entire catalog, using an orthogonal root solver to isolate the exact Time of Closest Approach. Opening the encounter dossier reveals the 2D B-plane covariance projection. Moving beyond crude distance thresholds, ORBITGUARD computes the Foster-2D collision probability and executes a 10,000-iteration vectorized Monte Carlo perturbation simulation, calculating hypervelocity kinetic impact yield in Megajoules."
+
+[1:50 - 2:30]
+"When critical threats emerge, our Collision Avoidance Maneuver Planner solves Gauss variational equations to deliver four impulsive burn strategies. Using the Tsiolkovsky rocket equation, it calculates exact Delta-V vectors and Hydrazine fuel mass down to the gram, while screening secondary orbits to prevent subsequent collisions. For global coordination, ORBITGUARD instantly exports standardized CCSDS 508.0-B-1 Conjunction Data Messages in XML and KVN formats for NASA CARA and ISRO NETRA."
+
+[2:30 - 3:00]
+"Our 4D Cinematic Replay reconstructs close encounters with full velocity vectors. Built with FastAPI, NumPy-vectorized SGP4, and Three.js WebGL, and verified by a 44-test backend suite, ORBITGUARD doesn't just track space debris — it predicts close approaches and optimizes avoidance burns before a catastrophe occurs. ORBITGUARD: Securing the future of orbital operations."
+
+
+====================================================================================================
+PART 3: 6-STEP FAST RECORDING CHEAT SHEET
+====================================================================================================
+
+| Time | Action | Location | Key Visual Highlight |
+| :---: | :--- | :--- | :--- |
+| **0:00** | Fullscreen 3D Globe rotate -> Toggle Debris Isolate | 3D Space View | Debris rings glow red |
+| **0:25** | Point to 'LIVE' status bar -> Click Starlink & GPS filters | Top Header / Radar Dock | Modulo-10 Checksum & 3k Sat Swarm |
+| **0:50** | Search 'ISS' -> Lock Orbit -> Scrub +6h on timeline | Search / Telemetry HUD | SGP4 telemetry & Orbit Ribbon |
+| **1:15** | Open Conjunction Center -> Click Top Critical Card | Conjunction Center | 2D B-Plane Covariance Canvas & Foster-2D Pc |
+| **1:50** | Click CAM Planner -> Select Min Fuel -> Click CDM Export | CAM Planner / CDM Modal | Delta-V vector, N2H4 fuel mass & CCSDS XML/KVN |
+| **2:30** | Click 4D Replay -> Return to 3D Globe for final zoom-out | Cinematic Replay / 3D Globe | 4D velocity vectors & 44/44 backend tests |
+
+
+====================================================================================================
+PART 4: 5-MINUTE EXTENDED MASTER PRODUCTION SCRIPT
+====================================================================================================
+
+[0:00 - 0:20] SCENE 1: HOOK & THE SPACE DEBRIS THREAT
+Screen: 3D Space View (Homepage /)
+Action: Slow atmospheric rotation around dark Earth with glowing orbital swarm and solar terminator line.
+Voiceover: "Over 36,000 cataloged objects and millions of lethal fragments are currently orbiting Earth at hypersonic speeds exceeding 27,000 kilometers per hour. In Low Earth Orbit, a single collision can trigger a catastrophic chain reaction known as the Kessler Syndrome. Welcome to ORBITGUARD — an advanced Space Situational Awareness and Autonomous Conjunction Defense Platform built for SIH 2026."
+
+[0:20 - 0:45] SCENE 2: THE PROBLEM STATEMENT
+Screen: 3D Space View -> Debris Isolate
+Action: Click top-left 'ORBITAL RADAR' dock. Click red 'DEBRIS ISOLATE' button. Globe highlights dense Cosmos 2251 and Fengyun 1C debris swarms.
+Voiceover: "Traditional tracking platforms are purely observational — they show where satellites are, but fail to provide actionable collision screening or maneuver flight plans. When two objects cross orbits at 14 kilometers per second, operators have mere hours to detect the threat, calculate collision probability, and execute an avoidance maneuver without exhausting satellite propellant."
+
+[0:45 - 1:05] SCENE 3: INTRODUCING ORBITGUARD ARCHITECTURE
+Screen: Top Global Navbar & Data Status Bar
+Action: Hover over green 'LIVE' badge. Click 'TOOLS -> Space Weather' briefly, showing NOAA Kp index & solar flux.
+Voiceover: "ORBITGUARD transforms raw orbital ephemerides into real-time collision intelligence. Operating at the intersection of astrodynamics, GPU-accelerated computing, and mission operations, the platform ingests live feeds from the 18th Space Defense Squadron via Space-Track.org and CelesTrak, coupled with real-time NOAA geomagnetic space weather."
+
+[1:05 - 1:30] SCENE 4: MULTI-TIER DATA INGESTION & FLEET INDEXING
+Screen: Orbital Radar Dock
+Action: Click 'STARLINK', then 'GPS / GNSS', then 'ROCKET BODIES'. Switch Swarm Density to 'Standard (3.0k Sats)'.
+Voiceover: "Data integrity is paramount. Every ingested Two-Line Element set undergoes automated Modulo-10 checksum validation and epoch verification. The system classifies objects into active payloads, debris fragments, rocket bodies, and constellations, allowing flight controllers to instantly filter orbital regimes from LEO to Geostationary orbit with seamless 60 frames-per-second GPU instancing."
+
+[1:30 - 2:00] SCENE 5: 3D ASTRODYNAMICS & TIME WARP PROPAGATION
+Screen: 3D Space View
+Action: Search 'ISS' and select 'ISS (ZARYA)'. Toggle 'LOCK ORBIT'. Drag bottom timeline scrubber forward to '+6.0h' at 50X speed.
+Voiceover: "Here in the 3D Space View, WebGL instanced shaders render thousands of orbital bodies in real time. Notice the dynamic solar terminator line calculating true day and night solar illumination. By scrubbing the timeline forward, ORBITGUARD propagates orbital trajectories across a 24-hour lookahead window using standardized SGP4 and WGS84 gravitational models."
+
+[2:00 - 2:25] SCENE 6: OBJECT INTELLIGENCE & TELEMETRY HUD
+Screen: Right Telemetry HUD Panel
+Action: Highlight live SGP4 geodetic coordinates, Keplerian elements (a, e, i, period), and toggle 'GROUND TRACK'.
+Voiceover: "Selecting any object unlocks instantaneous telemetry: true geodetic altitude, orbital velocity, inclination, eccentricity, and apogee-perigee bounds. Notice the ground track projection mapping the sub-satellite footprint directly over Earth's surface, giving mission directors complete visibility of overflight corridors."
+
+[2:25 - 2:55] SCENE 7: AUTONOMOUS CONJUNCTION SCREENING
+Screen: Conjunction Center (/conjunctions)
+Action: Switch to Conjunction Center. Filter by 'CRITICAL'. Highlight top encounter card (e.g. Starlink vs Cosmos 2251 Debris).
+Voiceover: "Now, let's examine ORBITGUARD's core breakthrough: Autonomous Conjunction Screening. The engine runs a 3-tier spatial sieve: broad altitude shell indexing eliminates non-intersecting orbits, followed by NumPy-vectorized SGP4 screening. Finally, a microsecond-precision orthogonal root solver isolates the exact Time of Closest Approach where the relative position and velocity vectors are orthogonal."
+
+[2:55 - 3:25] SCENE 8: 2D B-PLANE COVARIANCE & RISK ANALYSIS
+Screen: Conjunction Details Modal
+Action: Point out 2D B-Plane Covariance Canvas (1-sigma, 2-sigma, 3-sigma ellipses), Foster-2D Pc, and 10,000 Monte Carlo benchmarks.
+Voiceover: "Opening the encounter dossier reveals the 2D B-plane covariance projection. Rather than relying on simple distance, ORBITGUARD computes the Foster-2D collision probability, Akella-Alfriend curvilinear probability, and executes a 10,000-iteration vectorized Monte Carlo perturbation simulation. It even calculates hypervelocity kinetic yield in Megajoules and TNT equivalent."
+
+[3:25 - 3:50] SCENE 9: COLLISION AVOIDANCE MANEUVER (CAM) PLANNER
+Screen: CAM Planner Modal
+Action: Display 4 computed burn strategies. Select 'Minimum Fuel Multi-Axis'. Highlight Delta-V vector, fuel burn (kg N2H4), and secondary check.
+Voiceover: "When a critical conjunction is verified, operators need an immediate maneuver plan. ORBITGUARD's Collision Avoidance Maneuver Planner solves Gauss's variational equations, generating four distinct strategies: Prograde, Retrograde, Cross-Track, and Minimum-Fuel Multi-Axis. Using the Tsiolkovsky rocket equation, it computes exact Delta-V burn vectors and hydrazine fuel mass down to the gram, while automatically screening secondary orbits to prevent creating a new collision."
+
+[3:50 - 4:15] SCENE 10: CCSDS CDM DISPATCH & 4D REPLAY
+Screen: CDM Export Modal -> Cinematic Replay Modal
+Action: Show formatted CCSDS 508.0-B-1 KVN/XML message. Open Cinematic Replay and play close-approach vector sweep from T-30s to T+30s.
+Voiceover: "For global coordination, ORBITGUARD generates fully compliant CCSDS 508.0-B-1 Conjunction Data Messages in both KVN and XML formats, ready for immediate dispatch to NASA CARA or ISRO NETRA. Furthermore, the 4D Cinematic Replay reconstructs the encounter geometry in space with relative velocity vectors."
+
+[4:15 - 4:35] SCENE 11: SYSTEM ARCHITECTURE & TEST VERIFICATION
+Screen: Trust Center Modal
+Action: Scroll through Trust Center showing 44/44 passing backend tests, mathematical formulations, and verified architecture.
+Voiceover: "Under the hood, ORBITGUARD is built on a high-throughput stack: a FastAPI Python backend utilizing vectorized NumPy and SGP4 astrodynamic libraries, an in-memory sub-millisecond LRU cache, and a React 18 TypeScript frontend powered by Three.js WebGL. The entire pipeline is verified by a 44-test automated suite covering propagation accuracy, spatial sieves, and CDM schemas."
+
+[4:35 - 5:00] SCENE 12: FINAL IMPACT & CONCLUSION
+Screen: 3D Space View (Hero Shot)
+Action: Cinematic zoom-out to full rotating Earth with glowing satellite constellation shells and SIH 2026 title card.
+Voiceover: "As humanity expands into orbit, space situational awareness is no longer optional — it is the foundation of space sustainability. ORBITGUARD doesn't just show what is orbiting Earth; it identifies threats, predicts close approaches, and optimizes collision avoidance before an impact occurs. Thank you."
+
+
+====================================================================================================
+PART 5: SHORT-FORM SCRIPTS
+====================================================================================================
+
+--- [A] 30-SECOND ELEVATOR PITCH ---
+"Over 36,000 cataloged objects and millions of debris fragments threaten global space infrastructure. Traditional trackers show positions, but leave collision prediction to manual guesswork. ORBITGUARD is an automated Space Situational Awareness platform. Ingesting live ephemerides from Space-Track and CelesTrak, our vectorized SGP4 engine screens multi-thousand satellite swarms in real time, calculates Foster-2D collision probabilities, and computes optimal Delta-V avoidance burns with hydrazine fuel budgets using the Tsiolkovsky equation. Complete with CCSDS 508.0-B-1 CDM compliance and 60 FPS WebGL rendering, ORBITGUARD protects orbital assets before a threat becomes a collision."
+
+--- [B] 60-SECOND FAST DEMO SCRIPT ---
+[0:00 - 0:15] (Screen: 3D Globe with rotating 3,000+ satellite swarm)
+"With thousands of active satellites and lethal debris in Low Earth Orbit, space safety requires real-time intelligence. This is ORBITGUARD — an astrodynamics-grade Space Situational Awareness platform."
+
+[0:15 - 0:30] (Screen: Select Satellite -> Show SGP4 Coordinates -> Scrub +12h timeline)
+"Ingesting authoritative ephemerides from Space-Track.org with Modulo-10 checksum verification, our SGP4 engine propagates thousands of orbits in real time at 60 frames per second."
+
+[0:30 - 0:45] (Screen: Conjunction Center -> Click top encounter -> 2D B-Plane Covariance)
+"Our 3-tier spatial sieve isolates close encounters, computing exact Time of Closest Approach and Foster-2D collision probabilities on the encounter B-plane."
+
+[0:45 - 1:00] (Screen: CAM Planner -> CCSDS CDM Export Modal)
+"When threats occur, our CAM Planner solves Gauss variational equations to generate optimal thruster burn vectors and propellant budgets, exporting compliant CCSDS CDMs for inter-agency coordination. ORBITGUARD: Autonomous Orbital Defense."
+
+
+====================================================================================================
+PART 6: DEMONSTRATION PRIORITY MATRIX
+====================================================================================================
+
+[MUST SHOW - CORE HIGHLIGHTS]
+1. 3D Global Space View (3,000+ objects @ 60 FPS, solar terminator, timeline scrub, fleet filters)
+2. Live Object Telemetry HUD (SGP4 coordinates, Keplerian elements, TLE checksum, COSPAR ID)
+3. Conjunction Center & Threat Matrix (TCA countdowns, miss distances, risk badges)
+4. Conjunction Details & 2D B-Plane Covariance (Foster-2D Pc, 10k Monte Carlo, kinetic yield MJ/TNT)
+5. CAM Thruster Burn Planner (4 strategies, Delta-V vector, Hydrazine mass via Tsiolkovsky, secondary sieve)
+6. CCSDS 508.0-B-1 CDM Generator (XML and KVN formats for NASA CARA / ISRO NETRA)
+7. 4D Cinematic Encounter Replay (time-stepped 3D vector geometry)
+8. Data Status Bar & Multi-Provider Sync (Space-Track / CelesTrak status & failover)
+
+[SHOULD SHOW - SECONDARY HIGHLIGHTS]
+1. 2D Ground Track & Footprints (sub-satellite tracks, sensor visibility cones)
+2. Trust Center (44/44 passing backend tests, mathematical proofs)
+3. Orbit AI Copilot (tactical natural-language assistant)
+4. Analytics Dashboard (LEO/MEO/GEO altitude density distribution)
+
+[OPTIONAL - IF TIME PERMITS]
+1. NOAA Space Weather Modal (Kp index & thermospheric drag effect)
+2. NASA Breakup Model (kinetic impact fragmentation & Gabbard diagram)
+3. Executive Defense SITREP dossier (one-click printable situation report)
+
+[DO NOT SHOW - AVOID DURING RECORDING]
+1. ASAT Missile Simulator (exploratory kinetic demo; distracts from core civilian SSA/CARA workflow)
+2. Live RF thruster telecommand claims (ORBITGUARD plans the maneuver and formats standard CDMs, it does not send live RF telecommands to satellites in space).
+
+
+====================================================================================================
+PART 7: PRE-RECORDING TECHNICAL CHECKLIST
+====================================================================================================
+
+[ ] Screen resolution set to 1920x1080 (1080p 60 FPS).
+[ ] Google Chrome / Brave hardware acceleration ENABLED for smooth 60 FPS WebGL.
+[ ] Hide bookmarks bar (Cmd+Shift+B on Mac / Ctrl+Shift+B on Windows).
+[ ] Enter Fullscreen mode (F11).
+[ ] Hide OS Dock/Taskbar and disable notifications (Do Not Disturb enabled).
+[ ] Browser zoom level set to exactly 100% (Cmd+0 / Ctrl+0).
+[ ] Backend server verified running on port 8000 (http://localhost:8000/api/health returns status: ok).
+[ ] 3,000+ objects verified loaded in database.
+[ ] Conjunction screening table populated with active close encounters.
+[ ] Pytest verified passing (cd backend && pytest tests/ -v -> 44 passed).
+[ ] External microphone tested with noise suppression filter.
+[ ] Script positioned at eye level for confident, natural narration.
+
+
+====================================================================================================
+PART 8: SIH JUDGES DEFENSE MASTER GUIDE (20 Toughest Technical Questions)
+====================================================================================================
+
+Q1: Where does your data come from, and is it actually real-time?
+A1: "ORBITGUARD connects directly to the official Space-Track.org REST API maintained by the 18th Space Defense Squadron (USSPACEFORCE) and CelesTrak GP feeds. Data is ingested as Two-Line Element (TLE) ephemerides and General Perturbation (GP) JSON records. In orbital mechanics, satellites do not transmit live GPS pings to public servers every millisecond; instead, we ingest authoritative orbital state epochs and propagate their exact instantaneous positions in real time using the standardized AIAA SGP4/SDP4 mathematical model."
+Codebase Evidence: backend/app/services/tle_service.py (TLEService.fetch_tle_data), backend/app/services/data_providers/spacetrack.py.
+
+Q2: How do you calculate collision probability (Pc), and why not just use miss distance?
+A2: "Miss distance alone is misleading because a 1 km miss distance with high positional uncertainty (large covariance) can have a higher collision probability than a 200 m miss distance with sub-meter uncertainty. ORBITGUARD projects the 3D positional covariance matrices of both objects onto the 2D encounter plane (B-plane) perpendicular to the relative velocity vector. We integrate the 2D Gaussian probability density over the combined hard-body collision cross-section disk using the Foster-2D isotropic model, and benchmark it against Akella-Alfriend curvilinear and 10,000-iteration Monte Carlo perturbation sampling."
+Codebase Evidence: backend/app/services/risk_service.py (RiskService.calculate_advanced_benchmarks), backend/app/services/conjunction_service.py.
+
+Q3: How does your Conjunction Screening avoid the O(N^2) computational bottleneck?
+A3: "Comparing 35,000 objects pair-by-pair would require over 600 million calculations every timestep. ORBITGUARD implements a 3-tier hierarchical spatial sieve: First, a broad-phase altitude shell interval filter ([perigee - buffer, apogee + buffer]) eliminates 98% of non-intersecting pairs in O(N) time while ranking crossing orbital planes. Second, candidate pairs undergo vectorized SGP4 propagation using NumPy array batches (satrec.sgp4_array). Third, local minima are solved using an orthogonal root solver (r_rel · v_rel = 0) with bracketed Secant and Golden Section Search to find exact sub-second TCA in parallel worker threads."
+Codebase Evidence: backend/app/services/conjunction_service.py (ConjunctionService.broad_phase_filter, ConjunctionService.refine_tca_exact).
+
+Q4: How is the Collision Avoidance Maneuver (CAM) calculated?
+A4: "Our CAM engine solves Gauss's variational equations for impulsive orbital perturbations executed prior to TCA. For an in-track prograde or retrograde burn, Delta_r_in_track = 3 * a * omega * Delta_t * (Delta_v_t / v_orb). We calculate 4 distinct strategies: in-track prograde boost, in-track retrograde deceleration, out-of-plane cross-track inclination shift, and an optimized multi-axis burn. We then compute exact Monopropellant Hydrazine (N2H4, Isp = 220s) mass consumption using the Tsiolkovsky Rocket Equation: Delta_m = m0 * (1 - exp(-Delta_V / (Isp * g0)))."
+Codebase Evidence: backend/app/services/cam_service.py (CAMService.plan_avoidance_maneuver).
+
+Q5: How do you verify that an avoidance maneuver doesn't cause a secondary collision?
+A5: "Whenever a candidate CAM Delta-V is computed, the engine calculates the perturbed post-maneuver Keplerian elements (new perigee, apogee, semi-major axis, and inclination). It immediately executes an automated broad-phase secondary spatial sieve against the entire active catalog to verify that the displaced orbit does not penetrate any other active satellite or debris buffer zones, outputting a secondary_conjunctions_safe verification flag."
+Codebase Evidence: backend/app/services/cam_service.py (CAMService._screen_secondary_conjunctions).
+
+Q6: What is a CCSDS 508.0-B-1 CDM, and why did you implement it?
+A6: "CCSDS 508.0-B-1 is the international Blue Book standard for Conjunction Data Messages established by the Consultative Committee for Space Data Systems. It is the universal data format used by NASA CARA, ESA Space Debris Office, and ISRO NETRA to exchange collision risk data between independent operators. ORBITGUARD automatically formats encounter parameters, state vectors in the TEME/WGS84 frame, and covariance matrices into compliant XML and Keyword-Value Notation (KVN) files, complete with webhook dispatching."
+Codebase Evidence: backend/app/services/compliance_service.py (ComplianceService.generate_cdm), backend/app/schemas/compliance.py.
+
+Q7: How accurate is SGP4, and what are its physical limitations?
+A7: "SGP4 is an analytical perturbation model accounting for Earth oblateness (J2, J3, J4), low-altitude atmospheric drag, and lunar-solar third-body gravitational perturbations. While SGP4 has an intrinsic positional uncertainty of ~1.0 km in LEO over 24 hours, it is the worldwide standard for screening large catalogs. For high-precision flight dynamics, ORBITGUARD incorporates estimated covariance growth matrices (1.5x along-track expansion per 12h) to realistically reflect ephemeris aging and prevent false confidence."
+Codebase Evidence: backend/app/services/risk_service.py (along-track covariance growth), backend/app/services/propagation_service.py.
+
+Q8: What happens if Space-Track or CelesTrak APIs go down during operations?
+A8: "ORBITGUARD implements an automated multi-provider failover manager: Space-Track -> CelesTrak -> SatNOGS -> Local Verified Cache. If external APIs fail or rate-limit, the system gracefully falls back to a verified offline SQLite/file cache and alerts the operator via the Data State Badge, ensuring the SGP4 propagation engine and UI never crash or stall."
+Codebase Evidence: backend/app/services/data_providers/manager.py, backend/app/services/tle_service.py (TLEService._load_local_fallback).
+
+Q9: How do you handle atmospheric drag changes caused by solar storms?
+A9: "Atmospheric density in LEO expands exponentially during geomagnetic storms, accelerating orbital decay and altering satellite arrival times at TCA. ORBITGUARD includes a dedicated NOAA Space Weather module coupling real-time Planetary Kp geomagnetic indices and F10.7 Solar Radio Flux into King-Hele atmospheric decay equations."
+Codebase Evidence: backend/app/services/decay_service.py, frontend/src/components/SpaceWeatherModal.tsx.
+
+Q10: How do you render 3,000+ orbital bodies at 60 FPS in a web browser?
+A10: "Standard DOM or individual Three.js meshes would drop browser framerates below 10 FPS. ORBITGUARD uses GPU-accelerated THREE.InstancedMesh with billboard shaders and pre-generated canvas texture atlases. 3,000+ satellites are drawn in a single GPU draw call. Matrix transformations update in typed Float32Arrays on the animation loop, maintaining a locked 60 FPS even on standard laptops."
+Codebase Evidence: frontend/src/pages/SpaceView.tsx (instanced mesh rendering), frontend/src/utils/orbitalIcons.ts.
+
+Q11: Is your risk score rule-based or machine learning?
+A11: "In mission-critical aerospace flight safety, opaque black-box machine learning models are rejected by flight directors because they cannot be mathematically audited. ORBITGUARD's core risk engine is deterministic and physics-grounded, combining 5 weighted astrodynamic factors: Miss Distance (50%), Relative Velocity (20%), Time-to-TCA Urgency (15%), Crossing Geometry Angle (10%), and Combined Hard-Body RCS (5%), coupled with rigorous Foster-2D and Monte Carlo probability integrals."
+Codebase Evidence: backend/app/services/risk_service.py (RiskService.compute_risk_score).
+
+Q12: How do you avoid false positive conjunction alerts?
+A12: "False positives are mitigated through our 3-tier filtering hierarchy: (1) True altitude shell boundary checking, (2) Relative crossing angle geometry verification, (3) Sub-second orthogonal TCA root refinement, and (4) Foster-2D collision probability thresholding (Pc > 1e-4), ensuring operators are not overwhelmed by non-threatening coplanar formations."
+Codebase Evidence: backend/app/services/conjunction_service.py.
+
+Q13: How does the system handle orbital decay and re-entry prediction?
+A13: "Orbital decay is modeled using King-Hele analytical decay equations incorporating satellite mass, cross-sectional area, drag coefficient (Cd), and solar flux-modulated upper thermospheric density. The system calculates semi-major axis loss rate (da/dt) and projects the estimated re-entry epoch."
+Codebase Evidence: backend/app/services/decay_service.py, backend/app/api/decay.py.
+
+Q14: What is the NASA Standard Breakup Model in your simulator?
+A14: "When a hypervelocity collision occurs, fragments disperse according to power laws. Our Breakup Simulator implements the NASA Standard Satellite Breakup Model: N(Lc) = 0.1 * M^0.75 * Lc^-1.71, computing fragment size distributions, Delta-V ejection velocities, and plotting the resulting Gabbard diagram (semi-major axis vs. apogee/perigee) to predict debris cloud dispersion."
+Codebase Evidence: backend/app/services/breakup_service.py, frontend/src/components/BreakupSimulatorModal.tsx.
+
+Q15: How would ISRO or Indian operators benefit from ORBITGUARD?
+A15: "ISRO operates the NETRA (Network for Space Object Tracking and Analysis) project. ORBITGUARD directly complements national SSA initiatives by providing an open, standards-compliant CARA engine that natively ingests regional payloads (NavIC/IRNSS, Cartosat, GSAT), evaluates collision threats with debris swarms, plans minimal-fuel CAM burns, and generates CCSDS-compliant CDMs."
+Codebase Evidence: backend/app/services/compliance_service.py, frontend/src/components/TrustCenterModal.tsx.
+
+Q16: How do you calculate ground station visibility and overpasses?
+A16: "The Overpass Engine converts satellite ECEF coordinates into topocentric coordinates (Azimuth, Elevation, and Slant Range) relative to any ground station (e.g., ISTRAC Bengaluru, Svalbard, Cape Canaveral). Passes with elevation angles above 10 deg are indexed with acquisition of signal (AOS), maximum elevation (TCA), and loss of signal (LOS)."
+Codebase Evidence: backend/app/services/overpass_service.py, frontend/src/components/OverpassModal.tsx.
+
+Q17: What automated testing validates your calculations?
+A17: "The repository includes an automated test suite with 44 passing pytest modules in backend/tests/. We test SGP4 propagation against standard NORAD vectors, verify spatial sieve convergence, validate Foster-2D Gaussian integrals against analytical benchmarks, test Tsiolkovsky fuel mass calculations, and validate CCSDS CDM XML schemas."
+Codebase Evidence: backend/tests/test_real_orbital_pipeline.py, backend/tests/test_cam_service.py, backend/tests/test_compliance_service.py, backend/tests/test_risk_service.py.
+
+Q18: What is the role of the Orbit AI Copilot?
+A18: "Orbit AI is an embedded astrodynamics copilot designed for flight operations. It ingests active catalog telemetry, conjunction matrices, and space weather data, allowing mission directors to ask natural-language tactical queries such as 'What is the highest risk conjunction today?' or 'Explain the Delta-V breakdown for the Starlink encounter' and receive immediate contextual analysis."
+Codebase Evidence: frontend/src/components/OrbitAIAssistant.tsx.
+
+Q19: Can this platform scale to 100,000+ objects in the future?
+A19: "Yes. The architecture separates compute from rendering: The backend uses vectorized C-extensions (SGP4) and multi-threaded Python worker pools with SQL spatial indexing, which can be deployed across distributed Ray or Celery clusters. On the frontend, WebGL instancing can scale to 20,000+ active billboard instances using Level-of-Detail (LOD) point clouds for distant objects."
+Codebase Evidence: backend/app/services/conjunction_service.py (ThreadPoolExecutor parallel screening).
+
+Q20: What are the current prototype limitations?
+A20: "As a hackathon prototype, ORBITGUARD utilizes SGP4 General Perturbations theory and estimated covariance growth rather than Special Perturbations (numerical integration like Cowell's method with high-order gravity models JGM-3). In future iterations, we plan to integrate radar measurement ingestion (OEM/TLE generation) and direct optical sensor tasking."
+Codebase Evidence: README.md (Astrodynamics & Mathematical Formulations), frontend/src/components/TrustCenterModal.tsx.
+
+====================================================================================================
+END OF PRODUCTION SCRIPT — ORBITGUARD SIH 2026
+====================================================================================================

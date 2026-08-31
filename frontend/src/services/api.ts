@@ -455,5 +455,101 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload)
     });
+  },
+
+  // Scientific Validation & Provenance Center
+  getValidationStatus: async (): Promise<any> => {
+    return request<any>('/validation/status');
+  },
+
+  runLiveValidation: async (): Promise<any> => {
+    return request<any>('/validation/run', {
+      method: 'POST'
+    });
+  },
+
+  getValidationReport: async (): Promise<any> => {
+    return request<any>('/validation/report');
+  },
+
+  getConjunctionProvenance: async (conjunctionId: number): Promise<any> => {
+    return request<any>(`/validation/provenance/${conjunctionId}`);
+  },
+
+  // Physics-Grounded AI Copilot
+  queryAICopilot: async (query: string, context?: any): Promise<any> => {
+    return request<any>('/ai/copilot/query', {
+      method: 'POST',
+      body: JSON.stringify({ query, context })
+    });
+  },
+
+  getAICopilotTools: async (): Promise<any> => {
+    return request<any>('/ai/copilot/tools');
+  },
+
+  getCAMRecommendation: async (conjunctionId: number): Promise<any> => {
+    return request<any>(`/ai/copilot/cam_recommendation/${conjunctionId}`, {
+      method: 'POST'
+    });
+  },
+
+  verifyPostCAM: async (payload: { conjunction_id: number; delta_v_m_s: number; strategy_type: string }): Promise<any> => {
+    return request<any>('/ai/copilot/verify_post_cam', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  // Conjunction Case Management & State Machine
+  getCases: async (state?: string, priority?: string): Promise<any[]> => {
+    const params = new URLSearchParams();
+    if (state) params.append('state', state);
+    if (priority) params.append('priority', priority);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request<any[]>(`/cases${qs}`);
+  },
+
+  getCaseDetail: async (caseId: number): Promise<any> => {
+    return request<any>(`/cases/${caseId}`);
+  },
+
+  getCaseByConjunction: async (conjunctionId: number): Promise<any> => {
+    return request<any>(`/cases/by-conjunction/${conjunctionId}`);
+  },
+
+  transitionCase: async (caseId: number, payload: { target_state: string; operator?: string; rationale?: string; strategy_type?: string; delta_v_m_s?: number }): Promise<any> => {
+    return request<any>(`/cases/${caseId}/transition`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  getCaseTimeline: async (caseId: number): Promise<any[]> => {
+    return request<any[]>(`/cases/${caseId}/timeline`);
+  },
+
+  // Performance Telemetry & Profiler
+  getPerformanceTelemetry: async (): Promise<any> => {
+    return request<any>('/telemetry/summary');
+  },
+
+  // Deterministic Demo Scenarios
+  getDemoScenarios: async (): Promise<any[]> => {
+    return request<any[]>('/demo/scenarios');
+  },
+
+  loadDemoScenario: async (scenarioId: string): Promise<any> => {
+    return request<any>(`/demo/load/${scenarioId}`, {
+      method: 'POST'
+    });
+  },
+
+  resetDemo: async (): Promise<any> => {
+    return request<any>('/demo/reset', {
+      method: 'POST'
+    });
   }
 };
+
+
