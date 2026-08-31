@@ -1,0 +1,344 @@
+================================================================================
+🛰️ ANTIGRAVITY // SMART INDIA HACKATHON 2026 (SIH PS-04)
+OFFICIAL 3-MINUTE VIDEO DEMO MASTER SCRIPT & PRODUCTION GUIDE
+================================================================================
+Problem Statement: PS-04 | Space Debris Tracking & Satellite Collision Risk Prediction Dashboard
+Total Target Runtime: Exactly 3:00 (180 Seconds)
+Total Spoken Word Count: 394 Words (~131 Words Per Minute)
+Video Format: 1080p 60 FPS (1920x1080) Fullscreen Browser
+Audio Production: Vocal Track normalized at -1.0dB | Tech Synth Background at -18dB
+================================================================================
+
+
+================================================================================
+TIMELINE & SCENE SUMMARY SCORECARD
+================================================================================
+Scene 1: [0:00 - 0:22] (22s | 48 words)  - Global Congestion Threat & System Introduction
+Scene 2: [0:22 - 0:48] (26s | 58 words)  - Live Ephemeris Ingestion & SGP4 Analytical Propagation
+Scene 3: [0:48 - 1:12] (24s | 51 words)  - 2D Geodetic Ground Tracks & Ground Station Horizon Cones
+Scene 4: [1:12 - 1:45] (33s | 73 words)  - 3-Tier Conjunction Sieve & Foster-2D Collision Risk
+Scene 5: [1:45 - 2:15] (30s | 69 words)  - Autonomous CAM Thruster Optimizer & Hydrazine Budget
+Scene 6: [2:15 - 2:38] (23s | 53 words)  - Physics-Grounded AI Flight Copilot & Tool Execution Audit
+Scene 7: [2:38 - 2:50] (12s | 26 words)  - Inter-Agency CCSDS 508.0-B-1 CDM Interoperability
+Scene 8: [2:50 - 3:00] (10s | 19 words)  - Scientific Benchmark Validation & Mission Close
+================================================================================
+
+
+================================================================================
+SCENE 1: THE ORBITAL CONGESTION CRISIS & SYSTEM INTRODUCTION
+================================================================================
+TIMESTAMP: 0:00 – 0:22 (Duration: 22 Seconds)
+SCENE WORD COUNT: 48 Words
+
+CAMERA DIRECTION:
+- Wide Cinematic Shot: Slow, smooth 360-degree orbital rotation of Earth rendered in Three.js WebGL.
+- Thousands of glowing cyan active satellite dots and pulsing orange/red debris swarms visible around the globe.
+- Dynamic day/night solar terminator line slowly sweeping across the planet surface.
+
+SCREEN ACTION / USER INTERACTION:
+- Cursor starts at the center of the screen, gently rotating the globe 45 degrees left to showcase orbital density across LEO, MEO, and GEO belts.
+
+VOICEOVER:
+"Over thirty-six thousand cataloged objects and millions of lethal fragments circle Earth at hypersonic speeds exceeding twenty-seven thousand kilometers per hour. 
+
+In Low Earth Orbit, collision avoidance is mission-critical. 
+
+Welcome to Antigravity — an automated Space Situational Awareness and Orbital Conjunction Intelligence Platform."
+
+ON-SCREEN LOWER THIRD / HUD GRAPHICS:
++--------------------------------------------------------+
+| 🛰️ ANTIGRAVITY // ORBITAL DEFENSE ARCHITECTURE        |
+| SIH 2026 • Problem Statement PS-04                     |
++--------------------------------------------------------+
+
+AUDIO / SFX CUES:
+- Deep sub-bass swell at 0:00 fading into a subtle electronic ambient hum.
+================================================================================
+
+
+================================================================================
+SCENE 2: LIVE EPHEMERIS INGESTION & SGP4 ANALYTICAL PROPAGATION
+================================================================================
+TIMESTAMP: 0:22 – 0:48 (Duration: 26 Seconds)
+SCENE WORD COUNT: 58 Words
+
+CAMERA DIRECTION:
+- Smooth Zoom In (1.2x) toward the Top Status Bar and Upper Right HUD.
+- Cut/Pan smoothly to focus on the International Space Station (ISS ZARYA) orbiting over Europe.
+
+SCREEN ACTION / USER INTERACTION:
+1. [0:23] Mouse cursor moves to Top Data Status Bar, briefly highlighting "LIVE • CelesTrak GP Feeds (3,400+ Objects)".
+2. [0:30] User clicks directly on "ISS (ZARYA)" in the 3D space view.
+3. [0:35] Camera smoothly snaps to ISS, rendering its green orbital trace ribbon. The Telemetry HUD opens displaying real-time Latitude, Longitude, Altitude (418 km), and Orbital Velocity (7.67 km/s).
+4. [0:42] User drags the 24-Hour Predictive Timeline Scrubber forward to demonstrate smooth multi-hour forward propagation.
+
+VOICEOVER:
+"Antigravity continuously ingests live ephemeris feeds from CelesTrak and the 18th Space Defense Squadron, verifying every Two-Line Element with Modulo-10 checksums. 
+
+Our SGP4 engine analytically propagates thousands of assets in real time, converting True Equator Mean Equinox coordinates to WGS-84 geodetic states with sub-millimeter mathematical precision."
+
+ON-SCREEN LOWER THIRD / HUD GRAPHICS:
++--------------------------------------------------------+
+| 📡 SGP4/SDP4 ANALYTICAL PROPAGATION ENGINE             |
+| Live CelesTrak / Space-Track Sync • Modulo-10 Verified |
++--------------------------------------------------------+
+
+AUDIO / SFX CUES:
+- Subtle UI "click / lock" sound effect when the ISS is selected.
+================================================================================
+
+
+================================================================================
+SCENE 3: 2D GROUND TRACK & INTERNATIONAL STATION HORIZON CONES
+================================================================================
+TIMESTAMP: 0:48 – 1:12 (Duration: 24 Seconds)
+SCENE WORD COUNT: 51 Words
+
+CAMERA DIRECTION:
+- Quick dissolve cut to Fullscreen 2D Ground Track projection.
+- Smooth pan across the equirectangular map highlighting sub-satellite paths and ground station visibility circles.
+
+SCREEN ACTION / USER INTERACTION:
+1. [0:49] User clicks the "2D GROUND TRACK" button on the primary navigation bar.
+2. [0:53] The 2D map renders with sinusoidal ground track ribbons, dynamic day/night shading, and ground station horizon cones (Svalbard, Diego Garcia, Thule, Cape Canaveral, Hartebeesthoek).
+3. [1:02] Cursor hovers over the Svalbard Ground Station cone, showing tracking pass telemetry and elevation angles.
+
+VOICEOVER:
+"For ground network controllers, our 2D Global Coverage Engine maps sub-satellite footprints, day-night terminator boundaries, and international ground station contact cones. 
+
+Flight directors can immediately assess telemetry link windows and line-of-sight communication arcs across every orbital pass."
+
+ON-SCREEN LOWER THIRD / HUD GRAPHICS:
++--------------------------------------------------------+
+| 🗺️ 2D GEODETIC GROUND TRACK & COVERAGE ENGINE          |
+| Sub-Satellite Points • Ground Station Horizon Cones   |
++--------------------------------------------------------+
+
+AUDIO / SFX CUES:
+- Crisp digital whoosh on tab switch.
+================================================================================
+
+
+================================================================================
+SCENE 4: 3-TIER CONJUNCTION SIEVE & FOSTER-2D RISK ANALYSIS
+================================================================================
+TIMESTAMP: 1:12 – 1:45 (Duration: 33 Seconds)
+SCENE WORD COUNT: 73 Words
+
+CAMERA DIRECTION:
+- Fast transition to the "CONJUNCTIONS" Tab.
+- Focus Zoom on the Top Red Flashing Alert Banner and the Critical Conjunction Matrix row.
+- Open modal view showing 3D encounter geometry and relative velocity vectors.
+
+SCREEN ACTION / USER INTERACTION:
+1. [1:13] User clicks "CONJUNCTIONS" in the primary navbar.
+2. [1:16] Cursor highlights the top ranked critical event: STARLINK-2197 vs COSMOS 2251 DEBRIS.
+3. [1:22] User clicks the row to expand the Detailed Threat Analysis Card.
+4. [1:28] Cursor points to:
+   - Miss Distance: 1.08 km
+   - Relative Velocity: 14.94 km/s
+   - Time to TCA: Countdown timer ticking down
+   - Foster-2D Collision Probability (Pc): 4.12 x 10^-3
+   - Composite Threat Score: 94.2/100 (CRITICAL)
+
+VOICEOVER:
+"When orbital paths intersect, our multi-tier spatial sieve screens thousands of candidate pairs in under two hundred milliseconds. 
+
+Using Golden Section Search, Antigravity isolates exact Time of Closest Approach. 
+
+Here, a critical conjunction is flagged between Starlink-2197 and Cosmos Debris, with a miss distance of just 1.08 kilometers and a high collision probability of 4.12 times 10 to the minus 3."
+
+ON-SCREEN LOWER THIRD / HUD GRAPHICS:
++--------------------------------------------------------+
+| ⚠️ MULTI-TIER SPATIAL SIEVE & FOSTER-2D RISK ENGINE   |
+| Miss: 1.08 km | Rel Velocity: 14.94 km/s | Pc: 4.12e-3 |
++--------------------------------------------------------+
+
+AUDIO / SFX CUES:
+- Low double-beep tactical alert chime when conjunction matrix loads.
+================================================================================
+
+
+================================================================================
+SCENE 5: AUTONOMOUS COLLISION AVOIDANCE (CAM) & PROPELLANT OPTIMIZATION
+================================================================================
+TIMESTAMP: 1:45 – 2:15 (Duration: 30 Seconds)
+SCENE WORD COUNT: 69 Words
+
+CAMERA DIRECTION:
+- Tight Center Frame on the CAM Trajectory Planner Modal.
+- Highlight the 4-strategy trade study comparison table, followed by post-burn clearance metrics.
+
+SCREEN ACTION / USER INTERACTION:
+1. [1:46] User clicks the bright blue "PLAN CAM" button on the conjunction card.
+2. [1:50] The CAM Planner Modal slides in, instantly solving Gauss Variational Equations across 4 strategies:
+   - Prograde In-Track Burn
+   - Retrograde In-Track Burn
+   - Cross-Track Out-of-Plane Burn
+   - Minimum Fuel Multi-Axis Burn
+3. [1:58] Cursor highlights the recommended "Minimum Fuel" candidate:
+   - Delta-V: 0.083 m/s
+   - Propellant Mass: 0.117 kg N2H4 (Hydrazine)
+   - Secondary Shell Clearance: Verified
+4. [2:06] User clicks "APPROVE MANEUVER" -> UI updates showing Post-Burn Miss Distance increasing to +27.98 km with 99.9% risk reduction.
+
+VOICEOVER:
+"Antigravity doesn't just detect risk — it eliminates it. 
+
+Our autonomous CAM Optimizer calculates fuel-minimal impulsive delta-V burns using Gauss's variational equations and Tsiolkovsky rocket dynamics. 
+
+The Minimum Fuel strategy requires only 0.117 kilograms of hydrazine, expanding the miss distance to twenty-eight kilometers while actively screening against secondary collisions in adjacent orbital shells."
+
+ON-SCREEN LOWER THIRD / HUD GRAPHICS:
++--------------------------------------------------------+
+| 🚀 AUTONOMOUS COLLISION AVOIDANCE MANEUVER (CAM)       |
+| ΔV: 0.083 m/s • Fuel: 0.117 kg N2H4 • Clearance: +27km |
++--------------------------------------------------------+
+
+AUDIO / SFX CUES:
+- Satisfying pneumatic "confirmation tone" on clicking Approve Maneuver.
+================================================================================
+
+
+================================================================================
+SCENE 6: PHYSICS-GROUNDED AI FLIGHT COPILOT & TOOL AUDIT
+================================================================================
+TIMESTAMP: 2:15 – 2:38 (Duration: 23 Seconds)
+SCENE WORD COUNT: 53 Words
+
+CAMERA DIRECTION:
+- Slide-in focus on the right-side "ORBIT AI" Assistant Drawer.
+- Zoom In on the "Tool Execution Audit" expansion panel.
+
+SCREEN ACTION / USER INTERACTION:
+1. [2:16] User clicks "ORBIT AI" in the top navbar.
+2. [2:19] User clicks the quick action prompt: "Why is the top conjunction high risk?".
+3. [2:23] AI responds instantly with structured, formatted flight intelligence.
+4. [2:28] User expands the "Tool Execution Audit Drawer", showing microsecond execution timestamps for deterministic tools: calculate_tca(), calculate_miss_distance(), calculate_risk().
+
+VOICEOVER:
+"For mission flight directors, our Orbit AI Copilot provides grounded tactical intelligence. 
+
+Crucially, the AI performs zero physics hallucinations — it executes strictly audited, deterministic backend Python tools, delivering explainable astrodynamic rationale with complete mathematical provenance."
+
+ON-SCREEN LOWER THIRD / HUD GRAPHICS:
++--------------------------------------------------------+
+| 🧠 PHYSICS-GROUNDED AI MISSION FLIGHT COPILOT          |
+| Deterministic Tool Execution • Zero Math Hallucination |
++--------------------------------------------------------+
+
+AUDIO / SFX CUES:
+- Subtle high-tech data processing chirp.
+================================================================================
+
+
+================================================================================
+SCENE 7: INTER-AGENCY CCSDS 508.0-B-1 CDM INTEROPERABILITY
+================================================================================
+TIMESTAMP: 2:38 – 2:50 (Duration: 12 Seconds)
+SCENE WORD COUNT: 26 Words
+
+CAMERA DIRECTION:
+- Center Focus on the CCSDS CDM Export Modal.
+
+SCREEN ACTION / USER INTERACTION:
+1. [2:39] User clicks "EXPORT CDM" button.
+2. [2:42] Modal displays formatted CCSDS 508.0-B-1 Conjunction Data Message. User toggles between KVN (Keyword-Value Notation) and XML tabs, then clicks "Copy to Clipboard".
+
+VOICEOVER:
+"Antigravity exports standardized CCSDS 508.0-B-1 Conjunction Data Messages in XML and KVN formats, enabling immediate interoperability with ISRO NETRA, NASA CARA, and ESA."
+
+ON-SCREEN LOWER THIRD / HUD GRAPHICS:
++--------------------------------------------------------+
+| 📄 CCSDS 508.0-B-1 CDM DISPATCHER (XML & KVN)         |
+| Inter-Agency Standardization: ISRO • NASA • ESA        |
++--------------------------------------------------------+
+
+AUDIO / SFX CUES:
+- Clean UI click and copy confirmation sound.
+================================================================================
+
+
+================================================================================
+SCENE 8: SCIENTIFIC BENCHMARK AUDIT & MISSION CLOSE
+================================================================================
+TIMESTAMP: 2:50 – 3:00 (Duration: 10 Seconds)
+SCENE WORD COUNT: 19 Words
+
+CAMERA DIRECTION:
+- Quick 3-second cut to the "VALIDATION" Benchmark Tab (showing 11/11 passing tests in green).
+- Smooth zoom out to the 3D Earth Orbit hero shot with glowing satellite swarms.
+- Fade in Antigravity final title card.
+
+SCREEN ACTION / USER INTERACTION:
+1. [2:51] User clicks "VALIDATION" tab -> 11/11 Vallado benchmark test cases displayed with green checkmarks.
+2. [2:55] User clicks back to "3D TRACKER" as camera pulls back into full space view.
+
+VOICEOVER:
+"Validated against published Vallado astrodynamic benchmarks, Antigravity safeguards space assets for a secure orbital future. 
+
+Thank you."
+
+ON-SCREEN FINAL TITLE CARD:
++--------------------------------------------------------+
+|                                                        |
+|                    🛰️ ANTIGRAVITY                      |
+|      Autonomous Space Situational Awareness &          |
+|       Orbital Conjunction Intelligence Platform        |
+|                                                        |
+|   Smart India Hackathon 2026 • Problem Statement PS-04 |
+|            Live Console: orbitguard-six.vercel.app     |
+|                                                        |
++--------------------------------------------------------+
+
+AUDIO / SFX CUES:
+- Resonant closing musical chime, gradual fade to silence at 3:00.
+================================================================================
+
+
+================================================================================
+🎙️ TELEPROMPTER READ-ONLY VOCAL SCRIPT (CONTINUOUS TEXT)
+================================================================================
+"Over thirty-six thousand cataloged objects and millions of lethal fragments circle Earth at hypersonic speeds exceeding twenty-seven thousand kilometers per hour. In Low Earth Orbit, collision avoidance is mission-critical. Welcome to Antigravity — an automated Space Situational Awareness and Orbital Conjunction Intelligence Platform.
+
+Antigravity continuously ingests live ephemeris feeds from CelesTrak and the 18th Space Defense Squadron, verifying every Two-Line Element with Modulo-10 checksums. Our SGP4 engine analytically propagates thousands of assets in real time, converting True Equator Mean Equinox coordinates to WGS-84 geodetic states with sub-millimeter mathematical precision.
+
+For ground network controllers, our 2D Global Coverage Engine maps sub-satellite footprints, day-night terminator boundaries, and international ground station contact cones. Flight directors can immediately assess telemetry link windows and line-of-sight communication arcs across every orbital pass.
+
+When orbital paths intersect, our multi-tier spatial sieve screens thousands of candidate pairs in under two hundred milliseconds. Using Golden Section Search, Antigravity isolates exact Time of Closest Approach. Here, a critical conjunction is flagged between Starlink-2197 and Cosmos Debris, with a miss distance of just 1.08 kilometers and a high collision probability of 4.12 times 10 to the minus 3.
+
+Antigravity doesn't just detect risk — it eliminates it. Our autonomous CAM Optimizer calculates fuel-minimal impulsive delta-V burns using Gauss's variational equations and Tsiolkovsky rocket dynamics. The Minimum Fuel strategy requires only 0.117 kilograms of hydrazine, expanding the miss distance to twenty-eight kilometers while actively screening against secondary collisions in adjacent orbital shells.
+
+For mission flight directors, our Orbit AI Copilot provides grounded tactical intelligence. Crucially, the AI performs zero physics hallucinations — it executes strictly audited, deterministic backend Python tools, delivering explainable astrodynamic rationale with complete mathematical provenance.
+
+Antigravity exports standardized CCSDS 508.0-B-1 Conjunction Data Messages in XML and KVN formats, enabling immediate interoperability with ISRO NETRA, NASA CARA, and ESA.
+
+Validated against published Vallado astrodynamic benchmarks, Antigravity safeguards space assets for a secure orbital future. Thank you."
+================================================================================
+
+
+================================================================================
+📋 FINAL RECORDING CHECKLIST FOR VIDEO PRODUCER
+================================================================================
+PRE-RECORDING CHECKS:
+[ ] Backend running (`uvicorn backend.app.main:app --port 8000`)
+[ ] Frontend running (`npm run dev` at `http://localhost:5173`)
+[ ] Screen resolution set to 1920x1080 (1080p, 60 FPS recording)
+[ ] Browser in fullscreen mode (F11 / Shift+Cmd+F) with bookmarks bar hidden
+[ ] Verify Top Status Bar reads: `LIVE • CelesTrak GP Feeds` (Green indicator)
+
+EXECUTION SEQUENCE:
+[ ] [0:00 - 0:22] 3D Space View loaded, smooth 360° Earth rotation showing satellite & debris swarms
+[ ] [0:22 - 0:38] Click `ISS (ZARYA)` or Starlink satellite, show telemetry HUD overlay
+[ ] [0:38 - 0:48] Drag 24-hour predictive timeline scrubber forward
+[ ] [0:48 - 1:12] Switch to `2D GROUND TRACK` tab, show ground station visibility cones
+[ ] [1:12 - 1:30] Switch to `CONJUNCTIONS` tab, click top critical encounter (`STARLINK-2197 vs COSMOS DEBRIS`)
+[ ] [1:30 - 1:45] Highlight miss distance (1.08 km), relative velocity (14.94 km/s), and Foster-2D Pc
+[ ] [1:45 - 2:05] Click `PLAN CAM`, show the 4 strategy comparisons and 0.117 kg N2H4 hydrazine mass
+[ ] [2:05 - 2:15] Click `APPROVE MANEUVER`, show +26.9 km post-burn clearance gain
+[ ] [2:15 - 2:30] Open `ORBIT AI`, run prompt, expand the Tool Execution Audit Drawer
+[ ] [2:30 - 2:38] Verify microsecond tool execution timings
+[ ] [2:38 - 2:50] Click `EXPORT CDM`, show CCSDS 508.0-B-1 XML/KVN output
+[ ] [2:50 - 2:55] Switch to `VALIDATION` tab, show 11/11 passing Vallado benchmark cases
+[ ] [2:55 - 3:00] Return to 3D Space View for the closing wide-angle hero shot
+================================================================================

@@ -156,7 +156,7 @@ class PropagationService:
     ) -> List[TrajectoryPoint]:
         """
         Generates an array of future orbital positions (3D and geodetic) over a time window.
-        Optimized with cached Satrec instance.
+        3D Cartesian coordinates are anchored to start_time GMST for true spatial orbit rendering.
         """
         if start_time is None:
             start_time = datetime.now(timezone.utc)
@@ -168,22 +168,50 @@ class PropagationService:
         else:
             end_time = to_utc(end_time)
 
+        sat = PropagationService.get_satrec(line1, line2)
+        if not sat:
+            return []
+
+        start_jd, start_fr = jday(
+            start_time.year, start_time.month, start_time.day,
+            start_time.hour, start_time.minute, start_time.second + start_time.microsecond / 1e6
+        )
+        gmst_anchor = gmst_from_jd(start_jd + start_fr)
+
         step_delta = timedelta(minutes=max(1, step_minutes))
         points: List[TrajectoryPoint] = []
 
         curr_time = start_time
         while curr_time <= end_time:
-            pos = PropagationService.propagate_satellite(line1, line2, curr_time)
-            if pos:
+            target_utc = to_utc(curr_time)
+            jd, fr = jday(
+                target_utc.year, target_utc.month, target_utc.day,
+                target_utc.hour, target_utc.minute, target_utc.second + target_utc.microsecond / 1e6
+            )
+            error_code, r, v = sat.sgp4(jd, fr)
+            if error_code == 0:
+                rx, ry, rz = r
+                vx, vy, vz = v
+                speed = math.sqrt(vx * vx + vy * vy + vz * vz)
+
+                # 3D spatial coordinates in Earth frame at anchor epoch
+                xe, ye, ze = teme_to_ecef(rx, ry, rz, gmst_anchor)
+
+                # Instantaneous geodetic coordinates on rotating Earth
+                full_jd = jd + fr
+                gmst_t = gmst_from_jd(full_jd)
+                xe_t, ye_t, ze_t = teme_to_ecef(rx, ry, rz, gmst_t)
+                lat, lon, alt = ecef_to_geodetic(xe_t, ye_t, ze_t)
+
                 points.append(TrajectoryPoint(
-                    timestamp=pos.timestamp,
-                    lat=pos.lat,
-                    lon=pos.lon,
-                    alt_km=pos.alt_km,
-                    x_km=pos.x_km,
-                    y_km=pos.y_km,
-                    z_km=pos.z_km,
-                    velocity_km_s=pos.velocity_km_s
+                    timestamp=target_utc,
+                    lat=round(lat, 4),
+                    lon=round(lon, 4),
+                    alt_km=round(alt, 2),
+                    x_km=round(xe, 3),
+                    y_km=round(ye, 3),
+                    z_km=round(ze, 3),
+                    velocity_km_s=round(speed, 4)
                 ))
             curr_time += step_delta
 

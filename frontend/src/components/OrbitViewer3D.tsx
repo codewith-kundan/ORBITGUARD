@@ -757,7 +757,7 @@ export const OrbitViewer3D: React.FC<OrbitViewer3DProps> = ({
       trajectoryLineRef.current = null;
     }
 
-    if (trajectoryData && trajectoryData.points.length > 1) {
+    if (selectedObject && trajectoryData && trajectoryData.points.length > 1 && trajectoryData.norad_id === selectedObject.norad_id) {
       const pts = trajectoryData.points.map((pt) => {
         return new THREE.Vector3(pt.x_km / 1000, pt.z_km / 1000, -pt.y_km / 1000);
       });

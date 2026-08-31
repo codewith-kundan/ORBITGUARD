@@ -396,11 +396,31 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
     let isMounted = true;
     const fetchEphemerisDetails = async () => {
       try {
-        const traj = await api.getObjectTrajectory(selectedObject.norad_id, trajectoryHours, 5);
+        // Ensure object has full TLE lines for client-side 60 FPS propagation
+        if (!selectedObject.tle_line1 || !selectedObject.tle_line2) {
+          try {
+            const details = await api.getObjectDetails(selectedObject.norad_id);
+            if (isMounted && details && details.tle_line1 && details.tle_line2) {
+              const satrec = satellite.twoline2satrec(details.tle_line1, details.tle_line2);
+              if (satrec && (satrec as any).error === 0) {
+                satrecMapRef.current.set(details.norad_id, {
+                  satrec,
+                  name: details.name,
+                  type: details.object_type,
+                  norad_id: details.norad_id
+                });
+              }
+            }
+          } catch (e) {
+            // Non-blocking
+          }
+        }
+
+        const traj = await api.getObjectTrajectory(selectedObject.norad_id, trajectoryHours, 5, simTime.toISOString());
         if (isMounted) setTrajectoryData(traj);
 
         if (showGroundTrack) {
-          const track = await api.getObjectGroundTrack(selectedObject.norad_id, 180, 2);
+          const track = await api.getObjectGroundTrack(selectedObject.norad_id, 180, 2, simTime.toISOString());
           if (isMounted) setGroundTrackData(track);
         }
       } catch (err) {
@@ -1229,21 +1249,54 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       trajectoryLineRef.current = null;
     }
 
-    if (trajectoryData && trajectoryData.points.length > 1) {
-      const pts = trajectoryData.points.map((pt) => {
+    if (!selectedObject) return;
+
+    let pts: THREE.Vector3[] = [];
+    const currentSimDate = simTimeRef.current || new Date();
+    const gmstNow = satellite.gstime(currentSimDate);
+
+    // 1. Direct client-side SGP4 orbital propagation for 100% position lock & zero latency
+    let satrec = satrecMapRef.current.get(selectedObject.norad_id)?.satrec;
+    if (!satrec && selectedObject.tle_line1 && selectedObject.tle_line2) {
+      try {
+        const parsed = satellite.twoline2satrec(selectedObject.tle_line1, selectedObject.tle_line2);
+        if (parsed && (parsed as any).error === 0) satrec = parsed;
+      } catch (e) {}
+    }
+
+    if (satrec && !(satrec as any).error) {
+      const meanMotionRadMin = satrec.no_kozai || satrec.no_unkozai || 0.06;
+      const periodMinutes = Math.max(10, Math.min(1440, (2 * Math.PI) / meanMotionRadMin));
+      const totalDurationMinutes = Math.max(periodMinutes, trajectoryHours * 60);
+      const numSteps = 240;
+
+      for (let i = 0; i <= numSteps; i++) {
+        const tOffsetMs = (i / numSteps) * totalDurationMinutes * 60 * 1000;
+        const pointDate = new Date(currentSimDate.getTime() + tOffsetMs);
+        const pv = satellite.propagate(satrec, pointDate);
+        if (pv && pv.position && typeof pv.position !== 'boolean') {
+          const ecf = satellite.eciToEcf(pv.position, gmstNow);
+          pts.push(new THREE.Vector3(ecf.x / 1000, ecf.z / 1000, -ecf.y / 1000));
+        }
+      }
+    } else if (trajectoryData && trajectoryData.points && trajectoryData.points.length > 1 && trajectoryData.norad_id === selectedObject.norad_id) {
+      // 2. Fallback to backend SGP4 trajectory points
+      pts = trajectoryData.points.map((pt) => {
         return new THREE.Vector3(pt.x_km / 1000, pt.z_km / 1000, -pt.y_km / 1000);
       });
+    }
 
+    if (pts.length > 1) {
       const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
-      const nameUpper = (selectedObject?.name || '').toUpperCase();
+      const nameUpper = (selectedObject.name || '').toUpperCase();
       const isStarlink = nameUpper.includes('STARLINK');
       const isOneWeb = nameUpper.includes('ONEWEB');
       const isGps = nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR') || nameUpper.includes('BEIDOU') || nameUpper.includes('GALILEO') || nameUpper.includes('GLONASS');
 
-      let lineColor = 0x2563eb; // Default Operational Blue
-      if (selectedObject?.object_type === 'DEBRIS') {
+      let lineColor = 0x00f0ff; // Default Cyan for Operational Satellite
+      if (selectedObject.object_type === 'DEBRIS') {
         lineColor = 0xef4444; // Debris Red
-      } else if (selectedObject?.object_type === 'ROCKET_BODY') {
+      } else if (selectedObject.object_type === 'ROCKET_BODY') {
         lineColor = 0xeab308; // Rocket Yellow
       } else if (isStarlink) {
         lineColor = 0xa855f7; // Starlink Purple
@@ -1264,7 +1317,7 @@ export const SpaceView: React.FC<SpaceViewProps> = ({
       scene.add(line);
       trajectoryLineRef.current = line;
     }
-  }, [trajectoryData, selectedObject]);
+  }, [trajectoryData, selectedObject, trajectoryHours]);
 
   // Update Ground Track Ribbon on Earth Surface
   useEffect(() => {
