@@ -17,7 +17,6 @@ import {
   Crosshair,
   Compass,
   Activity,
-  Award,
   ShieldCheck
 } from 'lucide-react';
 import { DataStatus, SystemStatistics } from '../types';
@@ -44,7 +43,6 @@ interface NavbarProps {
   onOpenTrustCenter?: () => void;
   onOpenLiveGuide?: () => void;
   onOpenJudgeDemo?: () => void;
-  onOpenPresentationMode?: () => void;
   onOpenPerformanceTelemetry?: () => void;
 }
 
@@ -68,7 +66,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenTrustCenter,
   onOpenLiveGuide,
   onOpenJudgeDemo,
-  onOpenPresentationMode,
   onOpenPerformanceTelemetry
 }) => {
   const [isToolsOpen, setIsToolsOpen] = useState<boolean>(false);
@@ -178,24 +175,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="px-2.5 py-1 text-[9px] text-slate-500 uppercase tracking-widest font-bold border-b border-space-800">
                     MISSION MODULES & TELEMETRY
                   </div>
-
-                  {onOpenPresentationMode && (
-                    <button
-                      onClick={() => {
-                        onOpenPresentationMode();
-                        setIsToolsOpen(false);
-                      }}
-                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-slate-300 hover:text-white hover:bg-purple-950/40 border border-transparent hover:border-purple-500/30 transition"
-                    >
-                      <div className="p-1 rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/40">
-                        <Award className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <div className="font-bold text-white text-[11px]">SIH Presentation Mode</div>
-                        <div className="text-[9px] text-purple-300">8-Stage Guided Demo Script</div>
-                      </div>
-                    </button>
-                  )}
 
                   {onOpenPerformanceTelemetry && (
                     <button
@@ -346,7 +325,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
         </div>
 
-        {/* 3. Right: High-Priority Action Buttons (Orbit AI, Live Guide, Presentation, Telemetry, Status) */}
+        {/* 3. Right: High-Priority Action Buttons (Orbit AI, Live Guide, Status) */}
         <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 text-xs">
           
           {/* Ask Orbit AI Trigger */}
@@ -370,18 +349,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Compass className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
               <span>LIVE GUIDE</span>
-            </button>
-          )}
-
-          {/* SIH Presentation Mode Button */}
-          {onOpenPresentationMode && (
-            <button
-              onClick={onOpenPresentationMode}
-              className="hidden md:flex items-center gap-1 px-2 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 hover:text-white transition shadow-sm font-bold whitespace-nowrap"
-              title="SIH 2026 Presentation Mode & Guided Walkthrough"
-            >
-              <Award className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-              <span className="hidden lg:inline">DEMO</span>
             </button>
           )}
 

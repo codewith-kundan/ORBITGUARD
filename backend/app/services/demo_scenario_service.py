@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class DemoScenarioService:
     """
-    Manages 5 Deterministic Demo Scenarios for Smart India Hackathon (SIH) Presentations.
+    Manages Deterministic Mission Replay Scenarios for Offline Operations and Executive Briefings.
     Ensures 100% offline reliability without fake numbers or non-deterministic variance.
     """
 

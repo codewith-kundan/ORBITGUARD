@@ -28,7 +28,6 @@ import { LiveWebGuide } from './components/LiveWebGuide';
 import { OrbitAIAssistant } from './components/OrbitAIAssistant';
 import { LiveValidationCenter } from './components/LiveValidationCenter';
 import { ConjunctionCaseView } from './components/ConjunctionCaseView';
-import { PresentationMode } from './components/PresentationMode';
 import { PerformanceDashboardModal } from './components/PerformanceDashboardModal';
 import { EncounterReplayModal } from './components/EncounterReplayModal';
 import { api } from './services/api';
@@ -77,7 +76,6 @@ export default function App() {
   const [isBreakupModalOpen, setIsBreakupModalOpen] = useState<boolean>(false);
   const [isReentryModalOpen, setIsReentryModalOpen] = useState<boolean>(false);
   const [isCDMModalOpen, setIsCDMModalOpen] = useState<boolean>(false);
-  const [isPresentationModeOpen, setIsPresentationModeOpen] = useState<boolean>(false);
   const [isPerformanceDashboardOpen, setIsPerformanceDashboardOpen] = useState<boolean>(false);
   const [isEncounterReplayOpen, setIsEncounterReplayOpen] = useState<boolean>(false);
   const [caseConjunctionId, setCaseConjunctionId] = useState<number | null>(null);
@@ -212,10 +210,12 @@ export default function App() {
 
   const handleSelectConjunction = (conj: Conjunction | null) => {
     setSelectedConjunction(conj);
+    if (conj) setCaseConjunctionId(conj.id);
   };
 
   const handleOpenConjunctionModal = (conj: Conjunction) => {
     setSelectedConjunction(conj);
+    setCaseConjunctionId(conj.id);
     setIsConjunctionModalOpen(true);
   };
 
@@ -277,7 +277,6 @@ export default function App() {
         onOpenSpotter={() => setIsSpotterOpen(true)}
         onOpenTrustCenter={() => setIsTrustCenterOpen(true)}
         onOpenLiveGuide={() => setIsLiveGuideOpen(true)}
-        onOpenPresentationMode={() => setIsPresentationModeOpen(true)}
         onOpenPerformanceTelemetry={() => setIsPerformanceDashboardOpen(true)}
       />
 
@@ -656,16 +655,6 @@ export default function App() {
         isSyncing={isSyncing}
         onScreenConjunctions={handleScreenConjunctions}
         isScreening={isScreening}
-      />
-
-      {/* SIH Official 8-Stage Presentation Mode Modal */}
-      <PresentationMode
-        isOpen={isPresentationModeOpen}
-        onClose={() => setIsPresentationModeOpen(false)}
-        onSelectConjunction={(id) => {
-          setCaseConjunctionId(id);
-          setActiveTab('case');
-        }}
       />
 
       {/* Performance Telemetry & Subsystem Profiler Modal */}
