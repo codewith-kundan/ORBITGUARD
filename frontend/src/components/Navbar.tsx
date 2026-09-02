@@ -171,7 +171,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               {isToolsOpen && (
-                <div className="absolute top-full right-0 mt-2 w-64 bg-space-950/98 backdrop-blur-xl border border-cyan-500/50 rounded-2xl shadow-2xl z-50 p-2 space-y-1 font-mono text-xs animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute top-full right-0 mt-2 w-64 bg-space-950 border border-cyan-500/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.95),0_0_20px_rgba(0,240,255,0.15)] z-50 p-2 space-y-1 font-mono text-xs animate-in fade-in zoom-in-95 duration-150">
                   <div className="px-2.5 py-1 text-[9px] text-slate-500 uppercase tracking-widest font-bold border-b border-space-800">
                     MISSION MODULES & TELEMETRY
                   </div>
