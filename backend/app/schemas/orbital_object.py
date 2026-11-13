@@ -128,8 +128,11 @@ class PaginatedObjectsResponse(BaseModel):
 class DataStatusResponse(BaseModel):
     mode: str = Field(..., description="'LIVE', 'DEMO', or 'LIVE ERROR'")
     source: str
+    is_live: bool = False
+    is_live_error: bool = False
     database_connected: bool
     last_sync: Optional[datetime] = None
+    last_updated: Optional[datetime] = None
     total_objects: int
     satellites: int
     debris: int
@@ -137,6 +140,7 @@ class DataStatusResponse(BaseModel):
     unknown: int
     data_age_minutes: Optional[float] = None
     sync_error: Optional[str] = None
+    error_message: Optional[str] = None
     is_syncing: bool = False
 
 class DensityBin(BaseModel):

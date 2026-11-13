@@ -1,170 +1,238 @@
-import React from 'react';
-import { 
-  X, 
-  ShieldCheck, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Cpu, 
-  FileText, 
-  Code2 
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  ShieldCheck,
+  AlertTriangle,
+  Cpu,
+  FileText,
+  CheckCircle2,
 } from 'lucide-react';
+import { ModalDialog } from './ModalDialog';
+import { api } from '../services/api';
+import { formatUtcDateTime } from '../utils/utcTime';
 
 interface TrustCenterModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+interface LiveStatusSummary {
+  total_objects?: number;
+  validated_objects?: number;
+  total_conjunctions?: number;
+  last_sync_utc?: string | null;
+}
+
 export const TrustCenterModal: React.FC<TrustCenterModalProps> = ({ isOpen, onClose }) => {
-  if (!isOpen) return null;
+  const [statusSummary, setStatusSummary] = useState<LiveStatusSummary | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    api
+      .getValidationStatus()
+      .then((res) => {
+        if (!cancelled) {
+          setStatusError(null);
+          setStatusSummary(res);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStatusError('Live backend telemetry unavailable.');
+          setStatusSummary(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md font-mono animate-in fade-in duration-200">
-      <div className="relative w-full max-w-4xl bg-space-950 border border-cyan-500/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Header */}
-        <div className="p-4 sm:p-5 bg-space-900 border-b border-space-800 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                  SCIENTIFIC CREDIBILITY & TRUST CENTER
-                </span>
-                <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  44 Verified Automated Tests
-                </span>
-              </div>
-              <h2 className="text-base sm:text-lg font-bold text-white tracking-wide mt-0.5">
-                Why Should You Trust OrbitGuard?
+    <ModalDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="trust-center-title"
+      maxWidthClass="max-w-4xl"
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 border-b border-space-800 bg-space-950 px-5 py-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/35 text-emerald-400 shrink-0">
+            <ShieldCheck className="w-5 h-5" aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 id="trust-center-title" className="text-base sm:text-lg font-semibold text-slate-100">
+                Engineering Architecture & Provenance Standards
               </h2>
-            </div>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="p-1.5 hover:bg-space-800 rounded-lg text-slate-400 hover:text-white transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Content Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-6 text-slate-200 text-xs sm:text-sm">
-          {/* Section 1: Astrodynamics & Mathematical Foundation */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-cyan-400 font-bold uppercase tracking-wider text-xs border-b border-space-800 pb-1.5">
-              <Cpu className="w-4 h-4" />
-              <span>1. Rigorous Astrodynamics & Mathematical Foundation</span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-              <div className="p-3.5 bg-space-900/90 rounded-xl border border-space-800 space-y-1.5">
-                <h4 className="font-bold text-white flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                  SGP4 Analytical Orbit Propagation
-                </h4>
-                <p className="text-slate-400 text-[11px] leading-relaxed">
-                  Implements the standard Vallado & Hoots SGP4/SDP4 perturbation formulation (WGS84/WGS72 geodetic datum), accounting for Earth oblateness (J2, J3, J4 zonal harmonics), atmospheric drag (B* parameter), and solar-lunar gravitational perturbations for deep-space orbits.
-                </p>
-              </div>
-
-              <div className="p-3.5 bg-space-900/90 rounded-xl border border-space-800 space-y-1.5">
-                <h4 className="font-bold text-white flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                  Sub-Second Orthogonal TCA Root Finding
-                </h4>
-                <p className="text-slate-400 text-[11px] leading-relaxed">
-                  Does not rely on coarse step sampling. Computes exact Time of Closest Approach (TCA) by solving the fundamental astrodynamics orthogonality condition <code className="text-cyan-300">r_rel(t) · v_rel(t) = 0</code> using golden section & secant root solvers with microsecond precision.
-                </p>
-              </div>
-
-              <div className="p-3.5 bg-space-900/90 rounded-xl border border-space-800 space-y-1.5">
-                <h4 className="font-bold text-white flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                  Foster-2D & 2D B-Plane Covariance Projection
-                </h4>
-                <p className="text-slate-400 text-[11px] leading-relaxed">
-                  Computes relative encounter coordinates projected onto the collision B-Plane. Evaluates encounter probability density using the Foster-2D hard-body isotropic Gaussian model, Akella-Alfriend curvilinear formulation, and Alfano maximum-Pc upper bounds.
-                </p>
-              </div>
-
-              <div className="p-3.5 bg-space-900/90 rounded-xl border border-space-800 space-y-1.5">
-                <h4 className="font-bold text-white flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                  10,000-Iteration Vectorized Monte Carlo Sampling
-                </h4>
-                <p className="text-slate-400 text-[11px] leading-relaxed">
-                  Benchmarked via NumPy-accelerated stochastic perturbation sampling across in-track and radial positional uncertainties, validating probabilistic outcomes against analytical approximations.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Transparent Provenance & Scientific Honesty */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider text-xs border-b border-space-800 pb-1.5">
-              <AlertTriangle className="w-4 h-4" />
-              <span>2. Absolute Scientific Honesty & Provenance</span>
-            </div>
-
-            <div className="p-4 bg-space-900/90 rounded-xl border border-amber-500/30 text-xs space-y-2">
-              <p className="text-slate-300">
-                OrbitGuard adheres to strict aerospace scientific integrity principles:
-              </p>
-              <ul className="space-y-1.5 text-slate-400 text-[11px] list-disc list-inside">
-                <li><strong className="text-white">No Fabricated Covariance:</strong> TLE data feeds do not include true 6x6 covariance matrices. OrbitGuard explicitly distinguishes between <em>deterministic geometric separation</em> and <em>estimated probability</em>.</li>
-                <li><strong className="text-white">Explicit Data State Badging:</strong> Every metric is categorized as <span className="text-emerald-400 font-bold">LIVE</span>, <span className="text-cyan-300 font-bold">CALCULATED (SGP4)</span>, <span className="text-amber-300 font-bold">MODEL PREDICTION</span>, or <span className="text-purple-300 font-bold">SIMULATION</span>.</li>
-                <li><strong className="text-white">Upstream Source Attribution:</strong> Connects directly to Space-Track.org (US Space Force 18th SDS), SatNOGS, and CelesTrak, recording exact sync timestamps and TLE epochs.</li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Section 3: Aerospace Standards Compliance */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-purple-400 font-bold uppercase tracking-wider text-xs border-b border-space-800 pb-1.5">
-              <FileText className="w-4 h-4" />
-              <span>3. Aerospace Standards Compliance (CCSDS 508.0-B-1)</span>
-            </div>
-
-            <div className="p-3.5 bg-space-900/90 rounded-xl border border-space-800 text-xs space-y-1.5">
-              <p className="text-slate-300">
-                OrbitGuard generates compliant <strong className="text-white">CCSDS 508.0-B-1 Conjunction Data Messages (CDM)</strong> in both KVN (Key-Value Notation) and XML formats, ready for automated interoperability with satellite operator ground stations and space defense networks.
-              </p>
-            </div>
-          </div>
-
-          {/* Section 4: Automated Verification Test Suite */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-wider text-xs border-b border-space-800 pb-1.5">
-              <Code2 className="w-4 h-4" />
-              <span>4. Automated Test Verification Status</span>
-            </div>
-
-            <div className="p-3.5 bg-space-900/90 rounded-xl border border-emerald-500/30 text-xs flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <span className="text-emerald-400 font-bold text-sm block">44 / 44 Backend Unit & Pipeline Tests Passing</span>
-                <span className="text-slate-400 text-[11px]">Covers propagation, TCA refinement, CAM maneuver delta-v, decay lifetime, CDM export, and risk scoring.</span>
-              </div>
-              <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-lg font-bold text-xs">
-                PASSED (100%)
+              <span className="px-2 py-0.5 rounded bg-space-900 border border-space-700 text-[11px] font-mono text-emerald-300">
+                Verification Overview
               </span>
             </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Physical propagation formulation, covariance limitations, and data provenance commitments.
+            </p>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 bg-space-900 border-t border-space-800 flex items-center justify-between text-xs text-slate-400 font-mono">
-          <span>ORBITGUARD SSA PLATFORM • V2.0 COMPETITION RELEASE</span>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-space-950 font-bold rounded-lg transition shadow-md"
-          >
-            DISMISS
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close architecture and provenance dialog"
+          className="p-1.5 rounded-lg bg-space-900 hover:bg-space-800 border border-space-700 text-slate-400 hover:text-slate-100 transition-colors shrink-0"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
-    </div>
+
+      {/* Body */}
+      <div className="p-5 overflow-y-auto space-y-5 flex-1 text-xs text-slate-300">
+        {/* Live Pipeline Status Strip */}
+        <div className="bg-space-950 border border-space-800 rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-3">
+          {statusSummary ? (
+            <>
+              <div className="flex items-center gap-2 text-emerald-300 font-medium">
+                <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <span>Backend Validation Pipeline Active</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 font-mono text-[11px] text-slate-300 tabular-nums">
+                <span>
+                  Catalog: <strong>{statusSummary.total_objects ?? 'Unavailable'}</strong>
+                </span>
+                <span>
+                  Validated Orbits: <strong>{statusSummary.validated_objects ?? 'Unavailable'}</strong>
+                </span>
+                <span>
+                  Screened Events: <strong>{statusSummary.total_conjunctions ?? 'Unavailable'}</strong>
+                </span>
+                {statusSummary.last_sync_utc && (
+                  <span>Sync: {formatUtcDateTime(statusSummary.last_sync_utc, true)}</span>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 text-slate-400 font-mono text-[11px]">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />
+              <span>{statusError || 'Querying live backend verification status...'}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Section 1: Astrodynamics Foundation */}
+        <section aria-labelledby="arch-physics-heading" className="space-y-2.5">
+          <h3
+            id="arch-physics-heading"
+            className="text-[11px] font-semibold uppercase tracking-wider text-sky-400 flex items-center gap-1.5 border-b border-space-800 pb-1.5"
+          >
+            <Cpu className="w-3.5 h-3.5" aria-hidden="true" />
+            1. Astrodynamics & Encounter Solvers
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="p-3.5 bg-space-950 rounded-lg border border-space-800 space-y-1">
+              <h4 className="font-semibold text-slate-100">SGP4 / SDP4 Orbit Propagation</h4>
+              <p className="text-slate-400 leading-relaxed">
+                Uses the Vallado / Hoots SGP4 & SDP4 perturbation implementation (WGS84 constants)
+                modeling Earth zonal harmonics (J2, J3, J4), B* atmospheric drag, and deep-space
+                solar-lunar perturbations.
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-space-950 rounded-lg border border-space-800 space-y-1">
+              <h4 className="font-semibold text-slate-100">Orthogonal TCA Root-Finding</h4>
+              <p className="text-slate-400 leading-relaxed">
+                Refines Time of Closest Approach by numerically solving the relative-state
+                orthogonality condition{' '}
+                <code className="text-sky-300 font-mono">r_rel(t) · v_rel(t) = 0</code> using
+                golden-section search and secant iteration.
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-space-950 rounded-lg border border-space-800 space-y-1">
+              <h4 className="font-semibold text-slate-100">
+                B-Plane Projection & Probability Models
+              </h4>
+              <p className="text-slate-400 leading-relaxed">
+                Projects relative miss vectors onto the encounter B-Plane and evaluates collision
+                probability across Foster-2D hard-body Gaussian integration, Akella-Alfriend,
+                Alfano maximum-Pc bounds, and Monte Carlo perturbation sweeps.
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-space-950 rounded-lg border border-space-800 space-y-1">
+              <h4 className="font-semibold text-slate-100">
+                Avoidance Maneuvers, Decay & Breakup Physics
+              </h4>
+              <p className="text-slate-400 leading-relaxed">
+                Computes RTN impulse maneuvers with Tsiolkovsky propellant sizing, King-Hele orbital
+                lifetime predictions, and NASA EVOLVE 4.0 fragment distributions.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 2: Telemetry Honesty */}
+        <section aria-labelledby="arch-honesty-heading" className="space-y-2.5">
+          <h3
+            id="arch-honesty-heading"
+            className="text-[11px] font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 border-b border-space-800 pb-1.5"
+          >
+            <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+            2. Telemetry Honesty & Covariance Disclosure
+          </h3>
+          <div className="p-4 bg-space-950 rounded-lg border border-space-800 space-y-2">
+            <ul className="space-y-1.5 text-slate-300 list-disc list-inside leading-relaxed">
+              <li>
+                <strong className="text-slate-100">No Fabricated 6x6 Covariance:</strong> Standard
+                public TLE/GP catalogs do not supply operator state covariance matrices. Analytical Pc
+                calculations explicitly state assumed isotropic or scaled uncertainty bounds.
+              </li>
+              <li>
+                <strong className="text-slate-100">Explicit Data-State Labeling:</strong> Every
+                telemetry view discloses whether values originate from{' '}
+                <span className="font-mono text-emerald-300">LIVE</span> catalog feeds,{' '}
+                <span className="font-mono text-sky-300">SGP4</span> analytical propagation, or{' '}
+                <span className="font-mono text-amber-300">DEGRADED / UNAVAILABLE</span> upstream
+                services rather than substituting synthetic placeholder metrics.
+              </li>
+              <li>
+                <strong className="text-slate-100">Source Provenance:</strong> Ephemeris synchronization
+                tracks upstream sources (CelesTrak GP, Space-Track when configured, NOAA SWPC solar
+                indices, Launch Library 2) together with exact TLE epochs and sync timestamps in UTC.
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        {/* Section 3: Standards */}
+        <section aria-labelledby="arch-standards-heading" className="space-y-2">
+          <h3
+            id="arch-standards-heading"
+            className="text-[11px] font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 border-b border-space-800 pb-1.5"
+          >
+            <FileText className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+            3. Standards Interoperability
+          </h3>
+          <div className="p-3.5 bg-space-950 rounded-lg border border-space-800 text-slate-300 leading-relaxed">
+            Exports conjunction alerts compliant with{' '}
+            <strong className="text-slate-100">CCSDS 508.0-B-1 (ISO 26900)</strong> Conjunction Data
+            Messages in both KVN plain-text and NDM/XML schemas, plus signed JSON operator webhooks.
+          </div>
+        </section>
+      </div>
+
+      {/* Footer */}
+      <div className="px-5 py-3 bg-space-950 border-t border-space-800 flex items-center justify-between text-[11px] text-slate-400">
+        <span>OrbitGuard SSA Core • Live Verification Details Available in Validation Center</span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-3.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-space-950 font-semibold text-xs transition-colors"
+        >
+          Close
+        </button>
+      </div>
+    </ModalDialog>
   );
 };

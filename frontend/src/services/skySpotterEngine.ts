@@ -1,5 +1,4 @@
 import * as satellite from 'satellite.js';
-import { fallbackObjects } from './fallbackData';
 
 export interface SpotterPass {
   satelliteName: string;
@@ -92,12 +91,12 @@ const BRIGHT_TARGETS: BrightTarget[] = [
     tle2: '2 20580  28.4690 120.4500 0002800  95.2000 264.9000 15.09200000185001'
   },
   {
-    noradId: 25989,
+    noradId: 25994,
     label: 'Terra (EOS AM-1)',
     magBase: 2.0,
     desc: 'Flagship NASA Earth observation platform',
-    tle1: '1 25989U 99068A   24080.50000000  .00000120  00000-0  25000-4 0  9992',
-    tle2: '2 25989  98.2000 150.1200 0001400  75.3000 284.8000 14.57100000123456'
+    tle1: '1 25994U 99068A   24080.50000000  .00000120  00000-0  25000-4 0  9998',
+    tle2: '2 25994  98.2000 150.1200 0001400  75.3000 284.8000 14.57100000123456'
   },
   {
     noradId: 27424,
@@ -181,13 +180,8 @@ export function calculateDynamicPasses(
     };
 
     for (const target of BRIGHT_TARGETS) {
-      let tle1 = target.tle1;
-      let tle2 = target.tle2;
-      const liveObj = fallbackObjects.find(o => o.norad_id === target.noradId);
-      if (liveObj && liveObj.tle_line1 && liveObj.tle_line2) {
-        tle1 = liveObj.tle_line1;
-        tle2 = liveObj.tle_line2;
-      }
+      const tle1 = target.tle1;
+      const tle2 = target.tle2;
 
       let satrec: satellite.SatRec;
       try {

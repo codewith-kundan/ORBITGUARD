@@ -72,15 +72,24 @@ class DataProviderManager:
             return lines, source, status_mode, None
 
         # 3. SatNOGS
-        logger.info("CelesTrak failed, attempting SatNOGS...")
+        logger.info("CelesTrak unavailable, attempting SatNOGS...")
         s_lines, s_source, s_status, s_err = await self.providers["satnogs"].fetch_tle_data()
         if s_status == "LIVE" and len(s_lines) > 0:
             return s_lines, s_source, s_status, None
 
-        # 4. Local Fallback Cache
-        logger.warning("All live providers unreachable. Using local cache.")
+        # 4. Offline Cache Fallback (only when ALL live upstream providers fail)
+        logger.warning("All live providers unreachable. Falling back to local cache.")
+        snapshot_lines = CelesTrakProvider.read_cached_snapshot()
+        combined_err = f"Space-Track: {st_err}; CelesTrak: {err}; SatNOGS: {s_err}"
+        if snapshot_lines:
+            return (
+                snapshot_lines,
+                "Verified Cache (CelesTrak Snapshot)",
+                "LIVE ERROR",
+                f"All live providers unreachable ({combined_err}). Using cached snapshot.",
+            )
+
         f_lines, _, _, _ = await self.providers["fallback"].fetch_tle_data()
-        combined_err = f"Space-Track: {st_err}; CelesTrak: {err}"
         return f_lines, "Verified Cache (Offline)", "LIVE ERROR", f"All live providers unreachable ({combined_err}). Using cached dataset."
 
     def get_status(self) -> Dict[str, Any]:
@@ -143,9 +152,17 @@ class DataProviderManager:
                     "error_message": latest.error_message
                 }
 
-            latest_obj = db.query(OrbitalObject).filter(OrbitalObject.tle_epoch.isnot(None)).order_by(OrbitalObject.tle_epoch.desc()).first()
+            now_utc = datetime.utcnow()
+            latest_obj = (
+                db.query(OrbitalObject)
+                .filter(OrbitalObject.tle_epoch.isnot(None), OrbitalObject.tle_epoch <= now_utc)
+                .order_by(OrbitalObject.tle_epoch.desc())
+                .first()
+            )
+            if not latest_obj:
+                latest_obj = db.query(OrbitalObject).filter(OrbitalObject.tle_epoch.isnot(None)).order_by(OrbitalObject.tle_epoch.desc()).first()
             if latest_obj and latest_obj.tle_epoch:
-                data_age_hours = round((datetime.utcnow() - latest_obj.tle_epoch).total_seconds() / 3600.0, 1)
+                data_age_hours = max(0.0, round((now_utc - latest_obj.tle_epoch).total_seconds() / 3600.0, 1))
 
         return {
             "overall_status": "OPERATIONAL",

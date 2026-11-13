@@ -1,11 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AlertOctagon,
+  AlertTriangle,
+  Eye,
+  Loader2,
+  RefreshCw,
+  WifiOff,
+  X,
+} from 'lucide-react';
 import { Navbar, NavTabKey } from './components/Navbar';
-import { DataStatusBar } from './components/DataStatusBar';
 import { SpaceView } from './pages/SpaceView';
 import { Analytics } from './pages/Analytics';
 import { Map2DView } from './components/Map2DView';
 import { ObjectTable } from './components/ObjectTable';
 import { ConjunctionTable } from './components/ConjunctionTable';
+import { ConjunctionCaseView } from './components/ConjunctionCaseView';
+import { LiveValidationCenter } from './components/LiveValidationCenter';
+import { AlertsModal } from './components/AlertsModal';
 import { ObjectDetailsModal } from './components/ObjectDetailsModal';
 import { ConjunctionDetailsModal } from './components/ConjunctionDetailsModal';
 import { SystemHealthModal } from './components/SystemHealthModal';
@@ -14,38 +25,31 @@ import { OverpassModal } from './components/OverpassModal';
 import { BreakupSimulatorModal } from './components/BreakupSimulatorModal';
 import { ReentryTrackerModal } from './components/ReentryTrackerModal';
 import { CDMExportModal } from './components/CDMExportModal';
-import { CriticalAlertBanner } from './components/CriticalAlertBanner';
 import { SpaceWeatherModal } from './components/SpaceWeatherModal';
 import { LaunchRadarModal } from './components/LaunchRadarModal';
 import { KesslerDensityModal } from './components/KesslerDensityModal';
 import { SITREPModal } from './components/SITREPModal';
-import { ASATSimulatorModal } from './components/ASATSimulatorModal';
 import { SkySpotterModal } from './components/SkySpotterModal';
-import { OrbitalSafetyBanner } from './components/OrbitalSafetyBanner';
 import { CinematicReplayModal } from './components/CinematicReplayModal';
 import { TrustCenterModal } from './components/TrustCenterModal';
 import { LiveWebGuide } from './components/LiveWebGuide';
 import { OrbitAIAssistant } from './components/OrbitAIAssistant';
-import { LiveValidationCenter } from './components/LiveValidationCenter';
-import { ConjunctionCaseView } from './components/ConjunctionCaseView';
 import { PerformanceDashboardModal } from './components/PerformanceDashboardModal';
-import { EncounterReplayModal } from './components/EncounterReplayModal';
 import { api } from './services/api';
-import { 
-  OrbitalObject, 
-  Conjunction, 
-  SystemStatistics, 
-  DataStatus,
-  Alert
-} from './types';
 import {
-  fallbackObjects,
-  fallbackConjunctions,
-  fallbackAlerts,
-  fallbackStats,
-  fallbackDataStatus
-} from './services/fallbackData';
-import { Loader2, Sparkles } from 'lucide-react';
+  Alert,
+  Conjunction,
+  DataStatus,
+  OrbitalObject,
+  SystemStatistics,
+} from './types';
+import { formatCountdownToUtc, formatUtcTime, parseUtcDate } from './utils/utcTime';
+
+interface ToastNotice {
+  id: number;
+  tone: 'info' | 'success' | 'error';
+  message: string;
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTabKey>('space');
@@ -54,10 +58,16 @@ export default function App() {
   const [objects, setObjects] = useState<OrbitalObject[]>([]);
   const [conjunctions, setConjunctions] = useState<Conjunction[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  
+  const [swarmDensity, setSwarmDensity] = useState<number>(3000);
+
   const [selectedObject, setSelectedObject] = useState<OrbitalObject | null>(null);
   const [selectedConjunction, setSelectedConjunction] = useState<Conjunction | null>(null);
   const [replayConjunction, setReplayConjunction] = useState<Conjunction | null>(null);
+  const [caseConjunctionId, setCaseConjunctionId] = useState<number | null>(null);
+  const [overpassTargetObject, setOverpassTargetObject] = useState<OrbitalObject | null>(null);
+  const [reentryTargetObject, setReentryTargetObject] = useState<OrbitalObject | null>(null);
+
+  const [isAlertsModalOpen, setIsAlertsModalOpen] = useState<boolean>(false);
   const [isObjectModalOpen, setIsObjectModalOpen] = useState<boolean>(false);
   const [isConjunctionModalOpen, setIsConjunctionModalOpen] = useState<boolean>(false);
   const [isReplayModalOpen, setIsReplayModalOpen] = useState<boolean>(false);
@@ -69,7 +79,6 @@ export default function App() {
   const [isLaunchRadarOpen, setIsLaunchRadarOpen] = useState<boolean>(false);
   const [isKesslerDensityOpen, setIsKesslerDensityOpen] = useState<boolean>(false);
   const [isSITREPOpen, setIsSITREPOpen] = useState<boolean>(false);
-  const [isASATOpen, setIsASATOpen] = useState<boolean>(false);
   const [isSpotterOpen, setIsSpotterOpen] = useState<boolean>(false);
   const [isCAMModalOpen, setIsCAMModalOpen] = useState<boolean>(false);
   const [isOverpassModalOpen, setIsOverpassModalOpen] = useState<boolean>(false);
@@ -77,127 +86,125 @@ export default function App() {
   const [isReentryModalOpen, setIsReentryModalOpen] = useState<boolean>(false);
   const [isCDMModalOpen, setIsCDMModalOpen] = useState<boolean>(false);
   const [isPerformanceDashboardOpen, setIsPerformanceDashboardOpen] = useState<boolean>(false);
-  const [isEncounterReplayOpen, setIsEncounterReplayOpen] = useState<boolean>(false);
-  const [caseConjunctionId, setCaseConjunctionId] = useState<number | null>(null);
-  const [overpassTargetObject, setOverpassTargetObject] = useState<OrbitalObject | null>(null);
-  const [reentryTargetObject, setReentryTargetObject] = useState<OrbitalObject | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [isScreening, setIsScreening] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [dismissedCriticalId, setDismissedCriticalId] = useState<number | null>(null);
+  const [bannerNowMs, setBannerNowMs] = useState<number>(() => Date.now());
+  const [toast, setToast] = useState<ToastNotice | null>(null);
+  const syncTriggeredRef = useRef<boolean>(false);
 
-  // Load all system data
-  const loadAllData = async () => {
+  const showToast = useCallback((tone: ToastNotice['tone'], message: string) => {
+    const id = Date.now();
+    setToast({ id, tone, message });
+    window.setTimeout(() => {
+      setToast((curr) => (curr && curr.id === id ? null : curr));
+    }, 5500);
+  }, []);
+
+  const loadAllData = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
-
-      const [statusData, statsData, objsData, conjsData, alertsData] = await Promise.all([
-        api.getDataStatus().catch(() => null),
+      const [statusData, statsRes, objsRes, conjsRes, alertsRes] = await Promise.all([
+        api.getDataStatus(),
         api.getStatistics().catch(() => null),
-        api.getPaginatedObjects(1, 3000).then(r => r.items).catch(() => []),
+        api
+          .getPaginatedObjects(1, 3000)
+          .then((r) => r.items)
+          .catch(() => []),
         api.getConjunctions(100, 0).catch(() => []),
-        api.getAlerts(50).catch(() => [])
+        api.getAlerts(50).catch(() => []),
       ]);
 
-      if (objsData.length === 0 && (!statusData || statusData.total_objects === 0)) {
-        // Trigger non-blocking live sync
+      setDataStatus(statusData);
+      if (statsRes) setStats(statsRes);
+      setObjects(objsRes);
+      setConjunctions(conjsRes);
+      setAlerts(alertsRes);
+
+      if (
+        statusData.database_connected &&
+        objsRes.length === 0 &&
+        statusData.total_objects === 0 &&
+        !syncTriggeredRef.current
+      ) {
+        syncTriggeredRef.current = true;
+        showToast('info', 'Orbital catalog is empty. Starting background CelesTrak ingestion.');
         api.syncData('LIVE').catch(() => {});
       }
-
-      setDataStatus(statusData || fallbackDataStatus);
-      setStats(statsData || fallbackStats);
-      setObjects(objsData && objsData.length > 0 ? objsData : fallbackObjects);
-      setConjunctions(conjsData && conjsData.length > 0 ? conjsData : fallbackConjunctions);
-      setAlerts(alertsData && alertsData.length > 0 ? alertsData : fallbackAlerts);
     } catch (err: any) {
-      console.warn('Initial load exception, applying fallback:', err);
-      setDataStatus(fallbackDataStatus);
-      setStats(fallbackStats);
-      setObjects(fallbackObjects);
-      setConjunctions(fallbackConjunctions);
-      setAlerts(fallbackAlerts);
+      showToast('error', err?.message || 'Unable to reach OrbitGuard backend telemetry.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     loadAllData();
 
-    // Continuous automatic background live reconnect & polling every 12 seconds
-    const interval = setInterval(async () => {
+    const pollInterval = window.setInterval(async () => {
       try {
-        const [conjsData, alertsData, statsData, statusData] = await Promise.all([
-          api.getConjunctions(100, 0).catch(() => []),
-          api.getAlerts(50).catch(() => []),
+        const [statusData, statsRes, conjsRes, alertsRes] = await Promise.all([
+          api.getDataStatus(),
           api.getStatistics().catch(() => null),
-          api.getDataStatus().catch(() => null)
+          api.getConjunctions(100, 0).catch(() => null),
+          api.getAlerts(50).catch(() => null),
         ]);
-        if (conjsData && conjsData.length > 0) setConjunctions(conjsData);
-        if (alertsData && alertsData.length > 0) setAlerts(alertsData);
-        if (statsData) setStats(statsData);
-        if (statusData) {
-          setDataStatus(statusData);
-          if (statusData.is_live) setError(null); // Auto-clear offline banner once connected
-        }
-      } catch (e) {
-        console.debug('Background poll error:', e);
+        setDataStatus(statusData);
+        if (statsRes) setStats(statsRes);
+        if (conjsRes) setConjunctions(conjsRes);
+        if (alertsRes) setAlerts(alertsRes);
+      } catch {
+        // Status banner reflects getDataStatus offline state cleanly
       }
     }, 12000);
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => window.clearInterval(pollInterval);
+  }, [loadAllData]);
 
-  const handleSync = async (mode: 'LIVE' | 'DEMO' = 'LIVE') => {
-    try {
-      setIsSyncing(true);
-      await api.syncData(mode);
-      const [statusData, statsData, objsData, conjsData, alertsData] = await Promise.all([
-        api.getDataStatus().catch(() => null),
-        api.getStatistics().catch(() => null),
-        api.getPaginatedObjects(1, 3000).then(r => r.items).catch(() => []),
-        api.getConjunctions(100, 0).catch(() => []),
-        api.getAlerts(50).catch(() => [])
-      ]);
-
-      if (objsData.length === 0 && (!statusData || statusData.total_objects === 0)) {
-        // Trigger non-blocking live sync
-        api.syncData('LIVE').catch(() => {});
+  const handleSync = useCallback(
+    async (mode: 'LIVE' | 'DEMO' = 'LIVE') => {
+      try {
+        setIsSyncing(true);
+        const res = await api.syncData(mode);
+        await loadAllData();
+        if (res?.status === 'error') {
+          showToast('error', res?.error_detail || 'Live upstream synchronization failed.');
+        } else {
+          showToast(
+            'success',
+            `${mode} catalog synchronized via ${res?.data_source || 'upstream feed'} (${(res?.total_objects ?? 0).toLocaleString()} objects).`
+          );
+        }
+      } catch (err: any) {
+        showToast('error', err?.message || 'Orbital catalog synchronization failed.');
+      } finally {
+        setIsSyncing(false);
       }
-      if (statusData) setDataStatus(statusData);
-      if (statsData) setStats(statsData);
-      if (objsData && objsData.length > 0) setObjects(objsData);
-      if (conjsData && conjsData.length > 0) setConjunctions(conjsData);
-      if (alertsData && alertsData.length > 0) setAlerts(alertsData);
-      setError(null);
-    } catch (err: any) {
-      console.warn('Sync notice:', err);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+    },
+    [loadAllData, showToast]
+  );
 
-  const handleScreenConjunctions = async () => {
+  const handleScreenConjunctions = useCallback(async () => {
     try {
       setIsScreening(true);
       await api.triggerConjunctionScreening(24, 100.0, 3);
       const [newConjs, newAlerts, newStats] = await Promise.all([
         api.getConjunctions(100, 0),
         api.getAlerts(50),
-        api.getStatistics()
+        api.getStatistics().catch(() => null),
       ]);
       setConjunctions(newConjs);
       setAlerts(newAlerts);
-      setStats(newStats);
-      setError(null);
+      if (newStats) setStats(newStats);
+      showToast('success', `Screening complete: ${newConjs.length} encounters tracked.`);
     } catch (err: any) {
-      console.warn('Screening notice:', err);
+      showToast('error', err?.message || 'Conjunction screening failed.');
     } finally {
       setIsScreening(false);
     }
-  };
+  }, [showToast]);
 
   const handleSelectObject = (obj: OrbitalObject | null) => {
     setSelectedObject(obj);
@@ -252,98 +259,180 @@ export default function App() {
     setIsReplayModalOpen(true);
   };
 
-  const alertCount = alerts.filter(
-    (a) => a.status === 'ACTIVE' && (a.severity === 'HIGH' || a.severity === 'CRITICAL')
-  ).length;
+  const alertCount = useMemo(
+    () =>
+      alerts.filter(
+        (a) => a.status === 'ACTIVE' && (a.severity === 'HIGH' || a.severity === 'CRITICAL')
+      ).length,
+    [alerts]
+  );
+
+  const highRiskConjunctionCount = useMemo(
+    () =>
+      conjunctions.filter(
+        (c) => c.risk_level === 'CRITICAL' || c.risk_level === 'HIGH' || c.risk_score >= 60
+      ).length,
+    [conjunctions]
+  );
+
+  const imminentCritical = useMemo(() => {
+    const now = Date.now();
+    return (
+      conjunctions.find((c) => {
+        if (c.risk_level !== 'CRITICAL' && c.risk_score < 80) return false;
+        const tca = parseUtcDate(c.tca);
+        return tca ? tca.getTime() > now : false;
+      }) || null
+    );
+  }, [conjunctions]);
+
+  useEffect(() => {
+    if (!imminentCritical || dismissedCriticalId === imminentCritical.id) return;
+    const timer = window.setInterval(() => setBannerNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [imminentCritical, dismissedCriticalId]);
+
+  const isOffline =
+    dataStatus !== null &&
+    (dataStatus.mode === 'OFFLINE' || dataStatus.database_connected === false);
+  const isFeedDegraded =
+    dataStatus !== null && (dataStatus.mode === 'LIVE ERROR' || dataStatus.mode === 'DEGRADED');
 
   return (
-    <div className="min-h-screen bg-space-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-space-950">
-      {/* Top Navbar */}
+    <div className="min-h-dvh bg-space-950 text-slate-100 flex flex-col selection:bg-sky-500/30 selection:text-white">
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         stats={stats}
         dataStatus={dataStatus}
         alertCount={alertCount}
-        onRefresh={loadAllData}
-        isRefreshing={loading}
+        highRiskConjunctionCount={highRiskConjunctionCount}
+        onRefresh={() => handleSync('LIVE')}
+        isRefreshing={loading || isSyncing}
+        onOpenAlerts={() => setIsAlertsModalOpen(true)}
         onOpenOrbitAI={() => setIsOrbitAIOpen(true)}
         onOpenSystemHealth={() => setIsSystemHealthModalOpen(true)}
         onOpenSpaceWeather={() => setIsSpaceWeatherOpen(true)}
         onOpenLaunchRadar={() => setIsLaunchRadarOpen(true)}
         onOpenKesslerDensity={() => setIsKesslerDensityOpen(true)}
         onOpenSITREP={() => setIsSITREPOpen(true)}
-        onOpenASAT={() => setIsASATOpen(true)}
         onOpenSpotter={() => setIsSpotterOpen(true)}
         onOpenTrustCenter={() => setIsTrustCenterOpen(true)}
         onOpenLiveGuide={() => setIsLiveGuideOpen(true)}
         onOpenPerformanceTelemetry={() => setIsPerformanceDashboardOpen(true)}
       />
 
-      {/* Global Data Provider Status Bar */}
-      <DataStatusBar
-        dataStatus={dataStatus}
-        stats={stats}
-        onSync={handleSync}
-        isSyncing={isSyncing}
-      />
-
-      {/* High-Visibility Imminent Conjunction Warning Audio Banner */}
-      <CriticalAlertBanner
-        conjunctions={conjunctions}
-        onSelectConjunction={handleOpenConjunctionModal}
-        onFocus3D={(conj) => {
-          setSelectedConjunction(conj);
-          if (conj.object_a) setSelectedObject(conj.object_a);
-          setActiveTab('space');
-        }}
-      />
-
-      {/* Main Container */}
-      <main className="flex-1 p-2 sm:p-3 lg:p-4 max-w-[1920px] mx-auto w-full">
-        {/* Real-Time Orbital Safety Status Banner */}
-        <OrbitalSafetyBanner
-          conjunctions={conjunctions}
-          dataStatus={dataStatus}
-          stats={stats}
-          onSelectConjunction={handleOpenConjunctionModal}
-          onNavigateToConjunctions={() => setActiveTab('conjunctions')}
-        />
-        {error && (
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 sm:p-4 mb-4 font-mono text-amber-300 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-300">
-            <div className="flex items-center gap-2">
-              <span className="text-base">⚠️</span>
-              <div>
-                <p className="font-bold text-xs sm:text-sm text-white">Backend Offline / Standalone SGP4 Mode Active</p>
-                <p className="text-[11px] text-amber-200/80">{error}</p>
-              </div>
+      {/* Single Conditional Operational Status Strip */}
+      {isOffline || isFeedDegraded ? (
+        <div
+          role="status"
+          className="border-b border-amber-500/35 bg-amber-950/25 px-4 py-2 text-xs font-mono text-amber-200"
+        >
+          <div className="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {isOffline ? (
+                <WifiOff className="w-3.5 h-3.5 text-red-400 shrink-0" aria-hidden="true" />
+              ) : (
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />
+              )}
+              <span className="font-semibold text-slate-100">
+                {isOffline ? 'BACKEND OFFLINE' : 'UPSTREAM FEED DEGRADED'}:
+              </span>
+              <span className="truncate text-amber-200/90">
+                {dataStatus?.error_message ||
+                  dataStatus?.sync_error ||
+                  'Unable to verify live ephemeris feed.'}
+              </span>
             </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => { setError(null); loadAllData(); }}
-                className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-space-950 font-bold rounded-lg text-xs transition"
+                type="button"
+                onClick={loadAllData}
+                disabled={loading}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-space-700 bg-space-900 hover:bg-space-800 text-slate-200 text-[11px] transition-colors disabled:opacity-50"
               >
-                RETRY
+                <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+                <span>Retry</span>
+              </button>
+              {!isOffline && (
+                <button
+                  type="button"
+                  onClick={() => handleSync('LIVE')}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-sky-400/35 bg-sky-500/12 hover:bg-sky-500/20 text-sky-300 text-[11px] transition-colors disabled:opacity-50"
+                >
+                  <span>Sync LIVE</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : imminentCritical && dismissedCriticalId !== imminentCritical.id ? (
+        <div
+          role="status"
+          className="border-b border-red-500/35 bg-red-950/30 px-4 py-2 text-xs font-mono text-red-100"
+        >
+          <div className="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <AlertOctagon className="w-3.5 h-3.5 text-red-400 shrink-0" aria-hidden="true" />
+              <span className="font-semibold text-red-300">CRITICAL CONJUNCTION</span>
+              <span className="text-slate-100 font-medium truncate">
+                {imminentCritical.object_a?.name || `#${imminentCritical.object_a_id}`} vs{' '}
+                {imminentCritical.object_b?.name || `#${imminentCritical.object_b_id}`}
+              </span>
+              <span className="text-slate-400 tabular-nums">
+                Miss {imminentCritical.miss_distance_km.toFixed(2)} km · Rel{' '}
+                {imminentCritical.relative_velocity_km_s.toFixed(2)} km/s · TCA{' '}
+                {formatUtcTime(imminentCritical.tca)} UTC (
+                {formatCountdownToUtc(imminentCritical.tca, bannerNowMs)})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedConjunction(imminentCritical);
+                  if (imminentCritical.object_a) setSelectedObject(imminentCritical.object_a);
+                  setActiveTab('space');
+                }}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded border border-space-700 bg-space-900 hover:bg-space-800 text-slate-200 text-[11px] transition-colors"
+              >
+                <Eye className="w-3 h-3 text-sky-400" aria-hidden="true" />
+                <span>3D Focus</span>
               </button>
               <button
-                onClick={() => setError(null)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition border border-slate-700"
+                type="button"
+                onClick={() => handleOpenConjunctionModal(imminentCritical)}
+                className="px-2 py-1 rounded border border-red-500/40 bg-red-500/15 hover:bg-red-500/25 text-red-200 text-[11px] transition-colors"
               >
-                DISMISS
+                Inspect Encounter
+              </button>
+              <button
+                type="button"
+                onClick={() => setDismissedCriticalId(imminentCritical.id)}
+                aria-label="Dismiss critical alert strip"
+                className="p-1 rounded border border-space-700 bg-space-900 hover:bg-space-800 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             </div>
           </div>
-        )}
+        </div>
+      ) : null}
 
-        {loading && objects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-[60vh] gap-3 font-mono text-cyan-400">
-            <Loader2 className="w-8 h-8 animate-spin text-cyan-neon" />
-            <p className="text-sm font-bold">Connecting to ORBITGUARD SGP4 Ephemeris Engine...</p>
-            <p className="text-xs text-slate-400">Loading orbital state vectors and active collision screening tables...</p>
+      {/* Main Workspace */}
+      <main className="flex-1 p-2 sm:p-3 lg:p-4 max-w-[1920px] mx-auto w-full">
+        {loading && objects.length === 0 && conjunctions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center min-h-[60dvh] gap-3 font-mono text-slate-300">
+            <Loader2 className="w-7 h-7 animate-spin text-sky-400" aria-hidden="true" />
+            <p className="text-sm font-medium">Connecting to OrbitGuard SGP4 Engine...</p>
+            <p className="text-xs text-slate-400">
+              Retrieving catalog state vectors and conjunction screening queue.
+            </p>
           </div>
         ) : (
           <>
-            {/* 1. 3D ORBIT TRACKER (Space View) */}
             {activeTab === 'space' && (
               <SpaceView
                 objects={objects}
@@ -351,6 +440,8 @@ export default function App() {
                 selectedObject={selectedObject}
                 selectedConjunction={selectedConjunction}
                 stats={stats}
+                swarmDensity={swarmDensity}
+                onChangeSwarmDensity={setSwarmDensity}
                 onSelectObject={handleSelectObject}
                 onSelectConjunction={handleSelectConjunction}
                 onOpenConjunctionDetails={handleOpenConjunctionModal}
@@ -362,13 +453,14 @@ export default function App() {
               />
             )}
 
-            {/* 2. 2D GROUND TRACK & SENSOR FOOTPRINT */}
             {activeTab === 'map2d' && (
               <Map2DView
                 objects={objects}
                 selectedObject={selectedObject}
                 selectedConjunction={selectedConjunction}
                 stats={stats}
+                swarmDensity={swarmDensity}
+                onChangeSwarmDensity={setSwarmDensity}
                 onSelectObject={handleSelectObject}
                 onSelectConjunction={handleSelectConjunction}
                 onOpenOverpassModal={handleOpenOverpassModal}
@@ -376,7 +468,6 @@ export default function App() {
               />
             )}
 
-            {/* 3. OBJECTS CATALOG */}
             {activeTab === 'catalog' && (
               <ObjectTable
                 selectedObject={selectedObject}
@@ -385,7 +476,6 @@ export default function App() {
               />
             )}
 
-            {/* 4. CONJUNCTION ASSESSMENT */}
             {activeTab === 'conjunctions' && (
               <ConjunctionTable
                 conjunctions={conjunctions}
@@ -409,7 +499,6 @@ export default function App() {
               />
             )}
 
-            {/* 5. SSA ANALYTICS & RISK DASHBOARD */}
             {activeTab === 'analytics' && (
               <Analytics
                 stats={stats}
@@ -424,7 +513,6 @@ export default function App() {
               />
             )}
 
-            {/* 6. SCIENTIFIC VALIDATION & PROVENANCE CENTER */}
             {activeTab === 'validation' && (
               <LiveValidationCenter
                 conjunctions={conjunctions}
@@ -433,26 +521,68 @@ export default function App() {
               />
             )}
 
-            {/* 7. CONJUNCTION CASE MANAGEMENT & OPERATIONAL WORKFLOW */}
             {activeTab === 'case' && (
               <ConjunctionCaseView
-                conjunctionId={caseConjunctionId || (selectedConjunction?.id ?? conjunctions[0]?.id ?? 1)}
+                conjunctionId={
+                  caseConjunctionId || (selectedConjunction?.id ?? conjunctions[0]?.id ?? null)
+                }
+                conjunctions={conjunctions}
+                onSelectCaseConjunction={(id) => setCaseConjunctionId(id)}
                 onBack={() => setActiveTab('conjunctions')}
                 onOpen3D={(id) => {
-                  const target = conjunctions.find(c => c.id === id);
+                  const target = conjunctions.find((c) => c.id === id);
                   if (target) setSelectedConjunction(target);
                   setActiveTab('space');
                 }}
                 onOpenCAM={(id) => {
-                  const target = conjunctions.find(c => c.id === id);
-                  if (target) setSelectedConjunction(target);
-                  setIsCAMModalOpen(true);
+                  const target = conjunctions.find((c) => c.id === id);
+                  if (target) {
+                    setSelectedConjunction(target);
+                    setIsCAMModalOpen(true);
+                  }
                 }}
               />
             )}
           </>
         )}
       </main>
+
+      {/* Non-blocking status toast */}
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed bottom-4 right-4 z-40 max-w-md px-3.5 py-2.5 rounded-lg border text-xs font-mono shadow-xl flex items-center gap-3 ${
+            toast.tone === 'error'
+              ? 'bg-red-950/90 border-red-500/40 text-red-200'
+              : toast.tone === 'success'
+                ? 'bg-emerald-950/90 border-emerald-500/40 text-emerald-200'
+                : 'bg-space-900 border-space-700 text-slate-200'
+          }`}
+        >
+          <span className="flex-1">{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            aria-label="Dismiss notification"
+            className="text-slate-400 hover:text-white"
+          >
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
+      {/* Alerts Triage Dialog */}
+      <AlertsModal
+        isOpen={isAlertsModalOpen}
+        onClose={() => setIsAlertsModalOpen(false)}
+        alerts={alerts}
+        conjunctions={conjunctions}
+        onAlertUpdated={(updated) =>
+          setAlerts((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
+        }
+        onInspectConjunction={handleOpenConjunctionModal}
+      />
 
       {/* Telemetry Modal for Catalog */}
       {isObjectModalOpen && selectedObject && (
@@ -464,7 +594,7 @@ export default function App() {
         />
       )}
 
-      {/* Conjunction Modal */}
+      {/* Conjunction Details Modal */}
       {isConjunctionModalOpen && selectedConjunction && (
         <ConjunctionDetailsModal
           conjunction={selectedConjunction}
@@ -494,7 +624,7 @@ export default function App() {
         />
       )}
 
-      {/* NASA Standard Satellite Breakup & Fragmentation Simulator Modal */}
+      {/* NASA Standard Satellite Breakup Simulator Modal */}
       {isBreakupModalOpen && (
         <BreakupSimulatorModal
           conjunction={selectedConjunction}
@@ -518,7 +648,7 @@ export default function App() {
         />
       )}
 
-      {/* CCSDS 508.0-B-1 CDM Export & Operator Dispatcher Modal */}
+      {/* CCSDS 508.0-B-1 CDM Export Modal */}
       {isCDMModalOpen && selectedConjunction && (
         <CDMExportModal
           conjunction={selectedConjunction}
@@ -526,27 +656,26 @@ export default function App() {
         />
       )}
 
-      {/* NOAA Space Weather & Solar Storm Monitor */}
+      {/* NOAA Space Weather Monitor */}
       <SpaceWeatherModal
         isOpen={isSpaceWeatherOpen}
         onClose={() => setIsSpaceWeatherOpen(false)}
       />
 
-      {/* Global Rocket Launch & Debris Re-entry Radar Modal */}
+      {/* Orbital Launch Radar Modal */}
       <LaunchRadarModal
         isOpen={isLaunchRadarOpen}
         onClose={() => setIsLaunchRadarOpen(false)}
       />
 
-      {/* Kessler Syndrome Spatial Density Heatmap Modal */}
+      {/* Spatial Debris Shell Density Modal */}
       <KesslerDensityModal
         isOpen={isKesslerDensityOpen}
         onClose={() => setIsKesslerDensityOpen(false)}
         stats={stats}
       />
 
-
-      {/* Executive Defense SITREP Dossier Modal */}
+      {/* Executive SITREP Dossier Modal */}
       <SITREPModal
         isOpen={isSITREPOpen}
         onClose={() => setIsSITREPOpen(false)}
@@ -554,20 +683,10 @@ export default function App() {
         stats={stats}
       />
 
-      {/* ASAT Kinetic Intercept & Collision Cascade Modal */}
-      <ASATSimulatorModal
-        isOpen={isASATOpen}
-        onClose={() => setIsASATOpen(false)}
-      />
+      {/* Optical Pass Spotter Modal */}
+      <SkySpotterModal isOpen={isSpotterOpen} onClose={() => setIsSpotterOpen(false)} />
 
-
-      {/* Naked-Eye Citizen Sky Spotter Modal */}
-      <SkySpotterModal
-        isOpen={isSpotterOpen}
-        onClose={() => setIsSpotterOpen(false)}
-      />
-
-      {/* Cinematic Encounter Replay Modal */}
+      {/* Encounter Replay Modal */}
       <CinematicReplayModal
         isOpen={isReplayModalOpen}
         conjunction={replayConjunction || selectedConjunction}
@@ -576,13 +695,13 @@ export default function App() {
         onOpenCDM={handleOpenCDM}
       />
 
-      {/* Scientific Credibility & Trust Center Modal */}
+      {/* Verification & Proofs Modal */}
       <TrustCenterModal
         isOpen={isTrustCenterOpen}
         onClose={() => setIsTrustCenterOpen(false)}
       />
 
-      {/* Live Interactive Web Platform Guide & Feature Tour */}
+      {/* Operator Manual & Reference Modal */}
       <LiveWebGuide
         isOpen={isLiveGuideOpen}
         onClose={() => setIsLiveGuideOpen(false)}
@@ -606,7 +725,7 @@ export default function App() {
         onTriggerScreening={handleScreenConjunctions}
       />
 
-      {/* Specialized Orbit AI Space Intelligence Copilot Modal */}
+      {/* Astrodynamics Copilot Modal */}
       <OrbitAIAssistant
         isOpen={isOrbitAIOpen}
         onClose={() => setIsOrbitAIOpen(false)}
@@ -635,18 +754,6 @@ export default function App() {
         onNavigateToTab={(tab) => setActiveTab(tab)}
       />
 
-      {/* Floating ✦ ASK ORBIT AI Action Trigger */}
-      {!isOrbitAIOpen && (
-        <button
-          onClick={() => setIsOrbitAIOpen(true)}
-          className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-40 bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-space-950 font-extrabold px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-full shadow-[0_0_25px_rgba(0,240,255,0.4)] flex items-center gap-2 font-mono text-xs sm:text-sm tracking-wide transition transform hover:scale-105 active:scale-95 group border border-white/20"
-          title="Open Orbit AI Specialized Copilot"
-        >
-          <Sparkles className="w-4 h-4 text-space-950 animate-pulse group-hover:rotate-12 transition-transform" />
-          <span>✦ ASK ORBIT AI</span>
-        </button>
-      )}
-
       {/* System & Database Diagnostics Modal */}
       <SystemHealthModal
         isOpen={isSystemHealthModalOpen}
@@ -657,20 +764,11 @@ export default function App() {
         isScreening={isScreening}
       />
 
-      {/* Performance Telemetry & Subsystem Profiler Modal */}
+      {/* Performance Telemetry Modal */}
       <PerformanceDashboardModal
         isOpen={isPerformanceDashboardOpen}
         onClose={() => setIsPerformanceDashboardOpen(false)}
       />
-
-      {/* Physics-Grounded Encounter Replay Modal */}
-      {isEncounterReplayOpen && (replayConjunction || selectedConjunction || conjunctions[0]) && (
-        <EncounterReplayModal
-          isOpen={isEncounterReplayOpen}
-          onClose={() => setIsEncounterReplayOpen(false)}
-          conjunction={replayConjunction || selectedConjunction || conjunctions[0]}
-        />
-      )}
     </div>
   );
 }

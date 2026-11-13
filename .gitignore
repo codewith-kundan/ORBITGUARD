@@ -31,3 +31,5 @@ yarn-error.log*
 # Logs & temp
 *.log
 scratch/
+.pytest_cache/
+data/cache/celestrak_groups/

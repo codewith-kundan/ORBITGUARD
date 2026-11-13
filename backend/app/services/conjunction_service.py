@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.models.orbital_object import OrbitalObject, ObjectType
 from backend.app.models.conjunction import Conjunction
+from backend.app.models.conjunction_case import ConjunctionCase, AuditEvent
 from backend.app.models.alert import Alert
 from backend.app.schemas.conjunction import RiskLevel
 from backend.app.schemas.alert import AlertStatus
@@ -560,7 +561,9 @@ class ConjunctionService:
         detected_events.sort(key=lambda x: (-x["risk_score"], x["miss_distance_km"]))
         top_stable_events = detected_events[:target_stable_count]
 
-        # Atomically replace database records with stable top set
+        # Atomically replace dependent records and conjunction table with stable top set
+        db.query(AuditEvent).delete()
+        db.query(ConjunctionCase).delete()
         db.query(Alert).delete()
         db.query(Conjunction).delete()
 
@@ -616,9 +619,12 @@ class ConjunctionService:
     def prune_expired_conjunctions(db: Session, grace_period_minutes: int = 15) -> int:
         """Prunes conjunctions that have already passed TCA + grace period."""
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=grace_period_minutes)
-        expired = db.query(Conjunction).filter(Conjunction.tca < cutoff).all()
+        all_conjs = db.query(Conjunction).all()
+        expired = [c for c in all_conjs if c.tca is not None and to_utc(c.tca) < cutoff]
         count = len(expired)
         for c in expired:
+            db.query(AuditEvent).filter(AuditEvent.conjunction_id == c.id).delete()
+            db.query(ConjunctionCase).filter(ConjunctionCase.conjunction_id == c.id).delete()
             db.query(Alert).filter(Alert.conjunction_id == c.id).delete()
             db.delete(c)
         db.commit()

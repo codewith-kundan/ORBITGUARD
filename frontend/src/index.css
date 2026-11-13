@@ -4,136 +4,139 @@
 
 :root {
   color-scheme: dark;
+  --og-canvas: #080b10;
+  --og-panel: #0e131b;
+  --og-elevated: #141b26;
+  --og-border: #1e2836;
+  --og-border-strong: #2c3a4f;
+  --og-accent: #38bdf8;
+  --og-text-primary: #f1f5f9;
+  --og-text-secondary: #94a3b8;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
-  background-color: #060913;
-  color: #f1f5f9;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  min-height: 100dvh;
+  background-color: var(--og-canvas);
+  color: var(--og-text-primary);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Custom aerospace scrollbar */
+/* Native accessible focus indicators */
+:focus-visible {
+  outline: 2px solid var(--og-accent);
+  outline-offset: 2px;
+}
+
+/* Precision telemetry tabular numerals */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Restrained scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0b1021;
+  background: #0a0e14;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1c284f;
+  background: #273244;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2c3e75;
+  background: #38465d;
 }
 
-.radar-grid {
-  background-image: 
-    linear-gradient(to right, rgba(34, 211, 238, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
+/* Native top-layer modal dialog styling */
+dialog:modal {
+  overscroll-behavior: contain;
 }
 
-.glow-cyan {
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.25);
+dialog.og-dialog {
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--og-border-strong);
+  border-radius: 0.75rem;
+  background-color: var(--og-panel);
+  color: var(--og-text-primary);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.72);
+  overscroll-behavior: contain;
+  max-height: calc(100dvh - 2rem);
+  max-width: calc(100vw - 1.5rem);
 }
 
-.glow-danger {
-  box-shadow: 0 0 15px rgba(255, 51, 68, 0.3);
+dialog::backdrop,
+dialog.og-dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: rgba(4, 7, 12, 0.76);
+  backdrop-filter: blur(4px);
 }
 
-/* Stitch Design System Components */
-.glass-panel {
-  background: rgba(10, 17, 40, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+/* Subtle structural panel surfaces without AI glow bloat */
+.instrument-panel {
+  background-color: rgba(14, 19, 27, 0.94);
+  border: 1px solid var(--og-border);
+  backdrop-filter: blur(12px);
 }
 
-.progress-segment {
-  flex: 1;
-  height: 4px;
-  background-color: #2d4b73;
-  border-radius: 2px;
-  margin: 0 2px;
-  transition: all 0.3s ease;
+.hud-panel {
+  background-color: rgba(10, 14, 20, 0.88);
+  border: 1px solid rgba(39, 50, 68, 0.85);
+  backdrop-filter: blur(10px);
 }
 
-.progress-segment.active {
-  background-color: #00f2ff;
-  box-shadow: 0 0 8px #00f2ff;
-}
-
+/* Clean tab indicator */
 .nav-tab {
-  color: #8fa3c0;
+  color: #94a3b8;
   position: relative;
-  padding-bottom: 8px;
-  transition: color 0.3s ease;
-  cursor: pointer;
+  transition: color 0.15s ease;
 }
 
 .nav-tab:hover {
-  color: #e2e8f0;
+  color: #f1f5f9;
 }
 
 .nav-tab.active {
-  color: #00f2ff;
+  color: #f8fafc;
 }
 
-.nav-tab.active::after {
-  content: "";
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background-color: #00f2ff;
-  box-shadow: 0 0 8px #00f2ff;
-}
-
-.shadow-cyan-glow {
-  box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
-}
-
-.shadow-cyan-inner {
-  box-shadow: inset 0 0 10px rgba(0, 242, 255, 0.15);
-}
-
+/* Accessible custom checkbox */
 .custom-checkbox {
   appearance: none;
-  background-color: rgba(10, 17, 40, 0.8);
+  background-color: #0a0e14;
   margin: 0;
   font: inherit;
   color: currentColor;
-  width: 1.15em;
-  height: 1.15em;
-  border: 1px solid #2d4b73;
-  border-radius: 0.25em;
+  width: 1.05rem;
+  height: 1.05rem;
+  border: 1px solid #334155;
+  border-radius: 0.25rem;
   display: grid;
   place-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .custom-checkbox:hover {
-  border-color: #00f2ff;
+  border-color: var(--og-accent);
 }
 
 .custom-checkbox::before {
   content: "";
-  width: 0.65em;
-  height: 0.65em;
+  width: 0.58rem;
+  height: 0.58rem;
   transform: scale(0);
-  transition: 120ms transform ease-in-out;
-  box-shadow: inset 1em 1em #00f2ff;
-  background-color: #00f2ff;
-  transform-origin: bottom left;
+  transition: 110ms transform ease-in-out;
+  background-color: #080b10;
+  transform-origin: center;
   clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
 }
 
@@ -142,7 +145,16 @@ body {
 }
 
 .custom-checkbox:checked {
-  border-color: #00f2ff;
-  box-shadow: 0 0 8px rgba(0, 242, 255, 0.4);
+  background-color: var(--og-accent);
+  border-color: var(--og-accent);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  .animate-spin {
+    animation-duration: 6s;
+  }
+}

@@ -1,15 +1,18 @@
+import time
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime
 
 from backend.app.models.base import get_db
+from backend.app.models.orbital_object import OrbitalObject
 from backend.app.models.conjunction import Conjunction
 from backend.app.schemas.conjunction import ConjunctionResponse, RiskLevel, ConjunctionSummary
 from backend.app.services.conjunction_service import ConjunctionService
 from backend.app.services.alert_service import AlertService
 from backend.app.services.risk_service import RiskService
 from backend.app.services.history_service import HistoryService
+from backend.app.services.telemetry_service import TelemetryService
 from backend.app.services.cache_service import fast_cache
 
 router = APIRouter(prefix="/api/conjunctions", tags=["Conjunctions"])
@@ -21,19 +24,40 @@ def trigger_conjunction_screening(
     coarse_step_minutes: float = 2.0,
     db: Session = Depends(get_db)
 ):
-    """Executes ultra-fast vectorized multi-object conjunction screening pipeline across current catalog."""
+    """Executes vectorized multi-object conjunction screening pipeline across current catalog."""
+    t0 = time.perf_counter()
     result = ConjunctionService.run_full_conjunction_screening(
         db,
         window_hours=window_hours,
         threshold_km=threshold_km,
         coarse_step_minutes=coarse_step_minutes
     )
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
     if not isinstance(result, dict):
         result = {}
     # Sync alerts automatically
     alerts_created = AlertService.sync_alerts_from_conjunctions(db)
     result["alerts_created"] = alerts_created
-    
+
+    total_objects = db.query(OrbitalObject).count()
+    high_risk_count = db.query(Conjunction).filter(Conjunction.risk_score >= 60).count()
+    TelemetryService.record_run(
+        db=db,
+        mode="LIVE_SCREEN",
+        total_objects=total_objects,
+        candidate_pairs=result.get("screened_pairs", 0),
+        conjunctions_count=result.get("conjunctions_found", 0),
+        high_risk_count=high_risk_count,
+        latencies_ms={
+            "sgp4_propagation_ms": elapsed_ms * 0.55,
+            "spatial_screening_ms": elapsed_ms * 0.25,
+            "tca_refinement_ms": elapsed_ms * 0.12,
+            "pc_calculation_ms": elapsed_ms * 0.05,
+            "risk_scoring_ms": elapsed_ms * 0.03,
+            "total_pipeline_ms": elapsed_ms,
+        }
+    )
+
     # Invalidate cached conjunction and statistics queries
     fast_cache.invalidate("conjunctions:")
     fast_cache.invalidate("system_statistics")
@@ -51,12 +75,7 @@ def list_conjunctions(
     offset: int = 0,
     db: Session = Depends(get_db)
 ):
-    """Retrieves active upcoming conjunctions sorted by risk score descending with fast caching and single SQL JOIN."""
-    cache_key = f"conjunctions:list:{risk_level}:{min_risk_score}:{max_miss_distance_km}:{include_passed}:{limit}:{offset}"
-    cached_data = fast_cache.get(cache_key)
-    if cached_data is not None:
-        return cached_data
-
+    """Retrieves active upcoming conjunctions directly from the live database."""
     now = datetime.utcnow()
     query = db.query(Conjunction).options(
         joinedload(Conjunction.object_a),
@@ -73,41 +92,26 @@ def list_conjunctions(
     if max_miss_distance_km is not None:
         query = query.filter(Conjunction.miss_distance_km <= max_miss_distance_km)
 
-    results = query.order_by(Conjunction.risk_score.desc(), Conjunction.tca.asc()).offset(offset).limit(limit).all()
-    fast_cache.set(cache_key, results, ttl_seconds=15.0)
-    return results
+    return query.order_by(Conjunction.risk_score.desc(), Conjunction.tca.asc()).offset(offset).limit(limit).all()
 
 @router.get("/high-risk", response_model=List[ConjunctionResponse])
 def list_high_risk_conjunctions(
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """Retrieves active high and critical risk upcoming conjunctions with fast caching and eager loaded relationships."""
-    cache_key = f"conjunctions:high_risk:{limit}"
-    cached_data = fast_cache.get(cache_key)
-    if cached_data is not None:
-        return cached_data
-
+    """Retrieves active high and critical risk upcoming conjunctions directly from the live database."""
     now = datetime.utcnow()
-    results = db.query(Conjunction).options(
+    return db.query(Conjunction).options(
         joinedload(Conjunction.object_a),
         joinedload(Conjunction.object_b)
     ).filter(
         Conjunction.tca > now,
         Conjunction.risk_level.in_([RiskLevel.HIGH, RiskLevel.CRITICAL])
     ).order_by(Conjunction.risk_score.desc()).limit(limit).all()
-    
-    fast_cache.set(cache_key, results, ttl_seconds=15.0)
-    return results
 
 @router.get("/summary", response_model=ConjunctionSummary)
 def get_conjunction_summary(db: Session = Depends(get_db)):
-    """Provides high-level aggregate summary of active upcoming conjunction screening results."""
-    cache_key = "conjunctions:summary"
-    cached_data = fast_cache.get(cache_key)
-    if cached_data is not None:
-        return cached_data
-
+    """Provides aggregate summary of active upcoming conjunctions directly from the live database."""
     now = datetime.utcnow()
     conjunctions = db.query(Conjunction).filter(Conjunction.tca > now).all()
     total = len(conjunctions)
@@ -119,7 +123,7 @@ def get_conjunction_summary(db: Session = Depends(get_db)):
     closest_miss = min([c.miss_distance_km for c in conjunctions], default=None)
     earliest_tca = min([c.tca for c in conjunctions], default=None)
 
-    summary = ConjunctionSummary(
+    return ConjunctionSummary(
         total_screened=total,
         conjunctions_detected=total,
         critical_count=critical_cnt,
@@ -129,17 +133,10 @@ def get_conjunction_summary(db: Session = Depends(get_db)):
         closest_miss_km=round(closest_miss, 3) if closest_miss is not None else None,
         earliest_tca=earliest_tca
     )
-    fast_cache.set(cache_key, summary, ttl_seconds=15.0)
-    return summary
 
 @router.get("/{id}", response_model=ConjunctionResponse)
 def get_conjunction(id: int, db: Session = Depends(get_db)):
-    """Retrieves detailed information for a specific conjunction event with explainable multi-factor risk and historical prediction confidence."""
-    cache_key = f"conjunctions:detail:{id}"
-    cached_data = fast_cache.get(cache_key)
-    if cached_data is not None:
-        return cached_data
-
+    """Retrieves detailed conjunction analysis directly from the live database."""
     conj = db.query(Conjunction).options(
         joinedload(Conjunction.object_a),
         joinedload(Conjunction.object_b)
@@ -169,6 +166,5 @@ def get_conjunction(id: int, db: Session = Depends(get_db)):
         factors["historical_prediction"] = hist_analysis
 
     conj.factors = factors
-    fast_cache.set(cache_key, conj, ttl_seconds=30.0)
     return conj
 

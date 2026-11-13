@@ -267,11 +267,11 @@ class DecayService:
         Scans entire orbital catalog for objects with low perigee (<350 km) or high B* drag,
         returning prioritized re-entry watchlist.
         """
-        # Query potential decaying objects (LEO objects with low perigee)
+        # Query potential decaying objects (lowest perigee LEO objects first)
         candidates = db.query(OrbitalObject).filter(
             OrbitalObject.perigee_km != None,
             OrbitalObject.perigee_km <= 400.0
-        ).limit(100).all()
+        ).order_by(OrbitalObject.perigee_km.asc()).limit(100).all()
 
         watchlist: List[DecayWatchlistItem] = []
         for obj in candidates:

@@ -18,14 +18,14 @@ router = APIRouter(prefix="/api/spotter", tags=["Citizen Sky Spotter"])
 # Expanded collection of high-visibility, naked-eye satellites (Large RCS in LEO)
 BRIGHT_TARGETS = [
     {"norad_id": 25544, "name": "ISS (ZARYA)", "label": "International Space Station (ISS)", "mag_base": -3.8, "desc": "Extremely bright, outshines Venus"},
-    {"norad_id": 48274, "name": "TIANGONG", "label": "Tiangong Space Station (CSS)", "mag_base": -1.8, "desc": "Bright as Sirius, distinct golden hue"},
+    {"norad_id": 48274, "name": "CSS (TIANHE)", "label": "Tiangong Space Station (CSS)", "mag_base": -1.8, "desc": "Bright as Sirius, distinct golden hue"},
     {"norad_id": 20580, "name": "HST", "label": "Hubble Space Telescope (HST)", "mag_base": 1.2, "desc": "Famous NASA/ESA space observatory"},
-    {"norad_id": 25989, "name": "TERRA", "label": "Terra (EOS AM-1)", "mag_base": 2.0, "desc": "Flagship NASA Earth observation platform"},
+    {"norad_id": 25994, "name": "TERRA", "label": "Terra (EOS AM-1)", "mag_base": 2.0, "desc": "Flagship NASA Earth observation platform"},
     {"norad_id": 27424, "name": "AQUA", "label": "Aqua (EOS PM-1)", "mag_base": 2.1, "desc": "NASA Earth climate monitoring satellite"},
-    {"norad_id": 28654, "name": "NOAA 18", "label": "NOAA 18 Weather Satellite", "mag_base": 2.3, "desc": "Polar-orbiting meteorological observatory"},
-    {"norad_id": 33591, "name": "NOAA 19", "label": "NOAA 19 Weather Satellite", "mag_base": 2.2, "desc": "Direct zenith visible polar satellite"},
-    {"norad_id": 40059, "name": "GPM-CORE", "label": "GPM-Core Observatory", "mag_base": 2.5, "desc": "NASA/JAXA Global Precipitation satellite"},
-    {"norad_id": 44713, "name": "STARLINK-1007", "label": "Starlink-1007", "mag_base": 2.8, "desc": "Low Earth Orbit broadband mega-constellation"},
+    {"norad_id": 43013, "name": "NOAA 20 (JPSS-1)", "label": "NOAA 20 (JPSS-1)", "mag_base": 2.2, "desc": "Polar-orbiting meteorological observatory"},
+    {"norad_id": 40697, "name": "SENTINEL-2A", "label": "Sentinel-2A Earth Explorer", "mag_base": 2.4, "desc": "ESA Copernicus optical imaging satellite"},
+    {"norad_id": 39574, "name": "GPM-CORE", "label": "GPM-Core Observatory", "mag_base": 2.5, "desc": "NASA/JAXA Global Precipitation satellite"},
+    {"norad_id": 49260, "name": "LANDSAT 9", "label": "Landsat 9 Observatory", "mag_base": 2.6, "desc": "NASA/USGS Earth observation mission"},
     {"norad_id": 44714, "name": "STARLINK-1008", "label": "Starlink-1008", "mag_base": 2.8, "desc": "LEO satellite passing with fast angular rate"}
 ]
 
@@ -60,6 +60,10 @@ def _azimuth_to_cardinal(az_deg: float) -> str:
 @router.get("/visible-passes")
 def get_visible_passes(
     city_id: Optional[str] = Query(None, description="City ID or default to all visible cities"),
+    lat: Optional[float] = Query(None, ge=-90.0, le=90.0, description="Custom observer latitude"),
+    lon: Optional[float] = Query(None, ge=-180.0, le=180.0, description="Custom observer longitude"),
+    alt_m: float = Query(50.0, ge=0.0, le=10000.0, description="Custom observer altitude in meters"),
+    location_name: Optional[str] = Query(None, description="Label for custom observer coordinates"),
     min_elevation: float = Query(12.0, description="Minimum elevation cutoff degrees"),
     lookahead_hours: float = Query(48.0, description="Prediction window in hours"),
     db: Session = Depends(get_db)
@@ -76,22 +80,34 @@ def get_visible_passes(
     
     tle_dict = {o.norad_id: (o.tle_line1, o.tle_line2, o) for o in objs if o.tle_line1 and o.tle_line2}
     
-    # Fallback to local verified TLE records if needed
-    fallback_records = TLEService._load_local_fallback()
-    for rec in fallback_records:
-        nid = rec.get("norad_id")
-        if nid in norad_ids and nid not in tle_dict:
-            synthetic_obj = OrbitalObject(
-                norad_id=nid,
-                name=rec.get("name", f"NORAD-{nid}"),
-                object_type=rec.get("object_type", "ACTIVE_SATELLITE"),
-                tle_line1=rec["tle_line1"],
-                tle_line2=rec["tle_line2"],
-                source="Verified Cache"
-            )
-            tle_dict[nid] = (rec["tle_line1"], rec["tle_line2"], synthetic_obj)
+    # Fallback to local verified TLE records only for targets missing from the live database
+    if len(tle_dict) < len(norad_ids):
+        fallback_records = TLEService._load_local_fallback()
+        for rec in fallback_records:
+            nid = rec.get("norad_id")
+            if nid in norad_ids and nid not in tle_dict:
+                synthetic_obj = OrbitalObject(
+                    norad_id=nid,
+                    name=rec.get("name", f"NORAD-{nid}"),
+                    object_type=rec.get("object_type", "ACTIVE_SATELLITE"),
+                    tle_line1=rec["tle_line1"],
+                    tle_line2=rec["tle_line2"],
+                    source="Verified Cache"
+                )
+                tle_dict[nid] = (rec["tle_line1"], rec["tle_line2"], synthetic_obj)
 
-    cities_to_evaluate = [c for c in GLOBAL_CITIES if c["id"] == city_id] if city_id else GLOBAL_CITIES
+    if lat is not None and lon is not None:
+        cities_to_evaluate = [{
+            "id": "custom_gps",
+            "name": location_name or f"Custom Location ({lat:.2f}°, {lon:.2f}°)",
+            "lat": lat,
+            "lon": lon,
+            "alt_m": alt_m,
+        }]
+    elif city_id:
+        cities_to_evaluate = [c for c in GLOBAL_CITIES if c["id"] == city_id]
+    else:
+        cities_to_evaluate = GLOBAL_CITIES
 
     all_passes: List[Dict[str, Any]] = []
     visible_cities_set = set()
@@ -166,13 +182,9 @@ def get_visible_passes(
 
     all_passes.sort(key=lambda x: x["startTimeMs"])
 
-    confirmed_cities = [c for c in GLOBAL_CITIES if c["id"] in visible_cities_set]
-    if not confirmed_cities:
-        confirmed_cities = GLOBAL_CITIES
-
     return {
         "status": "LIVE_SGP4",
         "total_passes": len(all_passes),
-        "available_cities": confirmed_cities,
+        "available_cities": GLOBAL_CITIES,
         "passes": all_passes
     }

@@ -24,65 +24,65 @@ export const ICON_CATEGORIES: Record<OrbitalIconCategory, IconCategoryMeta> = {
   ROCKET: {
     key: 'ROCKET',
     label: 'Rocket Bodies',
-    badge: '🚀',
-    color: '#fbbf24',
-    glowColor: 'rgba(251, 191, 36, 0.8)',
+    badge: 'RKT',
+    color: '#eab308',
+    glowColor: 'rgba(234, 179, 8, 0.45)',
     description: 'Upper stages & booster casings'
   },
   DEBRIS: {
     key: 'DEBRIS',
     label: 'Space Debris',
-    badge: '💥',
+    badge: 'DEB',
     color: '#ef4444',
-    glowColor: 'rgba(239, 68, 68, 0.8)',
+    glowColor: 'rgba(239, 68, 68, 0.45)',
     description: 'Fragmentation shards & mission debris'
   },
   GPS: {
     key: 'GPS',
     label: 'GPS / GNSS',
-    badge: '📡',
+    badge: 'GNSS',
     color: '#10b981',
-    glowColor: 'rgba(16, 185, 129, 0.8)',
-    description: 'Navigation & positioning constellations (GPS/GLONASS/Galileo/BeiDou)'
+    glowColor: 'rgba(16, 185, 129, 0.45)',
+    description: 'Navigation & positioning constellations'
   },
   STARLINK: {
     key: 'STARLINK',
     label: 'Starlink',
-    badge: '🛰️',
-    color: '#c084fc',
-    glowColor: 'rgba(192, 132, 252, 0.8)',
-    description: 'SpaceX broadband flat-panel constellation'
+    badge: 'SLK',
+    color: '#a78bfa',
+    glowColor: 'rgba(167, 139, 250, 0.45)',
+    description: 'Low-Earth broadband constellation'
   },
   ONEWEB: {
     key: 'ONEWEB',
     label: 'OneWeb / Comm',
-    badge: '🛰️',
-    color: '#ffffff',
-    glowColor: 'rgba(255, 255, 255, 0.85)',
-    description: 'Global communications & relay satellites'
+    badge: 'COM',
+    color: '#e2e8f0',
+    glowColor: 'rgba(226, 232, 240, 0.45)',
+    description: 'Global communications satellites'
   },
   ISS: {
     key: 'ISS',
     label: 'Space Stations',
-    badge: '🛰️',
+    badge: 'STA',
     color: '#38bdf8',
-    glowColor: 'rgba(56, 189, 248, 0.9)',
+    glowColor: 'rgba(56, 189, 248, 0.55)',
     description: 'Crewed orbital platforms (ISS, Tiangong)'
   },
   PAYLOAD: {
     key: 'PAYLOAD',
     label: 'Operational Satellites',
-    badge: '🛰️',
-    color: '#00f0ff',
-    glowColor: 'rgba(0, 240, 255, 0.8)',
-    description: 'Active Earth observation, weather & defense payloads'
+    badge: 'SAT',
+    color: '#7dd3fc',
+    glowColor: 'rgba(125, 211, 252, 0.45)',
+    description: 'Active Earth observation, weather & science payloads'
   },
   TARGET: {
     key: 'TARGET',
     label: 'Selected Target',
-    badge: '🎯',
+    badge: 'TGT',
     color: '#ffffff',
-    glowColor: 'rgba(0, 240, 255, 1.0)',
+    glowColor: 'rgba(56, 189, 248, 0.85)',
     description: 'Active tracking target reticle'
   }
 };

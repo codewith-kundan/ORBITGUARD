@@ -4,11 +4,14 @@ import logging
 import httpx
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple, Optional
+from xml.sax.saxutils import escape
+from sgp4.api import jday
 from sqlalchemy.orm import Session
 
 from backend.app.models.conjunction import Conjunction
 from backend.app.models.orbital_object import OrbitalObject
 from backend.app.services.propagation_service import PropagationService
+from backend.app.utils.time_utils import to_utc
 from backend.app.schemas.compliance import (
     CDMPreviewResponse,
     WebhookDispatchRequest,
@@ -25,20 +28,38 @@ class ComplianceService:
     """
 
     @staticmethod
+    def _propagate_teme_state(obj: Optional[OrbitalObject], tca_dt: datetime) -> Optional[Tuple[float, float, float, float, float, float]]:
+        """Propagates TLE to TEME Cartesian position (km) and velocity (km/s) at TCA."""
+        if not obj or not obj.tle_line1 or not obj.tle_line2:
+            return None
+        sat = PropagationService.get_satrec(obj.tle_line1, obj.tle_line2)
+        if not sat:
+            return None
+        tca_utc = to_utc(tca_dt)
+        jd, fr = jday(
+            tca_utc.year, tca_utc.month, tca_utc.day,
+            tca_utc.hour, tca_utc.minute, tca_utc.second + tca_utc.microsecond / 1e6
+        )
+        err, r, v = sat.sgp4(jd, fr)
+        if err != 0:
+            return None
+        return (r[0], r[1], r[2], v[0], v[1], v[2])
+
+    @staticmethod
     def generate_cdm(conjunction: Conjunction, db: Session) -> CDMPreviewResponse:
         """
         Generates full CCSDS 508.0-B-1 compliant KVN (Key-Value Notation) and XML messages
         for a given conjunction close-approach event.
         """
-        obj1 = conjunction.object_a or db.query(OrbitalObject).filter(OrbitalObject.norad_id == conjunction.object_a_id).first()
-        obj2 = conjunction.object_b or db.query(OrbitalObject).filter(OrbitalObject.norad_id == conjunction.object_b_id).first()
+        obj1 = conjunction.object_a or db.query(OrbitalObject).filter(OrbitalObject.id == conjunction.object_a_id).first()
+        obj2 = conjunction.object_b or db.query(OrbitalObject).filter(OrbitalObject.id == conjunction.object_b_id).first()
 
         now = datetime.now(timezone.utc)
         tca = conjunction.tca
         if isinstance(tca, str):
-            tca_dt = datetime.fromisoformat(tca.replace("Z", "+00:00"))
+            tca_dt = to_utc(datetime.fromisoformat(tca.replace("Z", "+00:00")))
         else:
-            tca_dt = tca
+            tca_dt = to_utc(tca)
 
         tca_iso = tca_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         creation_iso = now.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
@@ -56,37 +77,23 @@ class ComplianceService:
 
         miss_dist_m = round(conjunction.miss_distance_km * 1000.0, 2)
         rel_speed_m_s = round(conjunction.relative_velocity_km_s * 1000.0, 2)
-        
-        # Determine collision probability
-        if hasattr(conjunction, 'collision_probability') and getattr(conjunction, 'collision_probability') is not None:
+
+        # Determine collision probability (stored Pc is percentage in core screening engine)
+        if getattr(conjunction, 'collision_probability', None) is not None:
             raw_prob = float(conjunction.collision_probability)
         else:
-            # 2D Foster isotropic approximation: Pc ~ exp(-d^2 / (2 * sigma^2))
             sigma_km = 2.5
             raw_prob = math.exp(- (conjunction.miss_distance_km ** 2) / (2.0 * sigma_km ** 2)) * 0.05
         collision_prob = round(raw_prob, 8)
 
-        # Propagate state vectors at TCA if TLEs available
-        x1, y1, z1, vx1, vy1, vz1 = 6871.0, 0.0, 0.0, 0.0, 7.6, 0.0
-        x2, y2, z2, vx2, vy2, vz2 = 6871.0, 0.5, 0.2, 0.0, -7.6, 0.1
+        # Propagate real SGP4 TEME state vectors at TCA
+        sv1 = ComplianceService._propagate_teme_state(obj1, tca_dt)
+        sv2 = ComplianceService._propagate_teme_state(obj2, tca_dt)
 
-        if obj1 and obj1.tle_line1 and obj1.tle_line2:
-            try:
-                pos1 = PropagationService.propagate_tle(obj1.tle_line1, obj1.tle_line2, tca_dt)
-                if pos1:
-                    x1, y1, z1 = pos1.x_km, pos1.y_km, pos1.z_km
-                    vx1, vy1, vz1 = pos1.vx_km_s, pos1.vy_km_s, pos1.vz_km_s
-            except Exception:
-                pass
-
-        if obj2 and obj2.tle_line2 and obj2.tle_line2:
-            try:
-                pos2 = PropagationService.propagate_tle(obj2.tle_line1, obj2.tle_line2, tca_dt)
-                if pos2:
-                    x2, y2, z2 = pos2.x_km, pos2.y_km, pos2.z_km
-                    vx2, vy2, vz2 = pos2.vx_km_s, pos2.vy_km_s, pos2.vz_km_s
-            except Exception:
-                pass
+        ephemeris_note_1 = "SGP4_TLE_PROPAGATION" if sv1 else "NOMINAL_CIRCULAR_FALLBACK"
+        ephemeris_note_2 = "SGP4_TLE_PROPAGATION" if sv2 else "NOMINAL_CIRCULAR_FALLBACK"
+        x1, y1, z1, vx1, vy1, vz1 = sv1 if sv1 else (6871.0, 0.0, 0.0, 0.0, 7.61, 0.0)
+        x2, y2, z2, vx2, vy2, vz2 = sv2 if sv2 else (6871.0, conjunction.miss_distance_km, 0.0, 0.0, -7.61, 0.0)
 
         # Standard estimated diagonal covariance terms (m^2) for SGP4 LEO ephemerides
         c_r, c_t, c_n = 2500.0, 22500.0, 10000.0
@@ -113,9 +120,9 @@ class ComplianceService:
             f"OBJECT_NAME = {obj1_name}",
             f"INTERNATIONAL_DESIGNATOR = {obj1_intl}",
             f"OBJECT_TYPE = {obj1_type}",
-            "EPHEMERIS_NAME = SGP4_TLE_PROPAGATION",
+            f"EPHEMERIS_NAME = {ephemeris_note_1}",
             "COVARIANCE_METHOD = CALCULATED",
-            "REF_FRAME = EME2000",
+            "REF_FRAME = TEME",
             f"X = {x1:.6f} [km]",
             f"Y = {y1:.6f} [km]",
             f"Z = {z1:.6f} [km]",
@@ -133,9 +140,9 @@ class ComplianceService:
             f"OBJECT_NAME = {obj2_name}",
             f"INTERNATIONAL_DESIGNATOR = {obj2_intl}",
             f"OBJECT_TYPE = {obj2_type}",
-            "EPHEMERIS_NAME = SGP4_TLE_PROPAGATION",
+            f"EPHEMERIS_NAME = {ephemeris_note_2}",
             "COVARIANCE_METHOD = CALCULATED",
-            "REF_FRAME = EME2000",
+            "REF_FRAME = TEME",
             f"X = {x2:.6f} [km]",
             f"Y = {y2:.6f} [km]",
             f"Z = {z2:.6f} [km]",
@@ -149,14 +156,14 @@ class ComplianceService:
         ]
         kvn_content = "\n".join(kvn_lines)
 
-        # Build XML Format (CCSDS 508.0-B-1 XML Schema)
+        # Build XML Format (CCSDS 508.0-B-1 XML Schema) with escaped XML strings
         xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-<cdm xmlns="urn:ccsds:schema:ndmxml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="{msg_id}" version="1.0">
+<cdm xmlns="urn:ccsds:schema:ndmxml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="{escape(msg_id)}" version="1.0">
   <header>
     <COMMENT>Generated autonomously by ORBITGUARD SSA Engine</COMMENT>
     <CREATION_DATE>{creation_iso}</CREATION_DATE>
     <ORIGINATOR>ORBITGUARD_SSA_SYSTEM</ORIGINATOR>
-    <MESSAGE_ID>{msg_id}</MESSAGE_ID>
+    <MESSAGE_ID>{escape(msg_id)}</MESSAGE_ID>
   </header>
   <body>
     <relativeMetadataData>
@@ -171,10 +178,10 @@ class ComplianceService:
         <OBJECT>OBJECT1</OBJECT>
         <OBJECT_DESIGNATOR>{obj1_norad}</OBJECT_DESIGNATOR>
         <CATALOG_NAME>SATCAT</CATALOG_NAME>
-        <OBJECT_NAME>{obj1_name}</OBJECT_NAME>
-        <INTERNATIONAL_DESIGNATOR>{obj1_intl}</INTERNATIONAL_DESIGNATOR>
-        <OBJECT_TYPE>{obj1_type}</OBJECT_TYPE>
-        <REF_FRAME>EME2000</REF_FRAME>
+        <OBJECT_NAME>{escape(obj1_name)}</OBJECT_NAME>
+        <INTERNATIONAL_DESIGNATOR>{escape(obj1_intl)}</INTERNATIONAL_DESIGNATOR>
+        <OBJECT_TYPE>{escape(obj1_type)}</OBJECT_TYPE>
+        <REF_FRAME>TEME</REF_FRAME>
       </metadata>
       <data>
         <stateVector>
@@ -198,10 +205,10 @@ class ComplianceService:
         <OBJECT>OBJECT2</OBJECT>
         <OBJECT_DESIGNATOR>{obj2_norad}</OBJECT_DESIGNATOR>
         <CATALOG_NAME>SATCAT</CATALOG_NAME>
-        <OBJECT_NAME>{obj2_name}</OBJECT_NAME>
-        <INTERNATIONAL_DESIGNATOR>{obj2_intl}</INTERNATIONAL_DESIGNATOR>
-        <OBJECT_TYPE>{obj2_type}</OBJECT_TYPE>
-        <REF_FRAME>EME2000</REF_FRAME>
+        <OBJECT_NAME>{escape(obj2_name)}</OBJECT_NAME>
+        <INTERNATIONAL_DESIGNATOR>{escape(obj2_intl)}</INTERNATIONAL_DESIGNATOR>
+        <OBJECT_TYPE>{escape(obj2_type)}</OBJECT_TYPE>
+        <REF_FRAME>TEME</REF_FRAME>
       </metadata>
       <data>
         <stateVector>

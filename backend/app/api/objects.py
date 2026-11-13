@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
 from typing import List, Optional
@@ -73,11 +74,17 @@ async def sync_orbital_data(
     if records and isinstance(records[0], dict) and records[0].get('_gp_json'):
         sync_result = TLEService.sync_gp_records_to_database(db, records, source=source_name)
     else:
-        sync_result = TLEService.sync_to_database(db, records, mode=status_mode, source=source_name)
+        sync_result = TLEService.sync_to_database(
+            db,
+            records,
+            mode=status_mode,
+            source=source_name,
+            error_message=error_msg,
+        )
     
     # Invalidate fast cache
     fast_cache.clear()
-    _batch_objects_cache["objects"] = []
+    _invalidate_batch_caches()
 
     return {
         "status": "success",
@@ -104,7 +111,7 @@ async def upload_custom_tle_file(
 
     sync_result = TLEService.sync_to_database(db, records, mode="LIVE", source=source_name)
     fast_cache.clear()
-    _batch_objects_cache["objects"] = []
+    _invalidate_batch_caches()
     
     return {
         "status": "success",
@@ -117,105 +124,156 @@ async def upload_custom_tle_file(
 
 @router.get("/data/status", response_model=DataStatusResponse)
 def get_data_status(db: Session = Depends(get_db)):
-    """Retrieves live data synchronization, mode, catalog counts, and data freshness with fast cache."""
-    cache_key = "data:status"
-    cached_val = fast_cache.get(cache_key)
-    if cached_val is not None:
-        return cached_val
-    status = TLEService.get_data_status(db)
-    fast_cache.set(cache_key, status, ttl_seconds=15.0)
-    return status
+    """Retrieves live data synchronization, mode, catalog counts, and freshness directly from the live database."""
+    fallback_key = "data:status:fallback"
+    try:
+        status = TLEService.get_data_status(db)
+        fast_cache.set(fallback_key, status, ttl_seconds=3600.0)
+        return status
+    except SQLAlchemyError:
+        cached_val = fast_cache.get(fallback_key)
+        if cached_val is not None:
+            return cached_val
+        raise
 
 @router.get("/data/health")
 async def get_data_health(db: Session = Depends(get_db)):
-    """Retrieves comprehensive data provider health, latencies, stale TLE counts, and sync history."""
-    cache_key = "data:health"
-    cached_val = fast_cache.get(cache_key)
-    if cached_val is not None:
-        return cached_val
+    """Retrieves live data provider health, latencies, stale TLE counts, and sync history."""
     from backend.app.services.data_providers.manager import provider_manager
-    health = await provider_manager.get_system_health(db=db)
-    fast_cache.set(cache_key, health, ttl_seconds=15.0)
-    return health
+    fallback_key = "data:health:fallback"
+    try:
+        health = await provider_manager.get_system_health(db=db)
+        fast_cache.set(fallback_key, health, ttl_seconds=3600.0)
+        return health
+    except SQLAlchemyError:
+        cached_val = fast_cache.get(fallback_key)
+        if cached_val is not None:
+            return cached_val
+        raise
 
 
-# In-memory fast cache for high-speed 3D swarm delivery
+# In-memory fast cache for high-speed 3D/2D swarm delivery
 _batch_objects_cache = {
     "objects": [],
     "last_fetched": datetime.min.replace(tzinfo=timezone.utc),
-    "total_count": 0
+    "total_count": 0,
 }
 _positions_cache = {
     "positions": [],
+    "source_count": 0,
     "target_time": datetime.min.replace(tzinfo=timezone.utc),
-    "timestamp_str": ""
+    "timestamp_str": "",
 }
+
+_STATION_KEYWORDS = ("ISS ", "ZARYA", "TIANGONG", "HUBBLE", "CHANDRAYAAN")
+_STATION_NORADS = {25544, 48274}
+_GPS_KEYWORDS = ("GPS", "NAVSTAR", "BEIDOU", "GALILEO", "GLONASS", "QZSS", "IRNSS")
+
+
+def _invalidate_batch_caches() -> None:
+    """Clear both stratified catalog rows and propagated position caches."""
+    _batch_objects_cache["objects"] = []
+    _batch_objects_cache["last_fetched"] = datetime.min.replace(tzinfo=timezone.utc)
+    _batch_objects_cache["total_count"] = 0
+    _positions_cache["positions"] = []
+    _positions_cache["source_count"] = 0
+    _positions_cache["target_time"] = datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _partition_and_interleave_catalog(rows: list) -> list:
+    """Order catalog rows with signature stations first and balanced stratification across all regimes."""
+    stations, gps, oneweb, starlink, payloads, debris, rockets, unknown = (
+        [], [], [], [], [], [], [], []
+    )
+    for row in rows:
+        name_u = (row.name or "").upper()
+        if row.norad_id in _STATION_NORADS or any(k in name_u for k in _STATION_KEYWORDS):
+            stations.append(row)
+        elif row.object_type == ObjectType.DEBRIS:
+            debris.append(row)
+        elif row.object_type == ObjectType.ROCKET_BODY:
+            rockets.append(row)
+        elif "STARLINK" in name_u:
+            starlink.append(row)
+        elif "ONEWEB" in name_u:
+            oneweb.append(row)
+        elif any(k in name_u for k in _GPS_KEYWORDS):
+            gps.append(row)
+        elif row.object_type == ObjectType.ACTIVE_SATELLITE:
+            payloads.append(row)
+        else:
+            unknown.append(row)
+
+    weighted_buckets = [
+        (starlink, 4),
+        (payloads, 3),
+        (debris, 3),
+        (oneweb, 1),
+        (rockets, 1),
+        (gps, 1),
+        (unknown, 1),
+    ]
+    indices = [0] * len(weighted_buckets)
+    ordered = list(stations)
+
+    while True:
+        progressed = False
+        for i, (bucket, weight) in enumerate(weighted_buckets):
+            start = indices[i]
+            if start < len(bucket):
+                end = min(start + weight, len(bucket))
+                ordered.extend(bucket[start:end])
+                indices[i] = end
+                progressed = True
+        if not progressed:
+            break
+
+    return ordered
+
 
 @router.get("/objects/positions", response_model=PositionsBatchResponse)
 def get_batch_positions(
     timestamp: Optional[datetime] = None,
-    limit: int = Query(3000, ge=1, le=5000),
+    limit: int = Query(3000, ge=0, le=100000),
+    all: bool = Query(False, description="When true or limit=0, return all tracked catalog objects"),
     db: Session = Depends(get_db)
 ):
     """
-    High-performance real-time batch propagation endpoint for the 3D space environment.
-    Uses in-memory query & SGP4 caching to respond within milliseconds.
+    High-performance real-time batch propagation endpoint for the 3D/2D space environment.
+    Supports stratified capped slices (e.g. 1200, 3000, 5000) as well as full-catalog rendering (all=true / limit=0).
+    Always queries live database records and propagates live SGP4 coordinates; falls back to cached
+    snapshot only if the database is unavailable.
     """
     now = datetime.now(timezone.utc)
     target_time = to_utc(timestamp) if timestamp else now
 
-    # Refresh cached sample objects every 5 minutes
-    if (now - _batch_objects_cache["last_fetched"]).total_seconds() > 300 or not _batch_objects_cache["objects"]:
-        starlink = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%STARLINK%")).limit(900).all()
-        oneweb = db.query(OrbitalObject).filter(OrbitalObject.name.ilike("%ONEWEB%")).limit(300).all()
-        gps = db.query(OrbitalObject).filter(
-            OrbitalObject.name.ilike("%GPS%") | 
-            OrbitalObject.name.ilike("%NAVSTAR%") | 
-            OrbitalObject.name.ilike("%BEIDOU%") | 
-            OrbitalObject.name.ilike("%GALILEO%") | 
-            OrbitalObject.name.ilike("%GLONASS%") |
-            OrbitalObject.name.ilike("%QZSS%") |
-            OrbitalObject.name.ilike("%IRNSS%")
-        ).limit(200).all()
-        
-        stations = db.query(OrbitalObject).filter(
-            OrbitalObject.name.ilike("%ISS %") | 
-            OrbitalObject.name.ilike("%ZARYA%") |
-            OrbitalObject.name.ilike("%TIANGONG%") | 
-            OrbitalObject.name.ilike("%HUBBLE%") |
-            OrbitalObject.name.ilike("%CHANDRAYAAN%") |
-            OrbitalObject.norad_id.in_([25544, 48274])
-        ).limit(50).all()
-
-        other_sats = db.query(OrbitalObject).filter(
-            OrbitalObject.object_type == ObjectType.ACTIVE_SATELLITE
-        ).limit(650).all()
-
-        debris = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.DEBRIS).limit(900).all()
-        rockets = db.query(OrbitalObject).filter(OrbitalObject.object_type == ObjectType.ROCKET_BODY).limit(500).all()
-
-        selected_map = {}
-        for obj in list(starlink) + list(oneweb) + list(gps) + list(stations) + list(other_sats) + list(debris) + list(rockets):
-            selected_map[obj.id] = obj
-
-        _batch_objects_cache["objects"] = list(selected_map.values())
-        _batch_objects_cache["last_fetched"] = now
-        _batch_objects_cache["total_count"] = db.query(OrbitalObject).count()
-
-    cached_objs = _batch_objects_cache["objects"][:min(limit, len(_batch_objects_cache["objects"]))]
-    total_catalog_count = _batch_objects_cache["total_count"] or len(cached_objs)
-
-    # Return cached propagation if within 4 seconds of last calculation
-    time_diff = abs((target_time - _positions_cache["target_time"]).total_seconds())
-    if time_diff < 4.0 and len(_positions_cache["positions"]) >= len(cached_objs):
-        return PositionsBatchResponse(
-            timestamp=target_time,
-            total_objects=total_catalog_count,
-            positions=_positions_cache["positions"][:limit]
+    try:
+        rows = (
+            db.query(
+                OrbitalObject.id,
+                OrbitalObject.norad_id,
+                OrbitalObject.name,
+                OrbitalObject.object_type,
+                OrbitalObject.tle_line1,
+                OrbitalObject.tle_line2,
+            )
+            .order_by(OrbitalObject.norad_id.asc())
+            .all()
         )
+        ordered_rows = _partition_and_interleave_catalog(rows)
+        total_catalog_count = len(rows)
+        _batch_objects_cache["objects"] = ordered_rows
+        _batch_objects_cache["last_fetched"] = now
+        _batch_objects_cache["total_count"] = total_catalog_count
+    except SQLAlchemyError:
+        ordered_rows = _batch_objects_cache["objects"]
+        if not ordered_rows:
+            raise
+        total_catalog_count = _batch_objects_cache["total_count"] or len(ordered_rows)
 
-    positions: List[OrbitalPosition] = []
-    for obj in cached_objs:
+    requested_count = len(ordered_rows) if (all or limit == 0) else min(limit, len(ordered_rows))
+    sliced_positions = []
+    for obj in ordered_rows[:requested_count]:
         pos = PropagationService.propagate_satellite(
             line1=obj.tle_line1,
             line2=obj.tle_line2,
@@ -223,19 +281,18 @@ def get_batch_positions(
             norad_id=obj.norad_id,
             name=obj.name,
             object_type=obj.object_type,
-            internal_id=obj.id
+            internal_id=obj.id,
         )
         if pos:
-            positions.append(pos)
+            sliced_positions.append(pos)
 
-    # Store in fast cache
-    _positions_cache["positions"] = positions
-    _positions_cache["target_time"] = target_time
+    if len(ordered_rows) == 0 and _positions_cache["positions"]:
+        _positions_cache["positions"] = []
 
     return PositionsBatchResponse(
         timestamp=target_time,
         total_objects=total_catalog_count,
-        positions=positions
+        positions=sliced_positions,
     )
 
 @router.get("/objects", response_model=PaginatedObjectsResponse)
@@ -248,12 +305,7 @@ def list_orbital_objects(
     order: Optional[str] = Query("asc"),
     db: Session = Depends(get_db)
 ):
-    """Retrieves paginated, searchable, and sortable orbital objects catalog with fast in-memory caching."""
-    cache_key = f"objects:list:{object_type}:{search}:{page}:{page_size}:{sort_by}:{order}"
-    cached_val = fast_cache.get(cache_key)
-    if cached_val is not None:
-        return cached_val
-
+    """Retrieves paginated, searchable, and sortable orbital objects directly from the live database."""
     query = db.query(OrbitalObject)
     
     if object_type:
@@ -277,15 +329,13 @@ def list_orbital_objects(
     offset = (page - 1) * page_size
     items = query.offset(offset).limit(page_size).all()
 
-    res = PaginatedObjectsResponse(
+    return PaginatedObjectsResponse(
         items=items,
         total=total,
         page=page,
         page_size=page_size,
         total_pages=total_pages
     )
-    fast_cache.set(cache_key, res, ttl_seconds=30.0)
-    return res
 
 
 @router.get("/objects/{id}", response_model=OrbitalObjectResponse)

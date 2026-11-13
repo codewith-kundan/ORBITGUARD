@@ -14,6 +14,7 @@ from backend.app.services.cam_service import CAMService
 from backend.app.services.compliance_service import ComplianceService
 from backend.app.services.conjunction_service import ConjunctionService
 from backend.app.services.rag_service import RAGService
+from backend.app.utils.time_utils import to_utc
 
 logger = logging.getLogger(__name__)
 
@@ -112,15 +113,24 @@ class AICopilotService:
             }
 
     @staticmethod
-    def _tool_get_object(db: Session, object_id: Any) -> Dict[str, Any]:
+    def _find_object_flexible(db: Session, object_id: Any) -> Optional[OrbitalObject]:
+        """Resolves an OrbitalObject by internal ID, NORAD ID, or partial name safely."""
+        if object_id is None:
+            return None
         query = db.query(OrbitalObject)
-        if isinstance(object_id, int) or (isinstance(object_id, str) and object_id.isdigit()):
-            obj = query.filter((OrbitalObject.id == int(object_id)) | (OrbitalObject.norad_id == int(object_id))).first()
-        elif isinstance(object_id, str):
-            obj = query.filter(OrbitalObject.name.ilike(f"%{object_id}%")).first()
-        else:
-            obj = None
+        text_val = str(object_id).strip()
+        if not text_val:
+            return None
+        if isinstance(object_id, int) or text_val.isdigit():
+            num_id = int(text_val)
+            obj = query.filter((OrbitalObject.id == num_id) | (OrbitalObject.norad_id == num_id)).first()
+            if obj:
+                return obj
+        return query.filter(OrbitalObject.name.ilike(f"%{text_val}%")).first()
 
+    @staticmethod
+    def _tool_get_object(db: Session, object_id: Any) -> Dict[str, Any]:
+        obj = AICopilotService._find_object_flexible(db, object_id)
         if not obj:
             return {"error": "Object not found in catalog"}
         return {
@@ -128,10 +138,11 @@ class AICopilotService:
             "norad_id": obj.norad_id,
             "name": obj.name,
             "object_type": obj.object_type.value if hasattr(obj.object_type, 'value') else str(obj.object_type),
-            "altitude_km": round((obj.perigee_km + obj.apogee_km) / 2.0, 1) if obj.perigee_km and obj.apogee_km else None,
+            "altitude_km": round((obj.perigee_km + obj.apogee_km) / 2.0, 1) if obj.perigee_km is not None and obj.apogee_km is not None else None,
             "perigee_km": obj.perigee_km,
             "apogee_km": obj.apogee_km,
             "inclination_deg": obj.inclination,
+            "eccentricity": obj.eccentricity,
             "period_min": obj.period_minutes
         }
 
@@ -140,18 +151,23 @@ class AICopilotService:
         obj_info = AICopilotService._tool_get_object(db, object_id)
         if "error" in obj_info:
             return obj_info
+        alt_km = obj_info.get("altitude_km")
+        perigee = obj_info.get("perigee_km")
+        apogee = obj_info.get("apogee_km")
+        a_km = round(6378.137 + alt_km, 3) if alt_km is not None else None
+        ecc = obj_info.get("eccentricity")
+        if ecc is None and a_km and perigee is not None and apogee is not None:
+            ecc = round(abs(apogee - perigee) / (2.0 * a_km), 6)
         return {
-            "semi_major_axis_km": 6378.137 + (obj_info.get("altitude_km") or 500.0),
-            "eccentricity": round(abs((obj_info.get("apogee_km", 500.0) - obj_info.get("perigee_km", 500.0)) / (2.0 * (6378.137 + 500.0))), 6),
+            "semi_major_axis_km": a_km,
+            "eccentricity": ecc,
             "inclination_deg": obj_info.get("inclination_deg"),
             "period_min": obj_info.get("period_min")
         }
 
     @staticmethod
     def _tool_get_tle(db: Session, object_id: Any) -> Dict[str, Any]:
-        obj = db.query(OrbitalObject).filter(
-            (OrbitalObject.id == object_id) | (OrbitalObject.norad_id == object_id) | (OrbitalObject.name.ilike(f"%{object_id}%"))
-        ).first()
+        obj = AICopilotService._find_object_flexible(db, object_id)
         if not obj:
             return {"error": "Object not found"}
         return {
@@ -159,41 +175,55 @@ class AICopilotService:
             "norad_id": obj.norad_id,
             "line1": obj.tle_line1,
             "line2": obj.tle_line2,
-            "epoch": obj.epoch.isoformat() if obj.epoch else None
+            "epoch": obj.tle_epoch.isoformat() if obj.tle_epoch else None
         }
 
     @staticmethod
     def _tool_propagate_object(db: Session, object_id: Any, epoch_str: Optional[str] = None) -> Dict[str, Any]:
-        obj = db.query(OrbitalObject).filter(
-            (OrbitalObject.id == object_id) | (OrbitalObject.norad_id == object_id) | (OrbitalObject.name.ilike(f"%{object_id}%"))
-        ).first()
+        obj = AICopilotService._find_object_flexible(db, object_id)
         if not obj or not obj.tle_line1 or not obj.tle_line2:
             return {"error": "Valid TLE not found for object"}
 
-        target_time = datetime.fromisoformat(epoch_str.replace("Z", "+00:00")) if epoch_str else datetime.now(timezone.utc)
+        target_time = to_utc(datetime.fromisoformat(epoch_str.replace("Z", "+00:00"))) if epoch_str else datetime.now(timezone.utc)
         pos = PropagationService.propagate_satellite(obj.tle_line1, obj.tle_line2, target_time, obj.norad_id, obj.name, obj.object_type)
         if not pos:
             return {"error": "Propagation failed"}
         return {
             "name": obj.name,
             "epoch_utc": target_time.isoformat(),
-            "latitude_deg": pos.latitude,
-            "longitude_deg": pos.longitude,
-            "altitude_km": pos.altitude,
-            "velocity_km_s": pos.velocity
+            "latitude_deg": pos.lat,
+            "longitude_deg": pos.lon,
+            "altitude_km": pos.alt_km,
+            "velocity_km_s": pos.velocity_km_s
         }
 
     @staticmethod
     def _tool_find_conjunctions(db: Session, object_a: Any = None, object_b: Any = None) -> Dict[str, Any]:
         query = db.query(Conjunction)
+        obj_a = AICopilotService._find_object_flexible(db, object_a) if object_a is not None else None
+        obj_b = AICopilotService._find_object_flexible(db, object_b) if object_b is not None else None
+
+        if (object_a is not None and not obj_a) or (object_b is not None and not obj_b):
+            return {"total_screened": 0, "conjunctions": []}
+
+        if obj_a and obj_b:
+            query = query.filter(
+                ((Conjunction.object_a_id == obj_a.id) & (Conjunction.object_b_id == obj_b.id)) |
+                ((Conjunction.object_a_id == obj_b.id) & (Conjunction.object_b_id == obj_a.id))
+            )
+        elif obj_a:
+            query = query.filter((Conjunction.object_a_id == obj_a.id) | (Conjunction.object_b_id == obj_a.id))
+        elif obj_b:
+            query = query.filter((Conjunction.object_a_id == obj_b.id) | (Conjunction.object_b_id == obj_b.id))
+
         conjs = query.order_by(Conjunction.risk_score.desc()).limit(10).all()
         return {
             "total_screened": len(conjs),
             "conjunctions": [
                 {
                     "id": c.id,
-                    "primary": c.object_a.name if c.object_a else "Asset A",
-                    "secondary": c.object_b.name if c.object_b else "Asset B",
+                    "primary": c.object_a.name if c.object_a else f"Object #{c.object_a_id}",
+                    "secondary": c.object_b.name if c.object_b else f"Object #{c.object_b_id}",
                     "tca_utc": c.tca.isoformat(),
                     "miss_distance_km": c.miss_distance_km,
                     "relative_velocity_km_s": c.relative_velocity_km_s,
@@ -208,10 +238,11 @@ class AICopilotService:
         conj = db.query(Conjunction).filter(Conjunction.id == conjunction_id).first()
         if not conj:
             return {"error": "Conjunction not found"}
+        tca_utc = to_utc(conj.tca)
         return {
             "conjunction_id": conj.id,
-            "tca_utc": conj.tca.isoformat(),
-            "time_to_tca_hours": round(max(0.0, (conj.tca - datetime.now(timezone.utc)).total_seconds() / 3600.0), 2)
+            "tca_utc": tca_utc.isoformat(),
+            "time_to_tca_hours": round(max(0.0, (tca_utc - datetime.now(timezone.utc)).total_seconds() / 3600.0), 2)
         }
 
     @staticmethod
@@ -234,7 +265,7 @@ class AICopilotService:
         return {
             "conjunction_id": conj.id,
             "relative_velocity_km_s": conj.relative_velocity_km_s,
-            "approach_angle_deg": conj.approach_angle_deg or 45.0
+            "approach_angle_deg": conj.approach_angle_deg
         }
 
     @staticmethod
@@ -304,18 +335,23 @@ class AICopilotService:
             return {"error": "Conjunction not found"}
 
         initial_miss = conj.miss_distance_km
-        initial_pc = conj.collision_probability or 0.00034
+        initial_pc = conj.collision_probability
+        if initial_pc is None:
+            initial_pc, _, _ = RiskService.calculate_collision_probability(initial_miss, 8.0, 1.2)
+            initial_pc = initial_pc or 0.0
         initial_risk = conj.risk_score
 
-        dv = float(args.get("delta_v", 0.505))
+        dv = float(args.get("delta_v", 0.5))
         sim = CAMService.simulate_custom_burn(db, conjunction_id=conjunction_id, delta_v_r_m_s=0.0, delta_v_t_m_s=dv, delta_v_w_m_s=0.0)
-        
-        new_miss = sim.projected_miss_distance_km if sim else initial_miss + 25.0
+        if not sim:
+            return {"error": "Post-CAM trajectory simulation unavailable"}
+
+        new_miss = sim.projected_miss_distance_km
         new_pc_val, _, _ = RiskService.calculate_collision_probability(new_miss, 8.0, 1.2)
         new_pc = new_pc_val if new_pc_val is not None else 0.0
-        
+
         pc_reduction_pct = round(((initial_pc - new_pc) / max(1e-9, initial_pc)) * 100.0, 2)
-        
+
         return {
             "conjunction_id": conj.id,
             "before_cam": {
@@ -327,8 +363,8 @@ class AICopilotService:
                 "miss_distance_km": new_miss,
                 "collision_probability": new_pc,
                 "risk_score": round(max(5.0, initial_risk * 0.1), 1),
-                "fuel_cost_kg": sim.fuel_cost_kg if sim else 0.117,
-                "secondary_conjunctions_safe": sim.secondary_conjunctions_safe if sim else True
+                "fuel_cost_kg": sim.fuel_cost_kg,
+                "secondary_conjunctions_safe": sim.secondary_conjunctions_safe
             },
             "comparison": {
                 "miss_distance_gain_km": round(new_miss - initial_miss, 2),
@@ -350,15 +386,26 @@ class AICopilotService:
         conj = db.query(Conjunction).filter(Conjunction.id == conjunction_id).first()
         if not conj:
             return {"error": "Conjunction not found"}
+        recommended_action = "Continue Monitoring"
+        if conj.risk_score >= 50:
+            plan = CAMService.plan_avoidance_maneuver(db, conj.id)
+            if plan and plan.strategies:
+                best = plan.recommended_strategy or plan.strategies[0]
+                recommended_action = (
+                    f"Evaluate {best.strategy_type} CAM Burn Delta-V = {best.delta_v_m_s:.3f} m/s "
+                    f"(Lead T-{best.lead_time_hours:.1f}h)"
+                )
+            else:
+                recommended_action = "High Risk Threshold Reached — Compute Custom CAM Plan"
         return {
-            "title": f"EXECUTIVE DEFENSE SITREP: ENCOUNTER #{conj.id}",
-            "primary": conj.object_a.name if conj.object_a else "Asset A",
-            "secondary": conj.object_b.name if conj.object_b else "Asset B",
-            "tca_utc": conj.tca.isoformat(),
+            "title": f"MISSION SITREP: ENCOUNTER #{conj.id}",
+            "primary": conj.object_a.name if conj.object_a else f"Object #{conj.object_a_id}",
+            "secondary": conj.object_b.name if conj.object_b else f"Object #{conj.object_b_id}",
+            "tca_utc": to_utc(conj.tca).isoformat(),
             "miss_distance_km": conj.miss_distance_km,
             "relative_velocity_km_s": conj.relative_velocity_km_s,
             "risk_score": conj.risk_score,
-            "recommended_action": "Execute In-Track Prograde CAM Burn Delta_Vt = 0.505 m/s at T-12h" if conj.risk_score >= 80 else "Continue Monitoring"
+            "recommended_action": recommended_action
         }
 
     # =========================================================================
@@ -378,49 +425,43 @@ class AICopilotService:
         if not conj:
             return {
                 "conjunction_id": None,
-                "source": last_sync.source if last_sync else "CelesTrak GP Feeds",
+                "source": last_sync.source if last_sync else "No catalog sync logged",
                 "calculation_timestamp": datetime.now(timezone.utc).isoformat(),
                 "algorithm_version": "2.0.0-PROD"
             }
 
+        pc_val = conj.collision_probability
+        if pc_val is None:
+            pc_val, _, _ = RiskService.calculate_collision_probability(conj.miss_distance_km)
+            pc_val = pc_val or 0.0
+
         return {
             "conjunction_id": conj.id,
-            "primary_asset": conj.object_a.name if conj.object_a else "Asset A",
-            "secondary_asset": conj.object_b.name if conj.object_b else "Asset B",
-            "tca": conj.tca.isoformat(),
+            "primary_asset": conj.object_a.name if conj.object_a else f"Object #{conj.object_a_id}",
+            "secondary_asset": conj.object_b.name if conj.object_b else f"Object #{conj.object_b_id}",
+            "tca": to_utc(conj.tca).isoformat(),
             "miss_distance_km": conj.miss_distance_km,
             "relative_velocity_km_s": conj.relative_velocity_km_s,
-            "collision_probability": conj.collision_probability or 0.00034,
+            "collision_probability": pc_val,
             "risk_score": conj.risk_score,
             "risk_level": conj.risk_level.value if hasattr(conj.risk_level, 'value') else str(conj.risk_level),
-            "data_epoch": conj.object_a.tle_epoch.isoformat() if conj.object_a and conj.object_a.tle_epoch else datetime.now(timezone.utc).isoformat(),
-            "source": last_sync.source if last_sync else "Space-Track.org / CelesTrak",
-            "calculation_timestamp": conj.updated_at.isoformat() if hasattr(conj, 'updated_at') and conj.updated_at else datetime.now(timezone.utc).isoformat(),
+            "data_epoch": conj.object_a.tle_epoch.isoformat() if conj.object_a and conj.object_a.tle_epoch else None,
+            "source": last_sync.source if last_sync else "Database Catalog (No Sync Log)",
+            "calculation_timestamp": conj.calculated_at.isoformat() if getattr(conj, 'calculated_at', None) else datetime.now(timezone.utc).isoformat(),
             "algorithm_version": "2.0.0-PROD"
         }
 
     # =========================================================================
-    # 3. Digit Validator & Anti-Hallucination Guard
+    # 3. Evidence Guard
     # =========================================================================
 
     @classmethod
     def validate_and_sanitize_response(cls, text: str, evidence: Dict[str, Any]) -> str:
         """
-        Validates that numerical claims in the response match the verified Evidence Object.
-        If a number is completely unsupported, flags or aligns it to prevent hallucinations.
+        Ensures responses never fabricate metrics when no active conjunction exists.
         """
-        evidence_numbers = []
-        for k, v in evidence.items():
-            if isinstance(v, (int, float)) and not isinstance(v, bool):
-                evidence_numbers.append(float(v))
-            elif isinstance(v, dict):
-                for sub_k, sub_v in v.items():
-                    if isinstance(sub_v, (int, float)) and not isinstance(sub_v, bool):
-                        evidence_numbers.append(float(sub_v))
-
-        # Check for explicitly missing variables
         if evidence.get("conjunction_id") is None:
-            return "This value is unavailable from the current evidence. No active close encounter was found."
+            return "No active close-approach encounter was found in the current database. Refresh TLE feeds and run conjunction screening first."
 
         return text
 
@@ -456,6 +497,17 @@ class AICopilotService:
         # INTENT A: "Why is X high risk?"
         # ---------------------------------------------------------------------
         if "why" in q_lower and ("risk" in q_lower or "high" in q_lower or "danger" in q_lower):
+            if target_conj_id is None:
+                return {
+                    "intent": "ORBITGUARD_RISK",
+                    "title": "No Active Encounters Screened",
+                    "text": "No active conjunctions exist in the database to analyze. Trigger conjunction screening to generate encounter metrics.",
+                    "evidence": evidence,
+                    "tool_logs": tool_logs,
+                    "source_badges": ["Physics Engine"],
+                    "timestamp_utc": datetime.now(timezone.utc).isoformat()
+                }
+
             t1 = cls.execute_tool("calculate_tca", {"conjunction_id": target_conj_id}, db)
             t2 = cls.execute_tool("calculate_miss_distance", {"conjunction_id": target_conj_id}, db)
             t3 = cls.execute_tool("calculate_relative_velocity", {"conjunction_id": target_conj_id}, db)
@@ -463,25 +515,31 @@ class AICopilotService:
             t5 = cls.execute_tool("calculate_risk", {"conjunction_id": target_conj_id}, db)
             tool_logs.extend([t1, t2, t3, t4, t5])
 
-            miss_km = evidence.get("miss_distance_km", 1.42)
-            rel_vel = evidence.get("relative_velocity_km_s", 14.82)
-            risk_score = evidence.get("risk_score", 87)
-            risk_lvl = evidence.get("risk_level", "CRITICAL")
-            tca_str = evidence.get("tca", "2026-08-31T18:42:15Z")
-            prim = evidence.get("primary_asset", "Primary Asset")
-            sec = evidence.get("secondary_asset", "Secondary Asset")
+            miss_km = evidence.get("miss_distance_km")
+            rel_vel = evidence.get("relative_velocity_km_s")
+            risk_score = evidence.get("risk_score")
+            risk_lvl = evidence.get("risk_level", "UNKNOWN")
+            tca_str = evidence.get("tca", "Unavailable")
+            prim = evidence.get("primary_asset", "Primary Object")
+            sec = evidence.get("secondary_asset", "Secondary Object")
+            pc_val = evidence.get("collision_probability")
+
+            miss_display = f"{miss_km:.3f} km" if isinstance(miss_km, (int, float)) else "Unavailable"
+            vel_display = f"{rel_vel:.2f} km/s" if isinstance(rel_vel, (int, float)) else "Unavailable"
+            pc_display = f"{pc_val:.5f}%" if isinstance(pc_val, (int, float)) else "Unavailable"
+            score_display = f"{risk_score} / 100 ({risk_lvl})" if risk_score is not None else risk_lvl
 
             body = (
-                f"🎯 **Evidence-Grounded Risk Analysis for Encounter #{target_conj_id}**\n\n"
-                f"• **Asset Pair**: `{prim}` ↔ `{sec}`\n"
-                f"• **Time of Closest Approach (TCA)**: `{tca_str}` UTC\n"
-                f"• **Predicted Miss Distance**: **{miss_km:.2f} km**\n"
-                f"• **Relative Velocity**: **{rel_vel:.2f} km/s** (Hypervelocity crossing)\n"
-                f"• **Estimated Collision Probability ($P_c$)**: **{evidence.get('collision_probability', 0.00034):.5f}%** (Foster-2D / B-Plane)\n"
-                f"• **Composite Risk Score**: **{risk_score} / 100 ({risk_lvl})**\n\n"
-                f"**Physical Explanation:**\n"
-                f"The conjunction is classified as **{risk_lvl}** because the spatial miss distance ({miss_km:.2f} km) is within the high-uncertainty collision threshold while crossing at hypervelocity ({rel_vel:.2f} km/s). "
-                f"Under standard NASA CARA guidelines, $P_c > 10^{-4}$ mandates executing an immediate Collision Avoidance Maneuver (CAM)."
+                f"Risk Decomposition for Encounter #{target_conj_id}\n\n"
+                f"Asset Pair: {prim} vs. {sec}\n"
+                f"Time of Closest Approach (TCA): {tca_str}\n"
+                f"Predicted Miss Distance: {miss_display}\n"
+                f"Relative Velocity: {vel_display}\n"
+                f"Estimated Collision Probability (Pc): {pc_display} (Foster-2D / B-Plane)\n"
+                f"Composite Risk Score: {score_display}\n\n"
+                f"Physical Assessment:\n"
+                f"The encounter is rated {risk_lvl} based on the computed miss separation ({miss_display}) combined with relative crossing velocity ({vel_display}). "
+                f"Per NASA CARA operational thresholds, Pc >= 1.0e-4 (0.01%) requires collision avoidance maneuver (CAM) evaluation."
             )
 
             rag_info = RAGService.query_knowledge("risk threshold cara collision probability")
@@ -496,11 +554,11 @@ class AICopilotService:
             sanitized_text = cls.validate_and_sanitize_response(body, evidence)
             return {
                 "intent": "ORBITGUARD_RISK",
-                "title": f"Risk Decomposition: {prim} ↔ {sec}",
+                "title": f"Risk Decomposition: {prim} vs {sec}",
                 "text": sanitized_text,
                 "evidence": evidence,
                 "tool_logs": tool_logs,
-                "source_badges": ["Physics Engine", "Live CelesTrak Data", "AI Interpretation"],
+                "source_badges": ["Physics Engine", evidence.get("source", "Catalog"), "Deterministic Assessment"],
                 "timestamp_utc": datetime.now(timezone.utc).isoformat()
             }
 
@@ -508,9 +566,33 @@ class AICopilotService:
         # INTENT B: CAM Simulation / Maneuver Inquiry
         # ---------------------------------------------------------------------
         elif "maneuver" in q_lower or "delta v" in q_lower or "delta-v" in q_lower or "prograde" in q_lower or "burn" in q_lower:
+            if target_conj_id is None:
+                return {
+                    "intent": "CAM_SIMULATION",
+                    "title": "CAM Simulation Unavailable",
+                    "text": "No active conjunction is available to simulate a maneuver against. Screen catalog pairs first.",
+                    "evidence": evidence,
+                    "tool_logs": tool_logs,
+                    "source_badges": ["Physics Engine"],
+                    "timestamp_utc": datetime.now(timezone.utc).isoformat()
+                }
+
             dv_match = re.search(r'([0-9]+\.?[0-9]*)\s*(m/s|ms)', q_lower)
-            dv_val = float(dv_match.group(1)) if dv_match else 0.505
             direction = "PROGRADE" if "prograde" in q_lower else ("RETROGRADE" if "retrograde" in q_lower else "CROSS_TRACK")
+            if dv_match:
+                dv_val = float(dv_match.group(1))
+            else:
+                plan = CAMService.plan_avoidance_maneuver(db, target_conj_id)
+                if plan and plan.recommended_strategy:
+                    dv_val = plan.recommended_strategy.delta_v_m_s
+                    if "RETROGRADE" in plan.recommended_strategy.strategy_type.upper():
+                        direction = "RETROGRADE"
+                    elif "CROSS" in plan.recommended_strategy.strategy_type.upper():
+                        direction = "CROSS_TRACK"
+                    else:
+                        direction = "PROGRADE"
+                else:
+                    dv_val = 0.5
 
             t_sim = cls.execute_tool("simulate_cam", {
                 "conjunction_id": target_conj_id,
@@ -521,20 +603,37 @@ class AICopilotService:
             tool_logs.append(t_sim)
 
             sim_res = t_sim.get("result", {})
-            new_miss = sim_res.get("projected_miss_distance_km", 28.4)
-            fuel = sim_res.get("fuel_cost_kg", 0.117)
-            gain = sim_res.get("miss_distance_gain_km", 26.98)
+            if t_sim.get("status") == "ERROR" or "error" in sim_res:
+                return {
+                    "intent": "CAM_SIMULATION",
+                    "title": "CAM Simulation Error",
+                    "text": f"Maneuver simulation could not complete: {sim_res.get('error', t_sim.get('error', 'Missing TLE or encounter data'))}",
+                    "evidence": evidence,
+                    "tool_logs": tool_logs,
+                    "source_badges": ["Physics Engine"],
+                    "timestamp_utc": datetime.now(timezone.utc).isoformat()
+                }
+
+            new_miss = sim_res.get("projected_miss_distance_km")
+            fuel = sim_res.get("fuel_cost_kg")
+            gain = sim_res.get("miss_distance_gain_km")
             sec_safe = sim_res.get("secondary_conjunctions_safe", True)
+            orig_miss = evidence.get("miss_distance_km")
+
+            new_miss_str = f"{new_miss:.2f} km" if isinstance(new_miss, (int, float)) else "Unavailable"
+            gain_str = f"+{gain:.2f} km" if isinstance(gain, (int, float)) else "Unavailable"
+            fuel_str = f"{fuel:.3f} kg" if isinstance(fuel, (int, float)) else "Unavailable"
+            orig_miss_str = f"{orig_miss:.2f} km" if isinstance(orig_miss, (int, float)) else "Unavailable"
 
             body = (
-                f"⚡ **Deterministic Physics CAM Simulation Result:**\n\n"
-                f"• **Simulated Burn Vector**: `{direction}` with **$\\Delta V = {dv_val:.3f}\\text{{ m/s}}$** at $T - 12.0\\text{{ h}}$ before TCA\n"
-                f"• **Initial Miss Distance**: **{evidence.get('miss_distance_km', 1.42):.2f} km**\n"
-                f"• **Post-Maneuver Projected Miss Distance**: **{new_miss:.2f} km** (Clearance Gain: **+{gain:.2f} km**)\n"
-                f"• **Monopropellant Hydrazine ($N_2H_4$) Burn Mass**: **{fuel:.3f} kg** (Tsiolkovsky rocket equation)\n"
-                f"• **Secondary Conjunction Safety Sieve**: **{'PASSED (Safe Orbit)' if sec_safe else 'ELEVATED RISK'}**\n\n"
-                f"**Flight Dynamics Recommendation:**\n"
-                f"Applying a {dv_val:.3f} m/s {direction.lower()} impulse delivers +{gain:.2f} km of orbital clearance, successfully reducing collision probability below the $10^{-7}$ green safety threshold."
+                f"Deterministic CAM Simulation Result (Encounter #{target_conj_id})\n\n"
+                f"Burn Vector: {direction}, Delta-V = {dv_val:.3f} m/s at T-12.0h before TCA\n"
+                f"Baseline Miss Distance: {orig_miss_str}\n"
+                f"Post-Maneuver Projected Miss Distance: {new_miss_str} (Gain: {gain_str})\n"
+                f"Hydrazine (N2H4) Propellant Expenditure: {fuel_str} (Tsiolkovsky equation)\n"
+                f"Secondary Screening Check: {'PASSED (No secondary threshold violations)' if sec_safe else 'ELEVATED SECONDARY RISK'}\n\n"
+                f"Flight Dynamics Assessment:\n"
+                f"Applying a {dv_val:.3f} m/s {direction.lower()} impulse yields {gain_str} additional separation at TCA."
             )
 
             rag_info = RAGService.query_knowledge("cam delta v tsiolkovsky gauss")
@@ -548,11 +647,11 @@ class AICopilotService:
 
             return {
                 "intent": "CAM_SIMULATION",
-                "title": f"CAM Simulation ({direction} {dv_val} m/s)",
+                "title": f"CAM Simulation ({direction} {dv_val:.3f} m/s)",
                 "text": body,
                 "evidence": evidence,
                 "tool_logs": tool_logs,
-                "source_badges": ["Physics Engine", "Simulation Result", "AI Interpretation"],
+                "source_badges": ["Physics Engine", "SGP4 CAM Solver"],
                 "timestamp_utc": datetime.now(timezone.utc).isoformat()
             }
 
@@ -562,7 +661,7 @@ class AICopilotService:
         else:
             rag_info = RAGService.query_knowledge(q_lower)
             if rag_info:
-                answer = f"**{rag_info['title']}**\n\n{rag_info['technical_basis']}"
+                answer = f"{rag_info['title']}\n\n{rag_info['technical_basis']}"
                 formatted = RAGService.format_rag_response(
                     answer=answer,
                     technical_basis=rag_info["technical_basis"],
@@ -575,25 +674,38 @@ class AICopilotService:
                     "text": formatted,
                     "evidence": evidence,
                     "tool_logs": tool_logs,
-                    "source_badges": ["Authoritative Standards Corpus", "AI Interpretation"],
+                    "source_badges": ["Authoritative Standards Corpus"],
                     "timestamp_utc": datetime.now(timezone.utc).isoformat()
                 }
 
-            # Fallback Nominal Overview
+            if evidence.get("conjunction_id") is None:
+                overview_text = (
+                    "ORBITGUARD Catalog Status:\n\n"
+                    "No active conjunctions are currently stored in the database. "
+                    f"Last Catalog Source: {evidence.get('source', 'Unavailable')}.\n\n"
+                    "Trigger a TLE feed sync and run conjunction screening, or ask about orbital mechanics standards (CCSDS CDM, NASA CARA, SGP4, Gauss CAM, NOAA Space Weather)."
+                )
+            else:
+                miss_val = evidence.get("miss_distance_km")
+                vel_val = evidence.get("relative_velocity_km_s")
+                miss_str = f"{miss_val:.2f} km" if isinstance(miss_val, (int, float)) else "Unavailable"
+                vel_str = f"{vel_val:.2f} km/s" if isinstance(vel_val, (int, float)) else "Unavailable"
+                overview_text = (
+                    f"ORBITGUARD Mission Telemetry Overview\n\n"
+                    f"Active Monitored Encounter: #{target_conj_id}\n"
+                    f"Asset Pair: {evidence.get('primary_asset')} vs {evidence.get('secondary_asset')}\n"
+                    f"Predicted Miss Distance: {miss_str}\n"
+                    f"Relative Velocity: {vel_str}\n"
+                    f"Catalog Source: {evidence.get('source')}\n\n"
+                    f"Ask specific operational questions such as 'Why is this encounter high risk?' or 'Simulate a 0.25 m/s prograde maneuver' to execute physics tools directly."
+                )
+
             return {
                 "intent": "GENERAL_QUERY",
                 "title": "Space Situational Overview",
-                "text": (
-                    f"🛰️ **ORBITGUARD Mission Telemetry Status:**\n\n"
-                    f"• **Active Monitored Encounter**: #{target_conj_id}\n"
-                    f"• **Asset Pair**: `{evidence.get('primary_asset')}` ↔ `{evidence.get('secondary_asset')}`\n"
-                    f"• **Predicted Miss Distance**: **{evidence.get('miss_distance_km', 1.42):.2f} km**\n"
-                    f"• **Relative Velocity**: **{evidence.get('relative_velocity_km_s', 14.82):.2f} km/s**\n"
-                    f"• **Ephemeris Source**: `{evidence.get('source')}`\n\n"
-                    f"Ask specific tactical questions such as *'Why is this high risk?'* or *'What happens if I perform a 0.1 m/s prograde maneuver?'* for verified physics tool execution."
-                ),
+                "text": overview_text,
                 "evidence": evidence,
                 "tool_logs": tool_logs,
-                "source_badges": ["Physics Engine", "Live CelesTrak Data", "AI Interpretation"],
+                "source_badges": ["Physics Engine", evidence.get("source", "Catalog")],
                 "timestamp_utc": datetime.now(timezone.utc).isoformat()
             }

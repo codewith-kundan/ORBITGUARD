@@ -1,44 +1,23 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowRightLeft,
+  ArrowUp,
+  ArrowUpDown,
+  Clock,
+  Crosshair,
+  FileCode,
+  LayoutGrid,
+  List,
+  Navigation,
+  Play,
+  RefreshCw,
+  ShieldAlert,
+} from 'lucide-react';
 import { Conjunction } from '../types';
 import { RiskBadge } from './RiskBadge';
-import { 
-  ShieldAlert, 
-  Crosshair, 
-  RefreshCw, 
-  LayoutGrid, 
-  List, 
-  ArrowRightLeft, 
-  Clock, 
-  Play, 
-  AlertCircle
-} from 'lucide-react';
-
-const parseUtcDate = (dStr: string): number => {
-  if (!dStr) return Date.now();
-  let s = dStr.trim();
-  if (!s.endsWith('Z') && !s.includes('+') && !s.includes('T')) {
-    s = s.replace(' ', 'T') + 'Z';
-  } else if (!s.endsWith('Z') && !s.includes('+')) {
-    s += 'Z';
-  }
-  const t = new Date(s).getTime();
-  return isNaN(t) ? Date.now() : t;
-};
-
-const formatTcaCountdown = (tcaMs: number, nowMs: number) => {
-  const diffMs = tcaMs - nowMs;
-  if (diffMs <= 0) return 'PASSED TCA';
-  const hours = Math.floor(diffMs / 3600000);
-  const mins = Math.floor((diffMs % 3600000) / 60000);
-  const secs = Math.floor((diffMs % 60000) / 1000);
-  return `T-${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-};
-
-const getMissDistanceColor = (km: number) => {
-  if (km < 5) return 'text-red-400 font-bold';
-  if (km < 25) return 'text-amber-400 font-bold';
-  return 'text-cyan-400 font-semibold';
-};
+import { formatCountdownToUtc, formatUtcTime, parseUtcDate } from '../utils/utcTime';
 
 interface ConjunctionTableProps {
   conjunctions: Conjunction[];
@@ -53,6 +32,14 @@ interface ConjunctionTableProps {
   isScreening?: boolean;
 }
 
+type SortKey = 'risk' | 'tca' | 'distance' | 'velocity' | 'probability';
+
+const getMissDistanceClass = (km: number) => {
+  if (km < 5) return 'text-red-400 font-semibold';
+  if (km < 25) return 'text-amber-300 font-semibold';
+  return 'text-sky-300 font-medium';
+};
+
 export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
   conjunctions,
   selectedConjunction,
@@ -60,45 +47,67 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
   onFocus3D,
   onGroundTrack2D,
   onOpenReplay,
-  onOpenCAM: _onOpenCAM,
-  onOpenCDM: _onOpenCDM,
+  onOpenCAM,
+  onOpenCDM,
   onScreenNew,
-  isScreening
+  isScreening = false,
 }) => {
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [riskFilter, setRiskFilter] = useState<string>('ALL');
   const [horizonFilter, setHorizonFilter] = useState<'ALL' | '6H' | '24H' | '72H'>('ALL');
-  const [objectPairFilter, setObjectPairFilter] = useState<'ALL' | 'SAT_DEBRIS' | 'SAT_SAT' | 'ROCKET'>('ALL');
-  const [sortBy, setSortBy] = useState<'risk' | 'tca' | 'distance' | 'probability'>('risk');
+  const [objectPairFilter, setObjectPairFilter] = useState<
+    'ALL' | 'SAT_DEBRIS' | 'SAT_SAT' | 'ROCKET'
+  >('ALL');
+  const [sortBy, setSortBy] = useState<SortKey>('risk');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [currentTimeMs, setCurrentTimeMs] = useState<number>(Date.now());
+  const [currentTimeMs, setCurrentTimeMs] = useState<number>(() => Date.now());
 
-  // Dynamic 1-second interval keeps countdown live
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTimeMs(Date.now()), 1000);
-    return () => clearInterval(timer);
+    const timer = window.setInterval(() => setCurrentTimeMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
   }, []);
+
+  const handleSortColumn = (key: SortKey, defaultDir: 'asc' | 'desc') => {
+    if (sortBy === key) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(key);
+      setSortDir(defaultDir);
+    }
+  };
+
+  const getAriaSort = (key: SortKey): 'ascending' | 'descending' | 'none' => {
+    if (sortBy !== key) return 'none';
+    return sortDir === 'asc' ? 'ascending' : 'descending';
+  };
+
+  const renderSortIcon = (key: SortKey) => {
+    if (sortBy !== key) {
+      return <ArrowUpDown className="w-3.5 h-3.5 text-slate-500 shrink-0" aria-hidden="true" />;
+    }
+    return sortDir === 'asc' ? (
+      <ArrowUp className="w-3.5 h-3.5 text-sky-400 shrink-0" aria-hidden="true" />
+    ) : (
+      <ArrowDown className="w-3.5 h-3.5 text-sky-400 shrink-0" aria-hidden="true" />
+    );
+  };
 
   const filteredConjunctions = useMemo(() => {
     return conjunctions
-      .map(c => ({
+      .map((c) => ({
         ...c,
-        _tcaMs: parseUtcDate(c.tca)
+        _tcaMs: parseUtcDate(c.tca)?.getTime() ?? currentTimeMs,
       }))
-      .filter(c => {
-        // Keep events visible during monitoring
+      .filter((c) => {
         if (c._tcaMs <= currentTimeMs - 30 * 60 * 1000) return false;
-
-        // Risk Filter
         if (riskFilter !== 'ALL' && c.risk_level !== riskFilter) return false;
 
-        // Horizon Filter
         const diffHours = (c._tcaMs - currentTimeMs) / (1000 * 3600);
         if (horizonFilter === '6H' && diffHours > 6.0) return false;
         if (horizonFilter === '24H' && diffHours > 24.0) return false;
         if (horizonFilter === '72H' && diffHours > 72.0) return false;
 
-        // Object Pair Type Filter
         const typeA = c.object_a?.object_type || '';
         const typeB = c.object_b?.object_type || '';
         if (objectPairFilter === 'SAT_DEBRIS') {
@@ -111,13 +120,12 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
           if (typeA !== 'ROCKET_BODY' && typeB !== 'ROCKET_BODY') return false;
         }
 
-        // Search
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           const nameA = (c.object_a?.name || '').toLowerCase();
           const nameB = (c.object_b?.name || '').toLowerCase();
-          const idA = (c.object_a?.norad_id || c.object_a_id || '').toString();
-          const idB = (c.object_b?.norad_id || c.object_b_id || '').toString();
+          const idA = String(c.object_a?.norad_id || c.object_a_id || '');
+          const idB = String(c.object_b?.norad_id || c.object_b_id || '');
           if (!nameA.includes(q) && !nameB.includes(q) && !idA.includes(q) && !idB.includes(q)) {
             return false;
           }
@@ -125,407 +133,542 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === 'risk') return b.risk_score - a.risk_score;
-        if (sortBy === 'tca') return a._tcaMs - b._tcaMs;
-        if (sortBy === 'distance') return a.miss_distance_km - b.miss_distance_km;
-        if (sortBy === 'probability') return (b.collision_probability || 0) - (a.collision_probability || 0);
-        return 0;
+        let diff = 0;
+        if (sortBy === 'risk') diff = a.risk_score - b.risk_score;
+        else if (sortBy === 'tca') diff = a._tcaMs - b._tcaMs;
+        else if (sortBy === 'distance') diff = a.miss_distance_km - b.miss_distance_km;
+        else if (sortBy === 'velocity')
+          diff = a.relative_velocity_km_s - b.relative_velocity_km_s;
+        else if (sortBy === 'probability')
+          diff = (a.collision_probability || 0) - (b.collision_probability || 0);
+        return sortDir === 'asc' ? diff : -diff;
       });
-  }, [conjunctions, riskFilter, horizonFilter, objectPairFilter, sortBy, searchQuery, currentTimeMs]);
-
-  const formatTCA = (tcaMs: number) => {
-    const d = new Date(tcaMs);
-    const diffMs = tcaMs - currentTimeMs;
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-    const timeFormatted = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'UTC' }) + ' UTC';
-    if (diffMs > 0) {
-      return { timeFormatted, countdown: `in ${diffHours}h ${diffMins}m` };
-    }
-    return { timeFormatted, countdown: 'Passed TCA' };
-  };
+  }, [
+    conjunctions,
+    riskFilter,
+    horizonFilter,
+    objectPairFilter,
+    sortBy,
+    sortDir,
+    searchQuery,
+    currentTimeMs,
+  ]);
 
   return (
-    <div className="bg-space-900/90 border border-space-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col font-mono text-slate-200">
-      {/* Top Header & Screening Bar */}
-      <div className="p-4 sm:p-5 border-b border-space-800 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-danger-500/10 border border-danger-500/30 text-danger-neon">
-            <ShieldAlert className="w-5 h-5" />
+    <section
+      aria-label="Conjunction screening queue"
+      className="bg-space-900 border border-space-800 rounded-xl overflow-hidden flex flex-col font-mono"
+    >
+      {/* Header */}
+      <div className="p-4 sm:p-5 border-b border-space-800 flex flex-wrap items-center justify-between gap-4 bg-space-950/50">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-lg border border-space-700 bg-space-900 flex items-center justify-center text-sky-400 shrink-0">
+            <ShieldAlert className="w-4 h-4" aria-hidden="true" />
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded bg-danger-500/20 text-danger-neon border border-danger-500/30">
-                CONJUNCTION CENTER & RISK MATRIX
-              </span>
-              <span className="text-xs text-cyan-300 font-semibold">
-                {filteredConjunctions.length} Matches Found
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-sm sm:text-base font-semibold text-slate-100 font-sans">
+                Conjunction Screening &amp; TCA Queue
+              </h1>
+              <span className="text-[11px] px-2 py-0.5 rounded border border-space-700 bg-space-900 text-sky-300 tabular-nums">
+                {filteredConjunctions.length} encounters
               </span>
             </div>
-            <h2 className="text-sm sm:text-base font-bold text-white tracking-wide mt-0.5">
-              Orbital Conjunction Screening & Close Encounter Assessment
-            </h2>
+            <p className="text-xs text-slate-400 font-sans mt-0.5">
+              24-hour SGP4 spatial screening with B-plane miss distance and collision probability
+            </p>
           </div>
         </div>
 
-        {/* View Toggle & Run Screening Action */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center bg-space-950 p-1 rounded-xl border border-space-800 text-xs">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* View Toggle */}
+          <div
+            role="group"
+            aria-label="Conjunction display layout"
+            className="flex items-center gap-1 bg-space-950 p-1 rounded-lg border border-space-800 text-xs"
+          >
             <button
-              onClick={() => setViewMode('cards')}
-              className={`p-1.5 rounded-lg transition ${
-                viewMode === 'cards' ? 'bg-cyan-500 text-space-950 shadow-sm' : 'text-slate-400 hover:text-white'
+              type="button"
+              onClick={() => setViewMode('table')}
+              aria-pressed={viewMode === 'table'}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded transition-colors border ${
+                viewMode === 'table'
+                  ? 'bg-sky-500/15 text-sky-300 border-sky-400/35'
+                  : 'text-slate-400 hover:text-slate-200 border-transparent'
               }`}
-              title="Card Matrix View"
             >
-              <LayoutGrid className="w-4 h-4" />
+              <List className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Table</span>
             </button>
             <button
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-lg transition ${
-                viewMode === 'table' ? 'bg-cyan-500 text-space-950 shadow-sm' : 'text-slate-400 hover:text-white'
+              type="button"
+              onClick={() => setViewMode('cards')}
+              aria-pressed={viewMode === 'cards'}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded transition-colors border ${
+                viewMode === 'cards'
+                  ? 'bg-sky-500/15 text-sky-300 border-sky-400/35'
+                  : 'text-slate-400 hover:text-slate-200 border-transparent'
               }`}
-              title="Table Grid View"
             >
-              <List className="w-4 h-4" />
+              <LayoutGrid className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Cards</span>
             </button>
           </div>
 
           {onScreenNew && (
             <button
+              type="button"
               onClick={onScreenNew}
               disabled={isScreening}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-space-950 rounded-xl text-xs font-bold transition shadow-md disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-sky-400/35 bg-sky-500/12 hover:bg-sky-500/20 text-sky-300 text-xs font-medium transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isScreening ? 'animate-spin' : ''}`} />
-              <span>{isScreening ? 'SCREENING...' : 'RUN SCREENING'}</span>
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isScreening ? 'animate-spin' : ''}`}
+                aria-hidden="true"
+              />
+              <span>{isScreening ? 'Screening...' : 'Run Screening'}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Multi-Filter & Search Dock */}
-      <div className="p-3 sm:p-4 bg-space-950/70 border-b border-space-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-        {/* Search Input */}
-        <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+      {/* Filters Toolbar */}
+      <div className="px-4 py-3 border-b border-space-800 bg-space-950/70 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex-1 min-w-[220px] max-w-xs">
+          <label htmlFor="conj-search-input" className="sr-only">
+            Filter conjunctions by spacecraft name or NORAD ID
+          </label>
           <input
-            type="text"
-            placeholder="Filter by name or NORAD (e.g. Starlink, Cosmos, 25544)..."
+            id="conj-search-input"
+            type="search"
+            placeholder="Filter by name or NORAD ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-space-900 border border-space-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 w-full sm:w-64"
+            className="w-full bg-space-900 border border-space-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-400/60"
           />
         </div>
 
-        {/* Risk Level Toggles */}
-        <div className="flex items-center gap-1 bg-space-900 p-1 rounded-xl border border-space-800 overflow-x-auto">
-          {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((lvl) => (
-            <button
-              key={lvl}
-              onClick={() => setRiskFilter(lvl)}
-              className={`px-2.5 py-1 rounded-lg transition font-bold text-[11px] whitespace-nowrap ${
-                riskFilter === lvl
-                  ? 'bg-cyan-500/20 text-cyan-neon border border-cyan-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {lvl}
-            </button>
-          ))}
-        </div>
-
-        {/* Horizon Filter */}
-        <div className="flex items-center gap-1 bg-space-900 p-1 rounded-xl border border-space-800 text-xs">
-          <span className="text-[10px] text-slate-500 px-1 uppercase font-bold">HORIZON:</span>
-          {(['ALL', '6H', '24H', '72H'] as const).map((h) => (
-            <button
-              key={h}
-              onClick={() => setHorizonFilter(h)}
-              className={`px-2 py-0.5 rounded font-semibold text-[10px] transition ${
-                horizonFilter === h ? 'bg-cyan-500 text-space-950 font-bold' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {h}
-            </button>
-          ))}
-        </div>
-
-        {/* Object Pair Filter */}
-        <div className="flex items-center gap-1 bg-space-900 p-1 rounded-xl border border-space-800 text-xs hidden xl:flex">
-          <span className="text-[10px] text-slate-500 px-1 uppercase font-bold">PAIR:</span>
-          {([
-            { id: 'ALL', label: 'All Pairs' },
-            { id: 'SAT_DEBRIS', label: 'Sat ↔ Debris' },
-            { id: 'SAT_SAT', label: 'Sat ↔ Sat' },
-            { id: 'ROCKET', label: 'Rocket Bodies' }
-          ] as const).map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setObjectPairFilter(p.id)}
-              className={`px-2 py-0.5 rounded font-semibold text-[10px] transition ${
-                objectPairFilter === p.id ? 'bg-cyan-500 text-space-950 font-bold' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Sort Controls */}
-        <div className="flex items-center gap-1.5 text-xs">
-          <span className="text-[10px] text-slate-500 uppercase font-bold">SORT:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="bg-space-900 border border-space-800 rounded-lg px-2.5 py-1 text-xs text-cyan-300 font-semibold focus:outline-none focus:border-cyan-500"
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Risk Level Filter */}
+          <div
+            role="group"
+            aria-label="Filter by risk severity"
+            className="flex items-center gap-1 bg-space-900 p-1 rounded-lg border border-space-800"
           >
-            <option value="risk">Risk Score (Desc)</option>
-            <option value="tca">TCA Chronological</option>
-            <option value="distance">Miss Distance (Asc)</option>
-            <option value="probability">Collision Probability</option>
-          </select>
+            {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((lvl) => (
+              <button
+                key={lvl}
+                type="button"
+                onClick={() => setRiskFilter(lvl)}
+                aria-pressed={riskFilter === lvl}
+                className={`px-2 py-1 rounded text-[11px] transition-colors border ${
+                  riskFilter === lvl
+                    ? 'bg-sky-500/15 text-sky-300 border-sky-400/35 font-medium'
+                    : 'text-slate-400 hover:text-slate-200 border-transparent'
+                }`}
+              >
+                {lvl}
+              </button>
+            ))}
+          </div>
+
+          {/* Time Horizon Filter */}
+          <div
+            role="group"
+            aria-label="Filter by TCA time horizon"
+            className="flex items-center gap-1 bg-space-900 p-1 rounded-lg border border-space-800"
+          >
+            <span className="text-[10px] text-slate-400 px-1.5">HORIZON</span>
+            {(['ALL', '6H', '24H', '72H'] as const).map((h) => (
+              <button
+                key={h}
+                type="button"
+                onClick={() => setHorizonFilter(h)}
+                aria-pressed={horizonFilter === h}
+                className={`px-2 py-1 rounded text-[11px] transition-colors border ${
+                  horizonFilter === h
+                    ? 'bg-sky-500/15 text-sky-300 border-sky-400/35 font-medium'
+                    : 'text-slate-400 hover:text-slate-200 border-transparent'
+                }`}
+              >
+                {h}
+              </button>
+            ))}
+          </div>
+
+          {/* Pair Filter */}
+          <div
+            role="group"
+            aria-label="Filter by orbital object pair type"
+            className="hidden xl:flex items-center gap-1 bg-space-900 p-1 rounded-lg border border-space-800"
+          >
+            {(
+              [
+                { id: 'ALL', label: 'All Pairs' },
+                { id: 'SAT_DEBRIS', label: 'Sat-Debris' },
+                { id: 'SAT_SAT', label: 'Sat-Sat' },
+                { id: 'ROCKET', label: 'Rocket Bodies' },
+              ] as const
+            ).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setObjectPairFilter(p.id)}
+                aria-pressed={objectPairFilter === p.id}
+                className={`px-2 py-1 rounded text-[11px] transition-colors border ${
+                  objectPairFilter === p.id
+                    ? 'bg-sky-500/15 text-sky-300 border-sky-400/35 font-medium'
+                    : 'text-slate-400 hover:text-slate-200 border-transparent'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sort Select */}
+          <div className="flex items-center gap-1.5">
+            <label htmlFor="conj-sort-select" className="text-[10px] text-slate-400">
+              SORT
+            </label>
+            <select
+              id="conj-sort-select"
+              value={sortBy}
+              onChange={(e) => {
+                const key = e.target.value as SortKey;
+                setSortBy(key);
+                setSortDir(key === 'distance' || key === 'tca' ? 'asc' : 'desc');
+              }}
+              className="bg-space-900 border border-space-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-sky-400/60"
+            >
+              <option value="risk">Risk Score</option>
+              <option value="tca">TCA Chronological</option>
+              <option value="distance">Miss Distance</option>
+              <option value="velocity">Relative Velocity</option>
+              <option value="probability">Collision Probability</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <div className="p-4">
         {filteredConjunctions.length === 0 ? (
-          <div className="py-16 text-center text-slate-500 font-mono space-y-2">
-            <AlertCircle className="w-10 h-10 text-slate-600 mx-auto opacity-50" />
-            <p className="font-bold text-sm text-slate-400">No active conjunctions matching current filter criteria.</p>
-            <p className="text-xs text-slate-500">Try adjusting the risk filter or expanding the prediction horizon.</p>
+          <div className="py-14 text-center text-slate-400 space-y-2 border border-dashed border-space-800 rounded-lg">
+            <AlertCircle className="w-8 h-8 text-slate-500 mx-auto" aria-hidden="true" />
+            <p className="text-sm font-sans font-medium text-slate-200">
+              No conjunction encounters match the current filters.
+            </p>
+            <p className="text-xs text-slate-400 font-sans">
+              Adjust risk severity filters or run SGP4 conjunction screening against the catalog.
+            </p>
           </div>
         ) : viewMode === 'cards' ? (
-          /* Cards Grid Matrix */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {filteredConjunctions.map((c) => {
-              const nameA = c.object_a?.name || `ID-${c.object_a_id}`;
-              const nameB = c.object_b?.name || `ID-${c.object_b_id}`;
+              const nameA = c.object_a?.name || `Object #${c.object_a_id}`;
+              const nameB = c.object_b?.name || `Object #${c.object_b_id}`;
               const noradA = c.object_a?.norad_id || c.object_a_id;
               const noradB = c.object_b?.norad_id || c.object_b_id;
-              const { timeFormatted, countdown } = formatTCA(c._tcaMs);
+              const tcaUtc = formatUtcTime(c._tcaMs);
+              const countdown = formatCountdownToUtc(c._tcaMs, currentTimeMs);
               const isSelected = selectedConjunction?.id === c.id;
 
               return (
-                <div
+                <article
                   key={c.id}
-                  onClick={() => onSelectConjunction(c)}
-                  className={`p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between gap-3 shadow-lg ${
+                  className={`p-4 rounded-xl border flex flex-col justify-between gap-3 transition-colors ${
                     isSelected
-                      ? 'bg-cyan-500/10 border-cyan-500/60 shadow-[0_0_15px_rgba(0,240,255,0.15)]'
-                      : 'bg-space-950/80 hover:bg-space-900 border-space-800 hover:border-space-700'
+                      ? 'bg-sky-500/10 border-sky-400/50'
+                      : 'bg-space-950/70 border-space-800 hover:border-space-700'
                   }`}
                 >
-                  {/* Card Header: Risk Badge & Countdown */}
-                  <div className="flex items-center justify-between gap-2 border-b border-space-800/80 pb-2.5">
+                  <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-space-800">
                     <RiskBadge level={c.risk_level} score={c.risk_score} size="sm" />
-                    <div className="text-right">
-                      <span className="text-[10px] text-amber-400 font-extrabold flex items-center gap-1 justify-end">
-                        <Clock className="w-2.5 h-2.5" />
-                        {formatTcaCountdown(c._tcaMs, currentTimeMs)}
+                    <div className="text-right tabular-nums">
+                      <span className="text-[11px] text-amber-300 font-semibold inline-flex items-center gap-1 justify-end">
+                        <Clock className="w-3 h-3" aria-hidden="true" />
+                        <span>{countdown}</span>
                       </span>
-                      <span className="text-[9px] text-slate-500 block">{countdown} ({timeFormatted})</span>
+                      <span className="block text-[10px] text-slate-400">{tcaUtc} UTC</span>
                     </div>
                   </div>
 
-                  {/* Encounter Pair */}
-                  <div className="space-y-1.5 my-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5 font-bold text-cyan-300 truncate">
-                        <span className="w-2 h-2 rounded-full bg-cyan-400 flex-shrink-0" />
-                        <span className="truncate">{nameA}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-500">#{noradA}</span>
+                  <button
+                    type="button"
+                    onClick={() => onSelectConjunction(c)}
+                    className="text-left space-y-1.5 rounded p-1 -m-1 hover:bg-space-900/80 transition-colors"
+                  >
+                    <div className="flex items-center justify-between text-xs gap-2">
+                      <span className="font-sans font-medium text-sky-300 truncate">{nameA}</span>
+                      <span className="text-[11px] text-slate-400 tabular-nums shrink-0">
+                        #{noradA}
+                      </span>
                     </div>
-
-                    <div className="flex items-center justify-center my-0.5 text-slate-600">
-                      <ArrowRightLeft className="w-3.5 h-3.5 text-slate-500" />
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                      <ArrowRightLeft className="w-3 h-3 shrink-0" aria-hidden="true" />
+                      <span>Close encounter geometry</span>
                     </div>
-
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5 font-bold text-red-400 truncate">
-                        <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-                        <span className="truncate">{nameB}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-500">#{noradB}</span>
+                    <div className="flex items-center justify-between text-xs gap-2">
+                      <span className="font-sans font-medium text-red-300 truncate">{nameB}</span>
+                      <span className="text-[11px] text-slate-400 tabular-nums shrink-0">
+                        #{noradB}
+                      </span>
                     </div>
-                  </div>
+                  </button>
 
-                  {/* Telemetry Strip */}
-                  <div className="grid grid-cols-3 gap-1.5 p-2 bg-space-900 rounded-xl border border-space-800 text-center text-xs">
+                  <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg border border-space-800 bg-space-900/90 text-center tabular-nums">
                     <div>
-                      <span className="text-[9px] text-slate-500 block">MISS DIST</span>
-                      <span className={`font-bold ${getMissDistanceColor(c.miss_distance_km)}`}>
+                      <span className="block text-[10px] text-slate-400">MISS DIST</span>
+                      <span className={`text-xs ${getMissDistanceClass(c.miss_distance_km)}`}>
                         {c.miss_distance_km.toFixed(2)} km
                       </span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-500 block">REL VEL</span>
-                      <span className="font-bold text-slate-200">{c.relative_velocity_km_s.toFixed(1)} km/s</span>
+                      <span className="block text-[10px] text-slate-400">REL VEL</span>
+                      <span className="text-xs text-slate-200 font-medium">
+                        {c.relative_velocity_km_s.toFixed(2)} km/s
+                      </span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-slate-500 block">EST PC</span>
-                      <span className="font-bold text-amber-300">
-                        {c.collision_probability != null ? `${c.collision_probability.toFixed(2)}%` : '<0.01%'}
+                      <span className="block text-[10px] text-slate-400">EST PC</span>
+                      <span className="text-xs text-amber-300 font-medium">
+                        {c.collision_probability != null
+                          ? c.collision_probability < 0.001
+                            ? '< 0.001%'
+                            : `${c.collision_probability.toFixed(3)}%`
+                          : 'N/A'}
                       </span>
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-space-800/80 flex-wrap">
-                    <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 pt-2 border-t border-space-800/80">
+                    <div className="flex flex-wrap items-center gap-1">
                       {onFocus3D && (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onFocus3D(c);
-                          }}
-                          className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-[10px] font-bold transition"
-                          title="Focus 3D Globe"
+                          type="button"
+                          onClick={() => onFocus3D(c)}
+                          className="px-2 py-1 rounded border border-space-700 bg-space-900 hover:bg-space-800 text-sky-300 text-[11px] transition-colors"
                         >
                           3D
                         </button>
                       )}
                       {onGroundTrack2D && (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onGroundTrack2D(c);
-                          }}
-                          className="px-2 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-lg text-[10px] font-bold transition"
-                          title="2D Ground Track"
+                          type="button"
+                          onClick={() => onGroundTrack2D(c)}
+                          className="px-2 py-1 rounded border border-space-700 bg-space-900 hover:bg-space-800 text-slate-200 text-[11px] transition-colors"
                         >
                           2D
                         </button>
                       )}
                       {onOpenReplay && (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenReplay(c);
-                          }}
-                          className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
-                          title="Cinematic Replay"
+                          type="button"
+                          onClick={() => onOpenReplay(c)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded border border-space-700 bg-space-900 hover:bg-space-800 text-amber-300 text-[11px] transition-colors"
                         >
-                          <Play className="w-2.5 h-2.5" />
-                          <span>REPLAY</span>
+                          <Play className="w-2.5 h-2.5" aria-hidden="true" />
+                          <span>Replay</span>
+                        </button>
+                      )}
+                      {onOpenCAM && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenCAM(c)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded border border-space-700 bg-space-900 hover:bg-space-800 text-slate-200 text-[11px] transition-colors"
+                        >
+                          <Navigation className="w-2.5 h-2.5 text-sky-400" aria-hidden="true" />
+                          <span>CAM</span>
+                        </button>
+                      )}
+                      {onOpenCDM && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenCDM(c)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded border border-space-700 bg-space-900 hover:bg-space-800 text-slate-200 text-[11px] transition-colors"
+                        >
+                          <FileCode className="w-2.5 h-2.5 text-slate-400" aria-hidden="true" />
+                          <span>CDM</span>
                         </button>
                       )}
                     </div>
 
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectConjunction(c);
-                      }}
-                      className="px-2.5 py-1 bg-space-800 hover:bg-space-700 text-slate-200 border border-space-700 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
+                      type="button"
+                      onClick={() => onSelectConjunction(c)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-sky-400/35 bg-sky-500/12 hover:bg-sky-500/20 text-sky-300 text-[11px] transition-colors"
                     >
-                      <Crosshair className="w-3 h-3 text-cyan-400" />
-                      <span>EVIDENCE</span>
+                      <Crosshair className="w-3 h-3" aria-hidden="true" />
+                      <span>Evidence</span>
                     </button>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>
         ) : (
-          /* Table Grid View */
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto border border-space-800 rounded-lg">
             <table className="w-full text-left text-xs border-collapse">
+              <caption className="sr-only">
+                Conjunction screening results with sortable miss distance, relative velocity, TCA,
+                risk score, and collision probability.
+              </caption>
               <thead>
-                <tr className="bg-space-950/80 border-b border-space-800 text-slate-400 text-[10px] uppercase tracking-wider font-semibold">
-                  <th className="py-3 px-4">Primary Target (Object A)</th>
-                  <th className="py-3 px-4">Secondary Target (Object B)</th>
-                  <th className="py-3 px-4">Miss Distance</th>
-                  <th className="py-3 px-4">Relative Velocity</th>
-                  <th className="py-3 px-4">TCA (UTC)</th>
-                  <th className="py-3 px-4 text-center">Countdown</th>
-                  <th className="py-3 px-4 text-center">Risk Level</th>
-                  <th className="py-3 px-4 text-center">Est. Probability</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                <tr className="bg-space-950 border-b border-space-800 text-slate-400 text-[11px] uppercase tracking-wider">
+                  <th scope="col" className="py-2.5 px-4 font-medium">
+                    Primary Object
+                  </th>
+                  <th scope="col" className="py-2.5 px-4 font-medium">
+                    Secondary Object
+                  </th>
+                  <th scope="col" aria-sort={getAriaSort('distance')} className="py-2.5 px-4 text-right font-medium">
+                    <button
+                      type="button"
+                      onClick={() => handleSortColumn('distance', 'asc')}
+                      className="inline-flex items-center gap-1.5 ml-auto hover:text-slate-100 transition-colors"
+                    >
+                      <span>Miss Dist</span>
+                      {renderSortIcon('distance')}
+                    </button>
+                  </th>
+                  <th scope="col" aria-sort={getAriaSort('velocity')} className="py-2.5 px-4 text-right font-medium">
+                    <button
+                      type="button"
+                      onClick={() => handleSortColumn('velocity', 'desc')}
+                      className="inline-flex items-center gap-1.5 ml-auto hover:text-slate-100 transition-colors"
+                    >
+                      <span>Rel Vel</span>
+                      {renderSortIcon('velocity')}
+                    </button>
+                  </th>
+                  <th scope="col" aria-sort={getAriaSort('tca')} className="py-2.5 px-4 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => handleSortColumn('tca', 'asc')}
+                      className="inline-flex items-center gap-1.5 hover:text-slate-100 transition-colors"
+                    >
+                      <span>TCA (UTC)</span>
+                      {renderSortIcon('tca')}
+                    </button>
+                  </th>
+                  <th scope="col" className="py-2.5 px-4 text-center font-medium">
+                    Countdown
+                  </th>
+                  <th scope="col" aria-sort={getAriaSort('risk')} className="py-2.5 px-4 text-center font-medium">
+                    <button
+                      type="button"
+                      onClick={() => handleSortColumn('risk', 'desc')}
+                      className="inline-flex items-center gap-1.5 mx-auto hover:text-slate-100 transition-colors"
+                    >
+                      <span>Risk</span>
+                      {renderSortIcon('risk')}
+                    </button>
+                  </th>
+                  <th scope="col" aria-sort={getAriaSort('probability')} className="py-2.5 px-4 text-right font-medium">
+                    <button
+                      type="button"
+                      onClick={() => handleSortColumn('probability', 'desc')}
+                      className="inline-flex items-center gap-1.5 ml-auto hover:text-slate-100 transition-colors"
+                    >
+                      <span>Est. Pc</span>
+                      {renderSortIcon('probability')}
+                    </button>
+                  </th>
+                  <th scope="col" className="py-2.5 px-4 text-right font-medium">
+                    Actions
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-space-800/60 font-mono">
+
+              <tbody className="divide-y divide-space-800/70 tabular-nums">
                 {filteredConjunctions.map((c) => {
                   const isSelected = selectedConjunction?.id === c.id;
-                  const { timeFormatted, countdown } = formatTCA(c._tcaMs);
-                  const nameA = c.object_a?.name || `ID-${c.object_a_id}`;
-                  const nameB = c.object_b?.name || `ID-${c.object_b_id}`;
+                  const tcaUtc = formatUtcTime(c._tcaMs);
+                  const countdown = formatCountdownToUtc(c._tcaMs, currentTimeMs);
+                  const nameA = c.object_a?.name || `Object #${c.object_a_id}`;
+                  const nameB = c.object_b?.name || `Object #${c.object_b_id}`;
 
                   return (
                     <tr
                       key={c.id}
-                      onClick={() => onSelectConjunction(c)}
-                      className={`cursor-pointer transition-colors duration-150 ${
-                        isSelected ? 'bg-cyan-500/15 text-white' : 'hover:bg-space-850/60 text-slate-300'
+                      className={`transition-colors ${
+                        isSelected
+                          ? 'bg-sky-500/12 text-white'
+                          : 'hover:bg-space-800/50 text-slate-300'
                       }`}
                     >
-                      <td className="py-3 px-4 font-semibold text-cyan-300">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-cyan-400 flex-shrink-0" />
-                          <span>{nameA}</span>
-                        </div>
+                      <td className="py-2.5 px-4 font-sans font-medium text-sky-300">
+                        <button
+                          type="button"
+                          onClick={() => onSelectConjunction(c)}
+                          className="text-left hover:underline"
+                        >
+                          {nameA}
+                        </button>
                       </td>
-                      <td className="py-3 px-4 font-semibold text-red-400">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-                          <span>{nameB}</span>
-                        </div>
+                      <td className="py-2.5 px-4 font-sans font-medium text-red-300">
+                        {nameB}
                       </td>
-                      <td className="py-3 px-4">
-                        <span className={`font-bold ${getMissDistanceColor(c.miss_distance_km)}`}>
+                      <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                        <span className={getMissDistanceClass(c.miss_distance_km)}>
                           {c.miss_distance_km.toFixed(2)} km
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-slate-300">
+                      <td className="py-2.5 px-4 text-right text-slate-200 whitespace-nowrap">
                         {c.relative_velocity_km_s.toFixed(2)} km/s
                       </td>
-                      <td className="py-3 px-4 text-slate-200">
-                        <div>{timeFormatted}</div>
-                        <div className="text-[10px] text-slate-400">{countdown}</div>
+                      <td className="py-2.5 px-4 text-slate-200 whitespace-nowrap">
+                        {tcaUtc} UTC
                       </td>
-                      <td className="py-3 px-4 text-center font-bold text-amber-400">
-                        {formatTcaCountdown(c._tcaMs, currentTimeMs)}
+                      <td className="py-2.5 px-4 text-center font-medium text-amber-300 whitespace-nowrap">
+                        {countdown}
                       </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-2.5 px-4 text-center whitespace-nowrap">
                         <RiskBadge level={c.risk_level} score={c.risk_score} size="sm" />
                       </td>
-                      <td className="py-3 px-4 text-center font-bold text-slate-200">
-                        {c.collision_probability != null ? `${c.collision_probability.toFixed(2)}%` : '<0.01%'}
+                      <td className="py-2.5 px-4 text-right text-slate-200 whitespace-nowrap">
+                        {c.collision_probability != null
+                          ? c.collision_probability < 0.001
+                            ? '< 0.001%'
+                            : `${c.collision_probability.toFixed(3)}%`
+                          : 'N/A'}
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                      <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1">
                           {onFocus3D && (
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onFocus3D(c);
-                              }}
-                              className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-[10px] font-bold transition"
+                              type="button"
+                              onClick={() => onFocus3D(c)}
+                              className="px-2 py-1 rounded border border-space-700 bg-space-950 hover:bg-space-800 text-sky-300 text-[11px] transition-colors"
                             >
                               3D
                             </button>
                           )}
                           {onOpenReplay && (
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onOpenReplay(c);
-                              }}
-                              className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-[10px] font-bold transition"
+                              type="button"
+                              onClick={() => onOpenReplay(c)}
+                              className="px-2 py-1 rounded border border-space-700 bg-space-950 hover:bg-space-800 text-amber-300 text-[11px] transition-colors"
                             >
-                              REPLAY
+                              Replay
+                            </button>
+                          )}
+                          {onOpenCAM && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenCAM(c)}
+                              className="px-2 py-1 rounded border border-space-700 bg-space-950 hover:bg-space-800 text-slate-200 text-[11px] transition-colors"
+                            >
+                              CAM
                             </button>
                           )}
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectConjunction(c);
-                            }}
-                            className="px-2.5 py-1 bg-space-800 hover:bg-space-700 text-slate-300 border border-space-700 rounded-lg text-[10px] font-bold transition"
+                            type="button"
+                            onClick={() => onSelectConjunction(c)}
+                            className="px-2.5 py-1 rounded border border-sky-400/35 bg-sky-500/12 hover:bg-sky-500/20 text-sky-300 text-[11px] transition-colors"
                           >
-                            EVIDENCE
+                            Evidence
                           </button>
                         </div>
                       </td>
@@ -537,6 +680,6 @@ export const ConjunctionTable: React.FC<ConjunctionTableProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 };

@@ -476,7 +476,8 @@ class TLEService:
         db: Session,
         records: List[Dict[str, Any]],
         mode: str = "LIVE",
-        source: str = "Space-Track.org"
+        source: str = "Space-Track.org",
+        error_message: Optional[str] = None,
     ) -> Dict[str, int]:
         """Inserts and updates catalog records and records sync history."""
         started_at = datetime.utcnow()
@@ -486,12 +487,15 @@ class TLEService:
 
         # Pre-load existing objects into a dictionary for O(1) in-memory lookup
         existing_objs = {obj.norad_id: obj for obj in db.query(OrbitalObject).all()}
+        changed_records: List[Dict[str, Any]] = []
+        changed_obj_ids: List[int] = []
 
         for r in records:
             try:
                 norad_id = r["norad_id"]
                 if norad_id in existing_objs:
                     obj = existing_objs[norad_id]
+                    tle_changed = (obj.tle_line1 != r["tle_line1"]) or (obj.tle_line2 != r["tle_line2"])
                     obj.name = r["name"]
                     obj.object_type = r["object_type"]
                     obj.source = source
@@ -508,6 +512,10 @@ class TLEService:
                     obj.apogee_km = r.get("apogee_km")
                     obj.updated_at = datetime.utcnow()
                     updated += 1
+                    if tle_changed:
+                        changed_records.append(r)
+                        if obj.id is not None:
+                            changed_obj_ids.append(obj.id)
                 else:
                     obj = OrbitalObject(
                         norad_id=norad_id,
@@ -531,17 +539,28 @@ class TLEService:
                     db.add(obj)
                     existing_objs[norad_id] = obj
                     inserted += 1
+                    changed_records.append(r)
             except Exception:
                 failed += 1
 
         # Flush once for inserted IDs
         db.flush()
 
-        # Archive TLE records in bulk
+        # Archive only new or updated TLEs to prevent unbounded duplicate growth per sync
+        if changed_obj_ids:
+            for chunk_start in range(0, len(changed_obj_ids), 500):
+                chunk = changed_obj_ids[chunk_start:chunk_start + 500]
+                db.query(TLERecord).filter(
+                    TLERecord.orbital_object_id.in_(chunk),
+                    TLERecord.is_current.is_(True)
+                ).update({"is_current": False}, synchronize_session=False)
+
         tle_records = []
-        for r in records:
+        seen_changed_ids = set()
+        for r in changed_records:
             norad_id = r["norad_id"]
-            if norad_id in existing_objs:
+            if norad_id in existing_objs and norad_id not in seen_changed_ids:
+                seen_changed_ids.add(norad_id)
                 obj = existing_objs[norad_id]
                 tle_records.append(TLERecord(
                     orbital_object_id=obj.id,
@@ -556,11 +575,13 @@ class TLEService:
             db.add_all(tle_records)
 
         # Record Sync Log & History
+        log_status = "FAILED" if mode == "LIVE ERROR" or bool(error_message) else "SUCCESS"
         log = SyncLog(
             mode=mode,
             source=source,
-            status="SUCCESS",
+            status=log_status,
             total_synced=inserted + updated,
+            error_message=error_message,
             created_at=datetime.utcnow()
         )
         db.add(log)
@@ -573,7 +594,8 @@ class TLEService:
             records_inserted=inserted,
             records_updated=updated,
             records_failed=failed,
-            status="SUCCESS"
+            status=log_status,
+            error_message=error_message,
         )
         db.add(hist)
 
@@ -597,13 +619,19 @@ class TLEService:
 
         data_age = None
         if last_sync:
-            data_age = round((datetime.utcnow() - last_sync).total_seconds() / 60.0, 1)
+            data_age = max(0.0, round((datetime.utcnow() - last_sync).total_seconds() / 60.0, 1))
+
+        is_live_mode = mode == "LIVE" and not bool(sync_error)
+        is_live_err = mode == "LIVE ERROR" or bool(sync_error)
 
         return DataStatusResponse(
             mode=mode,
             source=source,
+            is_live=is_live_mode,
+            is_live_error=is_live_err,
             database_connected=True,
             last_sync=last_sync,
+            last_updated=last_sync,
             total_objects=total_objects,
             satellites=satellites,
             debris=debris,
@@ -611,5 +639,6 @@ class TLEService:
             unknown=unknown,
             data_age_minutes=data_age,
             sync_error=sync_error,
+            error_message=sync_error,
             is_syncing=False
         )

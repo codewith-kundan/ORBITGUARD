@@ -1,17 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  Rocket, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  X,
+  Rocket,
   Flame,
   Clock,
   RefreshCw,
   Calendar,
   Layers,
   MapPin,
-  ShieldAlert
+  AlertTriangle,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { DecayWatchlistItem } from '../types';
+import { ModalDialog } from './ModalDialog';
+import { formatUtcDateTime, parseUtcDate } from '../utils/utcTime';
 
 interface LaunchRadarModalProps {
   isOpen: boolean;
@@ -37,10 +39,12 @@ export const LaunchRadarModal: React.FC<LaunchRadarModalProps> = ({ isOpen, onCl
   const [decayWatchlist, setDecayWatchlist] = useState<DecayWatchlistItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingDecay, setLoadingDecay] = useState<boolean>(false);
-  const [feedSource, setFeedSource] = useState<string>('Launch Library 2 (The Space Devs)');
+  const [launchError, setLaunchError] = useState<string | null>(null);
+  const [decayError, setDecayError] = useState<string | null>(null);
+  const [feedSource, setFeedSource] = useState<string>('Launch Library 2');
+  const [feedCached, setFeedCached] = useState<boolean>(false);
   const [nowMs, setNowMs] = useState<number>(Date.now());
 
-  // 1-second live ticker for real-time second-by-second countdown and past launch pruning
   useEffect(() => {
     if (!isOpen) return;
     const interval = setInterval(() => {
@@ -49,290 +53,377 @@ export const LaunchRadarModal: React.FC<LaunchRadarModalProps> = ({ isOpen, onCl
     return () => clearInterval(interval);
   }, [isOpen]);
 
-  const fetchLaunches = async () => {
+  const fetchLaunches = useCallback(async () => {
     try {
       setLoading(true);
+      setLaunchError(null);
       const res = await api.getUpcomingLaunches();
-      if (res && res.launches && res.launches.length > 0) {
+      if (res?.status === 'UNAVAILABLE') {
+        setRawLaunches([]);
+        setFeedCached(false);
+        setFeedSource(res.source || 'Launch Feed Unavailable');
+        setLaunchError(res.error || 'Launch Library 2 upstream feed is currently unreachable.');
+        return;
+      }
+      if (res?.launches) {
         const parsed = res.launches.map((l: any) => ({
           ...l,
-          _netMs: new Date(l.launchTimeUtc).getTime()
+          _netMs: parseUtcDate(l.launchTimeUtc)?.getTime() ?? NaN,
         }));
         setRawLaunches(parsed);
+        setFeedCached(Boolean(res.cached || res.status === 'CACHED'));
         setFeedSource(res.source || 'Launch Library 2');
+      } else {
+        setFeedCached(false);
+        setRawLaunches([]);
       }
-    } catch (err) {
-      console.error('Failed to load real upcoming launches:', err);
+    } catch (err: any) {
+      setRawLaunches([]);
+      setLaunchError(err?.message || 'Unable to retrieve upcoming launch manifest.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchDecayWatchlist = async () => {
+  const fetchDecayWatchlist = useCallback(async () => {
     try {
       setLoadingDecay(true);
+      setDecayError(null);
       const res = await api.getDecayWatchlist(180.0);
-      if (res && res.length > 0) {
-        setDecayWatchlist(res);
-      }
-    } catch (err) {
-      console.error('Failed to load decay watchlist:', err);
+      setDecayWatchlist(Array.isArray(res) ? res : []);
+    } catch (err: any) {
+      setDecayWatchlist([]);
+      setDecayError(err?.message || 'Unable to compute low-perigee re-entry watchlist.');
     } finally {
       setLoadingDecay(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       fetchLaunches();
       fetchDecayWatchlist();
     }
-  }, [isOpen]);
+  }, [isOpen, fetchLaunches, fetchDecayWatchlist]);
 
-  // Filter out any past launches where NET + 30m launch window has completed, sort ascending by time
   const upcomingLaunches = rawLaunches
     .filter((l) => {
-      const net = l._netMs || new Date(l.launchTimeUtc).getTime();
-      return !isNaN(net) && (net + 30 * 60 * 1000) > nowMs; // Keep during launch window, prune once completed
+      const net = l._netMs ?? parseUtcDate(l.launchTimeUtc)?.getTime() ?? NaN;
+      return !Number.isNaN(net) && net + 30 * 60 * 1000 > nowMs;
     })
-    .sort((a, b) => (a._netMs || 0) - (b._netMs || 0));
+    .sort((a, b) => (a._netMs ?? 0) - (b._netMs ?? 0));
 
-  const formatCountdown = (dateStr: string) => {
-    try {
-      const target = new Date(dateStr).getTime();
-      const diffMs = target - nowMs;
-      if (diffMs <= 0 && diffMs > -1800000) return 'LIFTOFF / IN FLIGHT';
-      if (diffMs <= -1800000) return 'MISSION COMPLETED';
-      
-      const days = Math.floor(diffMs / (86400 * 1000));
-      const hours = Math.floor((diffMs % (86400 * 1000)) / (3600 * 1000));
-      const mins = Math.floor((diffMs % (3600 * 1000)) / (60 * 1000));
-      const secs = Math.floor((diffMs % (60 * 1000)) / 1000);
+  const formatCountdown = (dateStr: string): string => {
+    const parsed = parseUtcDate(dateStr);
+    if (!parsed) return 'SCHEDULED';
+    const diffMs = parsed.getTime() - nowMs;
+    if (diffMs <= 0 && diffMs > -1800000) return 'IN WINDOW';
+    if (diffMs <= -1800000) return 'COMPLETED';
 
-      if (days > 0) {
-        return `T-${days}d ${hours.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
-      }
-      return `T-${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    } catch {
-      return 'SCHEDULED';
+    const days = Math.floor(diffMs / (86400 * 1000));
+    const hours = Math.floor((diffMs % (86400 * 1000)) / (3600 * 1000));
+    const mins = Math.floor((diffMs % (3600 * 1000)) / (60 * 1000));
+    const secs = Math.floor((diffMs % (60 * 1000)) / 1000);
+
+    if (days > 0) {
+      return `T-${days}d ${String(hours).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m`;
     }
+    return `T-${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in font-mono">
-      <div className="relative w-full max-w-4xl bg-space-950 border border-purple-500/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="p-3 sm:p-4 bg-gradient-to-r from-purple-950/80 via-space-900 to-space-950 border-b border-purple-500/30 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 sm:p-2.5 bg-purple-500/20 rounded-xl border border-purple-500/40 text-purple-300">
-              <Rocket className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/40">
-                  REAL-TIME MISSION RADAR
-                </span>
-                <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  {feedSource}
-                </span>
-              </div>
-              <h3 className="text-xs sm:text-base font-bold text-white tracking-wide mt-0.5">
-                Upcoming Space Missions & Decaying Debris Tracker
-              </h3>
-            </div>
+    <ModalDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="launch-radar-title"
+      maxWidthClass="max-w-4xl"
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 border-b border-space-800 bg-space-950 px-5 py-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="p-2 rounded-lg bg-sky-500/10 border border-sky-500/35 text-sky-400 shrink-0">
+            <Rocket className="w-5 h-5" aria-hidden="true" />
           </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => { fetchLaunches(); fetchDecayWatchlist(); }}
-              disabled={loading || loadingDecay}
-              className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-300 hover:text-white rounded-lg border border-space-800 transition disabled:opacity-50"
-              title="Refresh Live Manifest"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${(loading || loadingDecay) ? 'animate-spin text-purple-400' : ''}`} />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-400 hover:text-white rounded-lg border border-space-800 transition"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 id="launch-radar-title" className="text-base sm:text-lg font-semibold text-slate-100">
+                Launch Manifest & Re-Entry Watchlist
+              </h2>
+              <span
+                className={`px-2 py-0.5 rounded border text-[11px] font-mono ${
+                  launchError || feedCached
+                    ? 'bg-amber-500/10 border-amber-500/35 text-amber-300'
+                    : 'bg-emerald-500/10 border-emerald-500/35 text-emerald-300'
+                }`}
+              >
+                {feedSource}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Upcoming orbital launch windows paired with low-perigee atmospheric decay predictions.
+            </p>
           </div>
         </div>
 
-        {/* Tab Toggle */}
-        <div className="flex items-center gap-2 px-4 sm:px-6 pt-3 bg-space-900/60 border-b border-space-800">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
-            onClick={() => setActiveTab('launches')}
-            className={`pb-2.5 px-3 text-xs font-bold transition flex items-center gap-2 border-b-2 ${
-              activeTab === 'launches'
-                ? 'border-purple-400 text-purple-300'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
+            type="button"
+            onClick={() => {
+              fetchLaunches();
+              fetchDecayWatchlist();
+            }}
+            disabled={loading || loadingDecay}
+            aria-label="Refresh launch manifest and re-entry watchlist"
+            className="p-1.5 rounded-lg bg-space-900 hover:bg-space-800 border border-space-700 text-slate-300 hover:text-slate-100 transition-colors disabled:opacity-50"
           >
-            <Rocket className="w-3.5 h-3.5" />
-            <span>REAL-TIME UPCOMING MISSIONS ({upcomingLaunches.length})</span>
+            <RefreshCw
+              className={`w-4 h-4 ${loading || loadingDecay ? 'animate-spin text-sky-400' : ''}`}
+            />
           </button>
           <button
-            onClick={() => setActiveTab('reentries')}
-            className={`pb-2.5 px-3 text-xs font-bold transition flex items-center gap-2 border-b-2 ${
-              activeTab === 'reentries'
-                ? 'border-red-400 text-red-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
+            type="button"
+            onClick={onClose}
+            aria-label="Close launch and re-entry radar dialog"
+            className="p-1.5 rounded-lg bg-space-900 hover:bg-space-800 border border-space-700 text-slate-400 hover:text-slate-100 transition-colors"
           >
-            <Flame className="w-3.5 h-3.5" />
-            <span>ATMOSPHERIC RE-ENTRY WATCHLIST ({decayWatchlist.length})</span>
+            <X className="w-4 h-4" />
           </button>
         </div>
+      </div>
 
-        {/* Body Content */}
-        <div className="p-3 sm:p-5 overflow-y-auto flex-1 space-y-3">
-          {activeTab === 'launches' ? (
-            loading ? (
-              <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-3">
-                <RefreshCw className="w-6 h-6 animate-spin text-purple-400" />
-                <span>Syncing live global launch manifest from Launch Library 2...</span>
-              </div>
-            ) : upcomingLaunches.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs bg-space-900 rounded-xl border border-space-800">
-                All scheduled missions have concluded. Checking next launch windows...
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {upcomingLaunches.map((lch) => (
-                  <div key={lch.id} className="p-3 sm:p-4 bg-space-900/90 rounded-xl border border-space-800 hover:border-purple-500/40 transition space-y-2">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs sm:text-sm font-bold text-white">{lch.name}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-space-950 text-purple-300 border border-purple-500/30 font-semibold">
-                          {lch.vehicle}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 self-start sm:self-auto">
-                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30 flex items-center gap-1 tabular-nums">
-                          <Clock className="w-2.5 h-2.5 animate-spin-slow" />
-                          {formatCountdown(lch.launchTimeUtc)}
-                        </span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                          lch.status.includes('GO')
-                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                            : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                        }`}>
-                          {lch.status}
-                        </span>
-                      </div>
-                    </div>
+      {/* Tab Navigation */}
+      <div
+        role="tablist"
+        aria-label="Launch and decay views"
+        className="flex items-center gap-2 px-5 pt-2.5 bg-space-950/70 border-b border-space-800"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'launches'}
+          onClick={() => setActiveTab('launches')}
+          className={`pb-2.5 px-3 text-xs font-medium inline-flex items-center gap-1.5 border-b-2 transition-colors ${
+            activeTab === 'launches'
+              ? 'border-sky-400 text-sky-300 font-semibold'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Rocket className="w-3.5 h-3.5" aria-hidden="true" />
+          <span>Upcoming Launches ({upcomingLaunches.length})</span>
+        </button>
 
-                    <p className="text-slate-300 text-xs leading-relaxed">{lch.missionDescription}</p>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'reentries'}
+          onClick={() => setActiveTab('reentries')}
+          className={`pb-2.5 px-3 text-xs font-medium inline-flex items-center gap-1.5 border-b-2 transition-colors ${
+            activeTab === 'reentries'
+              ? 'border-amber-400 text-amber-300 font-semibold'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Flame className="w-3.5 h-3.5" aria-hidden="true" />
+          <span>Re-Entry Watchlist ({decayWatchlist.length})</span>
+        </button>
+      </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] pt-2 border-t border-space-800/80 text-slate-400">
-                      <div className="flex items-start gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-slate-500 block text-[9px]">NET LAUNCH WINDOW:</span>
-                          <span className="text-cyan-300 font-bold">
-                            {new Date(lch.launchTimeUtc).toUTCString()}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-1.5">
-                        <Layers className="w-3.5 h-3.5 text-purple-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-slate-500 block text-[9px]">TARGET REGIME:</span>
-                          <span className="text-slate-200 font-medium">{lch.targetOrbit}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-slate-500 block text-[9px]">LAUNCH COMPLEX:</span>
-                          <span className="text-slate-200 font-medium truncate block max-w-[220px]" title={lch.site}>
-                            {lch.site}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          ) : (
-            /* TAB 2: REAL ATMOSPHERIC RE-ENTRY FROM LIVE SGP4 / KING-HELE PROPAGATION */
-            loadingDecay ? (
-              <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-3">
-                <RefreshCw className="w-6 h-6 animate-spin text-red-400" />
-                <span>Computing live King-Hele atmospheric drag lifetime on low-perigee catalog tracks...</span>
-              </div>
-            ) : decayWatchlist.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs bg-space-900 rounded-xl border border-space-800">
-                No active orbital tracks currently below 200 km perigee re-entry threshold.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="p-3 bg-red-950/40 border border-red-500/40 rounded-xl text-xs flex items-center gap-2.5 text-red-300">
-                  <ShieldAlert className="w-4 h-4 text-red-400 flex-shrink-0 animate-pulse" />
-                  <span>
-                    Real-time SGP4 thermospheric decay predictions calculated via <strong>King-Hele Drag Mechanics</strong> against Jacchia-Roberts scale heights.
-                  </span>
+      {/* Body */}
+      <div className="p-5 overflow-y-auto flex-1 space-y-3">
+        {activeTab === 'launches' ? (
+          loading ? (
+            <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
+              <RefreshCw className="w-5 h-5 animate-spin text-sky-400" aria-hidden="true" />
+              <span>Fetching upcoming orbital launch manifest...</span>
+            </div>
+          ) : launchError ? (
+            <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/35 text-xs text-amber-200 flex items-center justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                <div>
+                  <div className="font-semibold">Launch Manifest Feed Unavailable</div>
+                  <div className="text-amber-300/90 mt-0.5">{launchError}</div>
                 </div>
-
-                {decayWatchlist.map((dec) => (
-                  <div key={dec.norad_id} className="p-3 sm:p-4 bg-space-900/90 rounded-xl border border-red-500/30 space-y-2 hover:border-red-500/60 transition">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs sm:text-sm font-bold text-white">{dec.object_name}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-space-950 text-red-300 border border-red-500/30">
-                          NORAD #{dec.norad_id}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-space-950 text-slate-400 border border-space-800">
-                          {dec.object_type}
-                        </span>
-                      </div>
-                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
-                        dec.risk_level === 'CRITICAL'
-                          ? 'bg-red-600/20 text-red-400 border-red-500/50 animate-pulse'
-                          : dec.risk_level === 'HIGH'
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                          : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
-                      }`}>
-                        {dec.risk_level} RE-ENTRY RISK
+              </div>
+              <button
+                type="button"
+                onClick={fetchLaunches}
+                className="px-3 py-1.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-100 font-medium shrink-0"
+              >
+                Retry
+              </button>
+            </div>
+          ) : upcomingLaunches.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs bg-space-950 rounded-lg border border-space-800">
+              No scheduled upcoming missions fall within the active Launch Library manifest window.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {upcomingLaunches.map((lch) => (
+                <div
+                  key={lch.id}
+                  className="p-4 bg-space-950 rounded-lg border border-space-800 space-y-2.5"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-slate-100">{lch.name}</span>
+                      <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-space-900 border border-space-700 text-slate-300">
+                        {lch.vehicle}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px] pt-1.5 border-t border-space-800/80 text-slate-400">
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                      <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/35 text-sky-300 inline-flex items-center gap-1 tabular-nums">
+                        <Clock className="w-3 h-3" aria-hidden="true" />
+                        {formatCountdown(lch.launchTimeUtc)}
+                      </span>
+                      <span
+                        className={`text-[11px] font-medium px-2 py-0.5 rounded border ${
+                          lch.status.includes('GO')
+                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/35'
+                            : 'bg-amber-500/10 text-amber-300 border-amber-500/35'
+                        }`}
+                      >
+                        {lch.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed">{lch.missionDescription}</p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2.5 border-t border-space-800 text-xs">
+                    <div className="flex items-start gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" aria-hidden="true" />
                       <div>
-                        <span className="text-slate-500 block text-[9px]">ESTIMATED LIFETIME:</span>
-                        <span className="text-amber-300 font-bold">
-                          {dec.estimated_lifetime_days < 1 
-                            ? `${Math.round(dec.estimated_lifetime_days * 24)} hours` 
-                            : `${dec.estimated_lifetime_days.toFixed(1)} days`}
+                        <span className="block text-[10px] uppercase tracking-wider text-slate-500">
+                          NET Window
+                        </span>
+                        <span className="font-mono text-slate-200 tabular-nums">
+                          {formatUtcDateTime(lch.launchTimeUtc)}
                         </span>
                       </div>
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" aria-hidden="true" />
                       <div>
-                        <span className="text-slate-500 block text-[9px]">CURRENT PERIGEE:</span>
-                        <span className="text-red-300 font-bold">{dec.perigee_km.toFixed(1)} km</span>
+                        <span className="block text-[10px] uppercase tracking-wider text-slate-500">
+                          Target Orbit
+                        </span>
+                        <span className="text-slate-200">{lch.targetOrbit}</span>
                       </div>
-                      <div>
-                        <span className="text-slate-500 block text-[9px]">CURRENT APOGEE:</span>
-                        <span className="text-cyan-300 font-bold">{dec.apogee_km.toFixed(1)} km</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block text-[9px]">PROJECTED RE-ENTRY:</span>
-                        <span className="text-slate-200 font-medium">
-                          {new Date(dec.predicted_reentry_time).toUTCString().substring(0, 22)}
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" aria-hidden="true" />
+                      <div className="min-w-0">
+                        <span className="block text-[10px] uppercase tracking-wider text-slate-500">
+                          Launch Site
+                        </span>
+                        <span className="text-slate-200 truncate block" title={lch.site}>
+                          {lch.site}
                         </span>
                       </div>
                     </div>
                   </div>
-                ))}
+                </div>
+              ))}
+            </div>
+          )
+        ) : loadingDecay ? (
+          <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
+            <RefreshCw className="w-5 h-5 animate-spin text-amber-400" aria-hidden="true" />
+            <span>Evaluating King-Hele atmospheric lifetime for low-perigee objects...</span>
+          </div>
+        ) : decayError ? (
+          <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/35 text-xs text-red-200 flex items-center justify-between gap-3">
+            <span>{decayError}</span>
+            <button
+              type="button"
+              onClick={fetchDecayWatchlist}
+              className="px-3 py-1.5 rounded bg-red-500/20 border border-red-500/40 text-red-100 font-medium shrink-0"
+            >
+              Retry
+            </button>
+          </div>
+        ) : decayWatchlist.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-xs bg-space-950 rounded-lg border border-space-800">
+            No cataloged objects currently meet the 180-day re-entry threshold.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="p-3 bg-space-950 border border-space-800 rounded-lg text-xs text-slate-300">
+              Orbital lifetime estimates computed using King-Hele analytical drag decay driven by
+              current B* ballistic coefficients and atmospheric scale height.
+            </div>
+
+            {decayWatchlist.map((dec) => (
+              <div
+                key={dec.norad_id}
+                className="p-4 bg-space-950 rounded-lg border border-space-800 space-y-2.5"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-slate-100">{dec.object_name}</span>
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-space-900 border border-space-700 text-slate-300 tabular-nums">
+                      NORAD #{dec.norad_id}
+                    </span>
+                    <span className="text-[11px] px-2 py-0.5 rounded bg-space-900 border border-space-800 text-slate-400">
+                      {dec.object_type}
+                    </span>
+                  </div>
+
+                  <span
+                    className={`inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-0.5 rounded border ${
+                      dec.risk_level === 'CRITICAL'
+                        ? 'bg-red-500/10 text-red-300 border-red-500/35'
+                        : dec.risk_level === 'HIGH'
+                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/35'
+                        : 'bg-space-800 text-slate-300 border-space-700'
+                    }`}
+                  >
+                    <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+                    {dec.risk_level} Re-Entry Risk
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-space-800 text-xs font-mono tabular-nums">
+                  <div>
+                    <span className="block font-sans text-[10px] uppercase text-slate-500">
+                      Est. Lifetime
+                    </span>
+                    <span className="text-amber-300 font-semibold">
+                      {dec.estimated_lifetime_days < 1
+                        ? `${Math.round(dec.estimated_lifetime_days * 24)} hrs`
+                        : `${dec.estimated_lifetime_days.toFixed(1)} days`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block font-sans text-[10px] uppercase text-slate-500">
+                      Perigee
+                    </span>
+                    <span className="text-red-300 font-semibold">{dec.perigee_km.toFixed(1)} km</span>
+                  </div>
+                  <div>
+                    <span className="block font-sans text-[10px] uppercase text-slate-500">
+                      Apogee
+                    </span>
+                    <span className="text-sky-300 font-semibold">{dec.apogee_km.toFixed(1)} km</span>
+                  </div>
+                  <div>
+                    <span className="block font-sans text-[10px] uppercase text-slate-500">
+                      Predicted Decay (UTC)
+                    </span>
+                    <span className="text-slate-200">
+                      {formatUtcDateTime(dec.predicted_reentry_time, true)}
+                    </span>
+                  </div>
+                </div>
               </div>
-            )
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
+    </ModalDialog>
   );
 };

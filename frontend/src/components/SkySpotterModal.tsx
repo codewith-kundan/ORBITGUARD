@@ -1,20 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  Eye, 
-  Star, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  X,
+  Eye,
+  Star,
   MapPin,
   Clock,
   RefreshCw,
   Compass,
-  Sparkles,
   Globe2,
   Calendar,
   Navigation,
-  LocateFixed
+  LocateFixed,
+  AlertTriangle,
 } from 'lucide-react';
+import { ModalDialog } from './ModalDialog';
 import { api } from '../services/api';
-import { calculateDynamicPasses, SPOTTER_CITIES, SpotterCity, SpotterPass } from '../services/skySpotterEngine';
+import {
+  calculateDynamicPasses,
+  SPOTTER_CITIES,
+  SpotterCity,
+  SpotterPass,
+} from '../services/skySpotterEngine';
+import { formatUtcTime } from '../utils/utcTime';
 
 interface SkySpotterModalProps {
   isOpen: boolean;
@@ -30,8 +37,8 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
   const [minElevationFilter, setMinElevationFilter] = useState<number>(10);
   const [customLocation, setCustomLocation] = useState<{ lat: number; lon: number; name: string } | null>(null);
   const [isGeolocating, setIsGeolocating] = useState<boolean>(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
 
-  // 1-second live countdown ticker
   useEffect(() => {
     if (!isOpen) return;
     const timer = setInterval(() => {
@@ -40,49 +47,57 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
     return () => clearInterval(timer);
   }, [isOpen]);
 
-  const loadPasses = async (cityFilter?: string, customLoc?: { lat: number; lon: number; name: string } | null) => {
-    try {
-      setLoading(true);
-      if (customLoc) {
-        // Direct client SGP4 calculation for custom GPS
-        const dynamicRes = calculateDynamicPasses({
-          lat: customLoc.lat,
-          lon: customLoc.lon,
-          name: customLoc.name,
-          id: 'custom_gps'
-        }, minElevationFilter, 48.0);
-        setPasses(dynamicRes.passes);
-        return;
-      }
-
-      const queryCity = cityFilter && cityFilter !== 'ALL' ? cityFilter : undefined;
-      const res = await api.getVisiblePasses(queryCity);
-      if (res && res.passes && res.passes.length > 0) {
-        setPasses(res.passes);
-        if (res.available_cities && res.available_cities.length > 0) {
-          setAvailableCities(res.available_cities);
+  const loadPasses = useCallback(
+    async (cityFilter?: string, customLoc?: { lat: number; lon: number; name: string } | null) => {
+      try {
+        setLoading(true);
+        const queryCity = cityFilter && cityFilter !== 'ALL' ? cityFilter : undefined;
+        const res = await api.getVisiblePasses(queryCity, {
+          minElevation: minElevationFilter,
+          lat: customLoc?.lat,
+          lon: customLoc?.lon,
+          locationName: customLoc?.name,
+        });
+        if (Array.isArray(res?.passes)) {
+          setPasses(res.passes);
+          if (res.available_cities && res.available_cities.length > 1) {
+            setAvailableCities(res.available_cities);
+          }
+        } else {
+          throw new Error('Unexpected response from live pass predictor');
         }
-      } else {
-        // Always fall back to local dynamic SGP4 engine so passes are never empty or static
-        const dynamicRes = calculateDynamicPasses(queryCity, minElevationFilter, 48.0);
+      } catch {
+        const dynamicRes = calculateDynamicPasses(
+          customLoc
+            ? {
+                lat: customLoc.lat,
+                lon: customLoc.lon,
+                name: customLoc.name,
+                id: 'custom_gps',
+              }
+            : cityFilter && cityFilter !== 'ALL'
+              ? cityFilter
+              : undefined,
+          minElevationFilter,
+          48.0
+        );
         setPasses(dynamicRes.passes);
-        setAvailableCities(dynamicRes.available_cities);
+        if (dynamicRes.available_cities.length > 1) {
+          setAvailableCities(dynamicRes.available_cities);
+        }
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      console.warn('Sky Spotter load exception, applying dynamic SGP4:', e);
-      const dynamicRes = calculateDynamicPasses(cityFilter && cityFilter !== 'ALL' ? cityFilter : undefined, minElevationFilter, 48.0);
-      setPasses(dynamicRes.passes);
-      setAvailableCities(dynamicRes.available_cities);
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [minElevationFilter]
+  );
 
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
+      setGeoError('Browser geolocation is unavailable. Select a station from the dropdown.');
       return;
     }
+    setGeoError(null);
     setIsGeolocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -90,7 +105,7 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
         const loc = {
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
-          name: `My GPS (${pos.coords.latitude.toFixed(2)}°, ${pos.coords.longitude.toFixed(2)}°)`
+          name: `GPS (${pos.coords.latitude.toFixed(2)}°, ${pos.coords.longitude.toFixed(2)}°)`,
         };
         setCustomLocation(loc);
         setSelectedCityId('custom_gps');
@@ -98,7 +113,7 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
       },
       (err) => {
         setIsGeolocating(false);
-        alert(`Could not get location: ${err.message}. Please select a city from the list.`);
+        setGeoError(`Location request declined (${err.message}). Select a hub city below.`);
       },
       { timeout: 10000 }
     );
@@ -112,15 +127,15 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
         loadPasses(selectedCityId, null);
       }
     }
-  }, [isOpen, selectedCityId, minElevationFilter]);
+  }, [isOpen, selectedCityId, minElevationFilter, customLocation, loadPasses]);
 
-  if (!isOpen) return null;
-
-  // Filter out passes that ended more than 10 minutes ago
   const activePasses = passes
     .filter((p) => {
       const isFuture = p.startTimeMs > nowMs - 600000;
-      const matchesCity = selectedCityId === 'ALL' || p.cityId === selectedCityId || (selectedCityId === 'custom_gps' && p.cityId === 'custom_gps');
+      const matchesCity =
+        selectedCityId === 'ALL' ||
+        p.cityId === selectedCityId ||
+        (selectedCityId === 'custom_gps' && p.cityId === 'custom_gps');
       const matchesElevation = (p.maxElevationDeg || 20) >= minElevationFilter;
       return isFuture && matchesCity && matchesElevation;
     })
@@ -128,239 +143,256 @@ export const SkySpotterModal: React.FC<SkySpotterModalProps> = ({ isOpen, onClos
 
   const formatCountdown = (startMs: number) => {
     const diffMs = startMs - nowMs;
-    if (diffMs <= 0 && diffMs > -600000) {
-      return 'OVERHEAD NOW (LOOK UP)';
-    }
-    if (diffMs <= -600000) {
-      return 'PASS COMPLETED';
-    }
+    if (diffMs <= 0 && diffMs > -600000) return 'ACTIVE OVERHEAD';
+    if (diffMs <= -600000) return 'COMPLETED';
 
     const hours = Math.floor(diffMs / 3600000);
     const mins = Math.floor((diffMs % 3600000) / 60000);
     const secs = Math.floor((diffMs % 60000) / 1000);
 
     if (hours > 0) {
-      return `T-${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      return `T-${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs
+        .toString()
+        .padStart(2, '0')}`;
     }
     return `T-${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in font-mono">
-      <div className="relative w-full max-w-4xl bg-space-950 border border-cyan-500/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Header */}
-        <div className="p-3 sm:p-4 bg-gradient-to-r from-blue-950/90 via-space-900 to-space-950 border-b border-cyan-500/30 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 sm:p-2.5 bg-cyan-500/20 rounded-xl border border-cyan-500/40 text-cyan-300">
-              <Eye className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse text-cyan-400" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded-full border border-cyan-500/40">
-                  CITIZEN SKY SPOTTER & OPTICAL RADAR
-                </span>
-                <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  SGP4 WGS-84 Ephemeris Active
-                </span>
-              </div>
-              <h3 className="text-xs sm:text-base font-bold text-white tracking-wide mt-0.5">
-                Naked-Eye & Optical Satellite Overpasses
-              </h3>
-            </div>
+    <ModalDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="sky-spotter-title"
+      maxWidthClass="max-w-4xl"
+      className="bg-space-900 border border-space-700 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] font-mono text-slate-200"
+    >
+      {/* Header */}
+      <div className="p-4 sm:p-5 bg-space-950 border-b border-space-800 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 bg-space-900 rounded-md border border-space-700 text-accent-400 shrink-0" aria-hidden="true">
+            <Eye className="w-5 h-5" />
           </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => loadPasses(selectedCityId)}
-              disabled={loading}
-              className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-300 hover:text-white rounded-lg border border-space-800 transition disabled:opacity-50 cursor-pointer"
-              title="Recalculate Passes"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-400 hover:text-white rounded-lg border border-space-800 transition cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-sky-500/10 text-sky-300 rounded border border-sky-500/30">
+                OPTICAL VISIBILITY PREDICTOR
+              </span>
+              <span className="text-[10px] text-slate-400">
+                Sunlit Spacecraft Over Dark Ground
+              </span>
+            </div>
+            <h2 id="sky-spotter-title" className="text-sm sm:text-base font-semibold text-slate-100 mt-1 truncate">
+              Visual Satellite Overpass Schedule
+            </h2>
           </div>
         </div>
 
-        {/* Location & Elevation Controls Bar */}
-        <div className="p-3 bg-space-900/90 border-b border-space-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 flex-wrap">
-            <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-            <span className="text-slate-400 font-bold">OBSERVATION HUB:</span>
-            <select
-              value={selectedCityId}
-              onChange={(e) => setSelectedCityId(e.target.value)}
-              className="bg-space-950 border border-cyan-500/40 rounded-lg px-3 py-1 text-cyan-300 font-bold focus:outline-none focus:border-cyan-400 text-xs cursor-pointer max-w-[260px] sm:max-w-none"
-            >
-              <option value="ALL">🌐 All Global Visible Passes ({passes.length} Overpasses)</option>
-              {customLocation && (
-                <option value="custom_gps">📍 {customLocation.name}</option>
-              )}
-              {availableCities.map((city) => (
-                <option key={city.id} value={city.id}>
-                  📍 {city.name} ({city.lat.toFixed(1)}°N, {city.lon.toFixed(1)}°E)
-                </option>
-              ))}
-            </select>
-
-            <button
-              onClick={handleUseMyLocation}
-              disabled={isGeolocating}
-              className="flex items-center gap-1 px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 hover:text-white rounded-lg border border-cyan-400/50 transition text-xs font-bold disabled:opacity-50 cursor-pointer shadow-cyan-inner"
-              title="Use your device GPS coordinates to calculate real optical passes directly overhead"
-            >
-              <LocateFixed className={`w-3.5 h-3.5 ${isGeolocating ? 'animate-spin text-cyan-400' : 'text-cyan-400'}`} />
-              <span>{isGeolocating ? 'Locating...' : 'My GPS Location'}</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 text-[10px] flex-wrap">
-            <div className="flex items-center gap-1 bg-space-950 px-2 py-0.5 rounded border border-space-800">
-              <span className="text-slate-400">Min Culmination:</span>
-              <select
-                value={minElevationFilter}
-                onChange={(e) => setMinElevationFilter(Number(e.target.value))}
-                className="bg-transparent text-cyan-300 font-bold focus:outline-none cursor-pointer"
-              >
-                <option value={10}>≥ 10° (Horizon to Zenith)</option>
-                <option value={25}>≥ 25° (Clear Obstructed View)</option>
-                <option value={50}>≥ 50° (High Zenith Only)</option>
-              </select>
-            </div>
-            <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-emerald-400" />
-              Sunlit in Dark/Twilight Sky
-            </span>
-          </div>
-        </div>
-
-        {/* Main List of Real Visible Passes */}
-        <div className="p-3 sm:p-5 overflow-y-auto flex-1 space-y-3 custom-scrollbar">
-          {loading ? (
-            <div className="py-20 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-3">
-              <RefreshCw className="w-6 h-6 animate-spin text-cyan-400" />
-              <span>Propagating live SGP4 optical visibility vectors over chosen ground sites...</span>
-            </div>
-          ) : activePasses.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-xs bg-space-900 rounded-xl border border-space-800 space-y-1">
-              <p className="text-white font-bold">No naked-eye satellite passes predicted in the next 48 hours matching current filters.</p>
-              <p className="text-[11px] text-slate-500">Try selecting "All Global Visible Passes" or lowering the minimum elevation cutoff.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {activePasses.map((p, idx) => {
-                const isOverheadNow = p.startTimeMs <= nowMs && p.startTimeMs > nowMs - 600000;
-                return (
-                  <div 
-                    key={`${p.noradId}-${p.cityId}-${idx}`} 
-                    className={`p-3.5 sm:p-4 bg-space-900/90 rounded-xl border transition space-y-2.5 ${
-                      isOverheadNow 
-                        ? 'border-emerald-500/80 bg-emerald-950/30 shadow-[0_0_25px_rgba(16,185,129,0.25)] animate-pulse' 
-                        : 'border-space-800 hover:border-cyan-500/40 hover:bg-space-900'
-                    }`}
-                  >
-                    {/* Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Star className={`w-4 h-4 ${p.brightnessRank === 'Extremely Bright' ? 'text-amber-400 fill-amber-400 animate-pulse' : 'text-cyan-400'}`} />
-                        <span className="text-xs sm:text-sm font-bold text-white">{p.satelliteName}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-space-950 text-slate-400 font-mono border border-space-800">
-                          #{p.noradId}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-950/40 text-cyan-300 font-semibold border border-cyan-500/30 flex items-center gap-1">
-                          <MapPin className="w-2.5 h-2.5" />
-                          {p.cityName}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 self-start sm:self-auto">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border flex items-center gap-1 tabular-nums ${
-                          isOverheadNow 
-                            ? 'bg-emerald-500 text-space-950 border-emerald-400 animate-bounce' 
-                            : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
-                        }`}>
-                          <Clock className="w-2.5 h-2.5" />
-                          {formatCountdown(p.startTimeMs)}
-                        </span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                          p.brightnessRank === 'Extremely Bright'
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                            : p.brightnessRank === 'Bright'
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                            : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                        }`}>
-                          {p.magnitude.startsWith('Mag') ? p.magnitude : `Mag ${p.magnitude}`}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Flight Overpass Metrics Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1 border-t border-space-800/80 text-slate-300">
-                      <div className="p-2 bg-space-950 rounded-lg border border-space-800">
-                        <span className="text-slate-500 block text-[9px] flex items-center gap-1">
-                          <Calendar className="w-2.5 h-2.5 text-cyan-400" />
-                          AOS START (UTC):
-                        </span>
-                        <strong className="text-cyan-300">
-                          {new Date(p.startTime).toUTCString().substring(17, 22)} UTC
-                        </strong>
-                      </div>
-
-                      <div className="p-2 bg-space-950 rounded-lg border border-space-800">
-                        <span className="text-slate-500 block text-[9px] flex items-center gap-1">
-                          <Globe2 className="w-2.5 h-2.5 text-emerald-400" />
-                          PEAK CULMINATION:
-                        </span>
-                        <strong className="text-emerald-400">{p.maxElevation}</strong>
-                      </div>
-
-                      <div className="p-2 bg-space-950 rounded-lg border border-space-800">
-                        <span className="text-slate-500 block text-[9px] flex items-center gap-1">
-                          <Compass className="w-2.5 h-2.5 text-purple-400" />
-                          TRAJECTORY COMPASS:
-                        </span>
-                        <strong className="text-white truncate block" title={p.skyPath || `${p.startDirection} → ${p.endDirection}`}>
-                          {p.startDirection} → {p.endDirection}
-                        </strong>
-                      </div>
-
-                      <div className="p-2 bg-space-950 rounded-lg border border-space-800">
-                        <span className="text-slate-500 block text-[9px] flex items-center gap-1">
-                          <Clock className="w-2.5 h-2.5 text-amber-400" />
-                          VISIBLE DURATION:
-                        </span>
-                        <strong className="text-amber-300">{p.duration}</strong>
-                      </div>
-                    </div>
-
-                    {/* Sky Vector Ribbon */}
-                    {p.skyPath && (
-                      <div className="flex items-center justify-between text-[10px] bg-space-950/60 px-2.5 py-1 rounded border border-space-800/60 text-slate-400 font-mono">
-                        <span className="flex items-center gap-1">
-                          <Navigation className="w-3 h-3 text-cyan-400" />
-                          <span className="text-slate-400">Sky Path:</span>
-                          <span className="text-cyan-300 font-bold">{p.skyPath}</span>
-                        </span>
-                        {p.minRangeKm && (
-                          <span className="text-slate-400">
-                            Slant Range: <span className="text-white font-bold">{p.minRangeKm} km</span>
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => loadPasses(selectedCityId, selectedCityId === 'custom_gps' ? customLocation : null)}
+            disabled={loading}
+            aria-label="Recalculate visible satellite passes"
+            className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-300 hover:text-slate-100 rounded-md border border-space-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-accent-400' : ''}`} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close Optical Pass Spotter"
+            className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-400 hover:text-slate-100 rounded-md border border-space-700 transition-colors"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
+          </button>
         </div>
       </div>
-    </div>
+
+      {/* Filter Bar */}
+      <div className="p-3 sm:px-5 bg-space-950 border-b border-space-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label htmlFor="spotter-city-select" className="text-slate-400 font-semibold flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5 text-accent-400" aria-hidden="true" />
+            <span>Site:</span>
+          </label>
+          <select
+            id="spotter-city-select"
+            value={selectedCityId}
+            onChange={(e) => setSelectedCityId(e.target.value)}
+            className="bg-space-900 border border-space-700 rounded-md px-2.5 py-1.5 text-slate-100 text-xs max-w-[260px]"
+          >
+            <option value="ALL">All Observation Sites ({passes.length} passes)</option>
+            {customLocation && <option value="custom_gps">{customLocation.name}</option>}
+            {availableCities.map((city) => (
+              <option key={city.id} value={city.id}>
+                {city.name} ({city.lat.toFixed(1)}°N, {city.lon.toFixed(1)}°E)
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={handleUseMyLocation}
+            disabled={isGeolocating}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-space-900 hover:bg-space-800 text-accent-400 rounded-md border border-space-700 text-xs font-semibold transition-colors disabled:opacity-50"
+          >
+            <LocateFixed className={`w-3.5 h-3.5 ${isGeolocating ? 'animate-spin' : ''}`} aria-hidden="true" />
+            <span>{isGeolocating ? 'Locating...' : 'Use GPS Location'}</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs">
+          <label htmlFor="spotter-min-el" className="text-slate-400">
+            Min Elevation:
+          </label>
+          <select
+            id="spotter-min-el"
+            value={minElevationFilter}
+            onChange={(e) => setMinElevationFilter(Number(e.target.value))}
+            className="bg-space-900 border border-space-700 rounded-md px-2 py-1 text-slate-100"
+          >
+            <option value={10}>&ge; 10°</option>
+            <option value={25}>&ge; 25°</option>
+            <option value={50}>&ge; 50°</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-3">
+        {geoError && (
+          <div role="alert" className="p-3 bg-amber-500/10 border border-amber-500/35 rounded-md text-amber-200 text-xs flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" aria-hidden="true" />
+              <span>{geoError}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setGeoError(null)}
+              aria-label="Dismiss location notice"
+              className="p-1 rounded hover:bg-space-800 text-slate-300"
+            >
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
+            <RefreshCw className="w-5 h-5 animate-spin text-accent-400" aria-hidden="true" />
+            <span>Propagating SGP4 optical twilight visibility windows...</span>
+          </div>
+        ) : activePasses.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-xs bg-space-950 rounded-md border border-space-800 space-y-1">
+            <p className="text-slate-100 font-semibold">No visible optical passes matched current criteria.</p>
+            <p className="text-[11px] font-sans">
+              Select All Observation Sites or lower the minimum culmination elevation threshold.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {activePasses.map((p, idx) => {
+              const isOverheadNow = p.startTimeMs <= nowMs && p.startTimeMs > nowMs - 600000;
+              return (
+                <article
+                  key={`${p.noradId}-${p.cityId}-${idx}`}
+                  className={`p-3.5 sm:p-4 bg-space-950 rounded-md border space-y-2.5 ${
+                    isOverheadNow ? 'border-emerald-500/60' : 'border-space-800'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Star
+                        className={`w-4 h-4 ${
+                          p.brightnessRank === 'Extremely Bright' ? 'text-amber-400' : 'text-accent-400'
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <span className="text-xs sm:text-sm font-semibold text-slate-100">
+                        {p.satelliteName}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-space-900 text-slate-400 border border-space-700 tabular-nums">
+                        #{p.noradId}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-space-900 text-slate-200 border border-space-700 inline-flex items-center gap-1">
+                        <MapPin className="w-2.5 h-2.5 text-accent-400" aria-hidden="true" />
+                        {p.cityName}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 tabular-nums">
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded font-semibold border inline-flex items-center gap-1 ${
+                          isOverheadNow
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : 'bg-sky-500/10 text-sky-300 border-sky-500/30'
+                        }`}
+                      >
+                        <Clock className="w-2.5 h-2.5" aria-hidden="true" />
+                        {formatCountdown(p.startTimeMs)}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded font-semibold border bg-space-900 text-slate-200 border-space-700">
+                        {p.magnitude.startsWith('Mag') ? p.magnitude : `Mag ${p.magnitude}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-2 border-t border-space-800 text-slate-300 tabular-nums">
+                    <div className="p-2 bg-space-900 rounded border border-space-800">
+                      <span className="text-slate-400 block text-[10px] flex items-center gap-1">
+                        <Calendar className="w-2.5 h-2.5 text-accent-400" aria-hidden="true" />
+                        AOS (UTC)
+                      </span>
+                      <strong className="text-slate-100">{formatUtcTime(p.startTime, false)} UTC</strong>
+                    </div>
+
+                    <div className="p-2 bg-space-900 rounded border border-space-800">
+                      <span className="text-slate-400 block text-[10px] flex items-center gap-1">
+                        <Globe2 className="w-2.5 h-2.5 text-emerald-400" aria-hidden="true" />
+                        Max Elevation
+                      </span>
+                      <strong className="text-emerald-300">{p.maxElevation}</strong>
+                    </div>
+
+                    <div className="p-2 bg-space-900 rounded border border-space-800">
+                      <span className="text-slate-400 block text-[10px] flex items-center gap-1">
+                        <Compass className="w-2.5 h-2.5 text-accent-400" aria-hidden="true" />
+                        Azimuth Path
+                      </span>
+                      <strong className="text-slate-100 truncate block" title={p.skyPath || `${p.startDirection} to ${p.endDirection}`}>
+                        {p.startDirection} &rarr; {p.endDirection}
+                      </strong>
+                    </div>
+
+                    <div className="p-2 bg-space-900 rounded border border-space-800">
+                      <span className="text-slate-400 block text-[10px] flex items-center gap-1">
+                        <Clock className="w-2.5 h-2.5 text-amber-400" aria-hidden="true" />
+                        Duration
+                      </span>
+                      <strong className="text-amber-300">{p.duration}</strong>
+                    </div>
+                  </div>
+
+                  {p.skyPath && (
+                    <div className="flex items-center justify-between text-[11px] bg-space-900 px-2.5 py-1.5 rounded border border-space-800 text-slate-400">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Navigation className="w-3 h-3 text-accent-400" aria-hidden="true" />
+                        <span>Track:</span>
+                        <span className="text-slate-200 font-semibold">{p.skyPath}</span>
+                      </span>
+                      {p.minRangeKm && (
+                        <span className="tabular-nums">
+                          Range: <strong className="text-slate-100">{p.minRangeKm} km</strong>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </ModalDialog>
   );
 };

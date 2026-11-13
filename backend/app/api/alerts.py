@@ -17,26 +17,28 @@ def list_alerts(
     limit: int = 50,
     db: Session = Depends(get_db)
 ):
-    """Lists system collision alerts with severity and status filters."""
-    cache_key = f"alerts:list:{status}:{severity}:{limit}"
-    cached_data = fast_cache.get(cache_key)
-    if cached_data is not None:
-        return cached_data
-
+    """Lists system collision alerts directly from the live database."""
     query = db.query(Alert)
     if status:
         query = query.filter(Alert.status == status)
     if severity:
         query = query.filter(Alert.severity == severity)
-    
+
     alerts = query.order_by(Alert.created_at.desc()).limit(limit).all()
-    
-    # If no high/critical alerts exist in DB, auto-sync from all active conjunctions
-    if not alerts:
-        AlertService.sync_alerts_from_conjunctions(db, include_all_levels=True)
-        alerts = db.query(Alert).order_by(Alert.created_at.desc()).limit(limit).all()
-        
-    fast_cache.set(cache_key, alerts, ttl_seconds=15.0)
+
+    # Only auto-sync active alerts from conjunctions when active alerts are requested
+    # and none currently exist (do not override RESOLVED/DISMISSED or severity filters).
+    if not alerts and (status is None or status == AlertStatus.ACTIVE) and not severity:
+        any_active = db.query(Alert).filter(Alert.status == AlertStatus.ACTIVE).first()
+        if not any_active:
+            AlertService.sync_alerts_from_conjunctions(db, include_all_levels=True)
+            retry_query = db.query(Alert)
+            if status:
+                retry_query = retry_query.filter(Alert.status == status)
+            if severity:
+                retry_query = retry_query.filter(Alert.severity == severity)
+            alerts = retry_query.order_by(Alert.created_at.desc()).limit(limit).all()
+
     return alerts
 
 @router.post("/{id}/acknowledge", response_model=AlertResponse)

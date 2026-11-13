@@ -36,24 +36,28 @@ def list_cases(
         query = query.filter(ConjunctionCase.priority == priority.upper())
 
     cases = query.order_by(ConjunctionCase.created_at.desc()).all()
-    return [
-        {
+    results: List[Dict[str, Any]] = []
+    for c in cases:
+        if not c.conjunction:
+            continue
+        conj = c.conjunction
+        results.append({
             "case_id": c.id,
             "conjunction_id": c.conjunction_id,
             "case_number": c.case_number,
             "state": c.state.value,
             "priority": c.priority.value,
             "assigned_operator": c.assigned_operator,
-            "primary_asset": c.conjunction.object_a.name if c.conjunction and c.conjunction.object_a else "Asset A",
-            "secondary_threat": c.conjunction.object_b.name if c.conjunction and c.conjunction.object_b else "Asset B",
-            "miss_distance_km": c.conjunction.miss_distance_km if c.conjunction else 1.08,
-            "tca_utc": c.conjunction.tca.isoformat() if c.conjunction and c.conjunction.tca else "",
-            "risk_score": c.conjunction.risk_score if c.conjunction else 87.0,
+            "primary_asset": conj.object_a.name if conj.object_a else f"Object #{conj.object_a_id}",
+            "secondary_threat": conj.object_b.name if conj.object_b else f"Object #{conj.object_b_id}",
+            "miss_distance_km": conj.miss_distance_km,
+            "tca_utc": conj.tca.isoformat() if conj.tca else "",
+            "risk_score": conj.risk_score,
             "is_verified": c.is_verified,
             "created_at_utc": c.created_at.isoformat(),
             "updated_at_utc": c.updated_at.isoformat()
-        } for c in cases
-    ]
+        })
+    return results
 
 @router.get("/{case_id}")
 def get_case_detail(case_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:

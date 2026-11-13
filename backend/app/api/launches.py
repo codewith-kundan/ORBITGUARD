@@ -9,41 +9,48 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/launches", tags=["Launch & Reentry Manifest"])
 
-# In-memory cache with 15-minute TTL to comply with SpaceDevs rate limits
+# In-memory emergency fallback snapshot (only used if all live Launch Library 2 endpoints fail)
 _cache_lock = asyncio.Lock()
 _cached_launches: List[Dict[str, Any]] = []
 _last_fetch_time: float = 0.0
 
-LL2_UPCOMING_URL = "https://lldev.thespacedevs.com/2.2.0/launch/upcoming/?limit=15"
+LL2_UPCOMING_URLS = [
+    "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=15",
+    "https://lldev.thespacedevs.com/2.2.0/launch/upcoming/?limit=15",
+]
+
+
+def _extract_image_url(raw_image: Any) -> Any:
+    if isinstance(raw_image, dict):
+        return raw_image.get("image_url") or raw_image.get("thumbnail_url")
+    return raw_image
+
 
 @router.get("")
 async def get_upcoming_launches():
     """
     Fetches real-time upcoming space missions and rocket launches worldwide.
-    Connects to The Space Devs / Launch Library 2 live manifest.
-    Auto-caches for 15 minutes to guarantee fast responses and respect API limits.
+    Always queries live Launch Library 2 endpoints first; falls back to cached
+    snapshot only if all live upstream endpoints are unavailable.
     """
     global _cached_launches, _last_fetch_time
 
     now_ts = datetime.now(timezone.utc).timestamp()
-    
-    async with _cache_lock:
-        if _cached_launches and (now_ts - _last_fetch_time) < 900:  # 15 minutes
-            return {
-                "source": "Launch Library 2 (The Space Devs)",
-                "status": "LIVE",
-                "cached": True,
-                "count": len(_cached_launches),
-                "launches": _cached_launches
-            }
 
-        try:
-            async with httpx.AsyncClient(timeout=12.0) as client:
-                resp = await client.get(
-                    LL2_UPCOMING_URL,
-                    headers={"User-Agent": "ORBITGUARD-SSA/2.0"}
-                )
-                if resp.status_code == 200:
+    async with _cache_lock:
+        last_error = None
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=6.0, read=12.0, write=6.0, pool=6.0),
+            follow_redirects=True,
+            headers={"User-Agent": "OrbitGuard-SSA/2.1"},
+        ) as client:
+            for endpoint in LL2_UPCOMING_URLS:
+                try:
+                    resp = await client.get(endpoint)
+                    if resp.status_code != 200:
+                        last_error = f"HTTP {resp.status_code} from {endpoint}"
+                        continue
+
                     data = resp.json()
                     results = data.get("results", [])
                     parsed = []
@@ -53,7 +60,7 @@ async def get_upcoming_launches():
                         location = pad.get("location") or {}
                         rocket_conf = (item.get("rocket") or {}).get("configuration") or {}
                         status_obj = item.get("status") or {}
-                        
+
                         site_name = location.get("name") or pad.get("name") or "Global Spaceport"
                         if pad.get("name") and pad.get("name") not in site_name:
                             site_name = f"{site_name}, {pad.get('name')}"
@@ -67,7 +74,7 @@ async def get_upcoming_launches():
                             "targetOrbit": (mission.get("orbit") or {}).get("name") or "Low Earth Orbit (LEO)",
                             "status": (status_obj.get("name") or "SCHEDULED").upper(),
                             "missionDescription": mission.get("description") or "Orbital payload deployment and constellation insertion mission.",
-                            "image": item.get("image")
+                            "image": _extract_image_url(item.get("image")),
                         })
 
                     if parsed:
@@ -79,61 +86,28 @@ async def get_upcoming_launches():
                             "status": "LIVE",
                             "cached": False,
                             "count": len(_cached_launches),
-                            "launches": _cached_launches
+                            "launches": _cached_launches,
                         }
-        except Exception as e:
-            logger.warning(f"Live launch fetch failed: {e}. Using fallback dataset.")
+                except Exception as e:
+                    last_error = f"{type(e).__name__}: {e or 'timeout/connection failure'}"
+                    logger.warning(f"Live launch fetch failed on {endpoint}: {last_error}")
 
-        # Fallback dataset if external network is unavailable
-        if not _cached_launches:
-            _cached_launches = [
-                {
-                    "id": "lch-fl-01",
-                    "name": "Falcon 9 Block 5 | Starlink Group 15-22",
-                    "vehicle": "Falcon 9",
-                    "site": "Vandenberg SFB, CA, USA, SLC-4E",
-                    "launchTimeUtc": "2026-08-27T18:40:00Z",
-                    "targetOrbit": "Low Earth Orbit (53.2°)",
-                    "status": "GO FOR LAUNCH",
-                    "missionDescription": "A batch of next-generation broadband satellites for the Starlink mega-constellation."
-                },
-                {
-                    "id": "lch-fl-02",
-                    "name": "Ariane 62 | MTG-I2",
-                    "vehicle": "Ariane 62",
-                    "site": "Guiana Space Centre, ELA-4, Kourou",
-                    "launchTimeUtc": "2026-08-28T20:10:00Z",
-                    "targetOrbit": "Geostationary Transfer Orbit (GTO)",
-                    "status": "SCHEDULED",
-                    "missionDescription": "Third generation European meteorological satellite for advanced storm forecasting."
-                },
-                {
-                    "id": "lch-fl-03",
-                    "name": "Falcon Heavy | Nancy Grace Roman Space Telescope",
-                    "vehicle": "Falcon Heavy",
-                    "site": "Kennedy Space Center, FL, USA, LC-39A",
-                    "launchTimeUtc": "2026-08-30T11:26:00Z",
-                    "targetOrbit": "Sun-Earth L2 Lagrange Point",
-                    "status": "GO FOR LAUNCH",
-                    "missionDescription": "NASA next-generation wide-field infrared space observatory exploring dark energy and exoplanets."
-                },
-                {
-                    "id": "lch-fl-04",
-                    "name": "ISRO PSLV-C62 / EOS-09",
-                    "vehicle": "PSLV-XL",
-                    "site": "Satish Dhawan Space Centre, Sriharikota, FLP",
-                    "launchTimeUtc": "2026-09-02T04:30:00Z",
-                    "targetOrbit": "Sun-Synchronous Orbit (SSO 97.8°)",
-                    "status": "SCHEDULED",
-                    "missionDescription": "ISRO multispectral remote sensing Earth observation satellite."
-                }
-            ]
-            _last_fetch_time = now_ts
+        # Fall back to last genuine live manifest only when ALL live endpoints fail
+        if _cached_launches:
+            return {
+                "source": "Launch Library 2 (Cached Live)",
+                "status": "CACHED",
+                "cached": True,
+                "count": len(_cached_launches),
+                "launches": _cached_launches,
+                "error": last_error,
+            }
 
         return {
-            "source": "Launch Library 2 (Verified Cache)",
-            "status": "FALLBACK",
-            "cached": True,
-            "count": len(_cached_launches),
-            "launches": _cached_launches
+            "source": "Launch Library 2 (Unavailable)",
+            "status": "UNAVAILABLE",
+            "cached": False,
+            "count": 0,
+            "launches": [],
+            "error": last_error or "Launch Library 2 upstream feed is currently unreachable.",
         }

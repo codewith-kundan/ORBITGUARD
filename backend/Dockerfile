@@ -13,9 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code
+# Copy source code and validation benchmarks
 COPY backend/ ./backend/
 COPY data/ ./data/
+COPY scripts/ ./scripts/
+COPY tests/reference_cases/ ./tests/reference_cases/
 
 # Environment defaults
 ENV PYTHONPATH=/app

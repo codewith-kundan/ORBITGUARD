@@ -86,6 +86,10 @@ class CaseService:
             payload={"tca_utc": conj.tca.isoformat()}
         )
 
+        pc_val = conj.collision_probability
+        if pc_val is None:
+            pc_val, _, _ = RiskService.calculate_collision_probability(conj.miss_distance_km)
+
         cls.log_audit_event(
             db=db,
             case_id=case.id,
@@ -93,8 +97,8 @@ class CaseService:
             event_type=AuditEventType.PC_EVALUATED,
             actor="PHYSICS_ENGINE",
             title="Collision Probability (Pc) Integrated",
-            description=f"Foster-2D B-plane integral computed: Pc = {conj.collision_probability or 0.00034:.6f} with 10,000 Monte Carlo perturbation bounds.",
-            payload={"collision_probability": conj.collision_probability, "risk_score": conj.risk_score}
+            description=f"Foster-2D B-plane integral computed: Pc = {pc_val:.6f} with 10,000 Monte Carlo perturbation bounds.",
+            payload={"collision_probability": pc_val, "risk_score": conj.risk_score}
         )
 
         return case
@@ -154,7 +158,7 @@ class CaseService:
             case.decision_rationale = rationale
         if strategy_type:
             case.selected_strategy_type = strategy_type
-        if delta_v_m_s:
+        if delta_v_m_s is not None:
             case.selected_delta_v_m_s = delta_v_m_s
         if target_state in (CaseState.APPROVED, CaseState.REJECTED, CaseState.OVERRIDDEN):
             case.decision_timestamp_utc = datetime.now(timezone.utc)
@@ -216,8 +220,14 @@ class CaseService:
             raise ValueError(f"Case #{case_id} not found.")
 
         conj = case.conjunction
+        if not conj:
+            raise ValueError(f"Associated conjunction #{case.conjunction_id} no longer exists.")
         obj_a = conj.object_a
         obj_b = conj.object_b
+
+        pc_val = conj.collision_probability
+        if pc_val is None:
+            pc_val, _, _ = RiskService.calculate_collision_probability(conj.miss_distance_km)
 
         # Advanced Risk Benchmarks
         benchmarks = RiskService.calculate_advanced_benchmarks(
@@ -254,8 +264,8 @@ class CaseService:
             "tca_utc": conj.tca.isoformat(),
             "miss_distance_km": conj.miss_distance_km,
             "relative_velocity_km_s": conj.relative_velocity_km_s,
-            "approach_angle_deg": conj.approach_angle_deg or 45.0,
-            "collision_probability": conj.collision_probability or 0.00034,
+            "approach_angle_deg": conj.approach_angle_deg,
+            "collision_probability": pc_val,
             "risk_score": conj.risk_score,
             "risk_level": conj.risk_level.value,
 
@@ -263,21 +273,21 @@ class CaseService:
             "primary_asset": {
                 "id": obj_a.id if obj_a else None,
                 "norad_id": obj_a.norad_id if obj_a else None,
-                "name": obj_a.name if obj_a else "Asset A",
-                "type": obj_a.object_type.value if obj_a else "ACTIVE_SATELLITE",
-                "perigee_km": obj_a.perigee_km if obj_a else 500.0,
-                "apogee_km": obj_a.apogee_km if obj_a else 550.0,
-                "inclination_deg": obj_a.inclination if obj_a else 53.0,
+                "name": obj_a.name if obj_a else f"Object #{conj.object_a_id}",
+                "type": obj_a.object_type.value if obj_a else "UNKNOWN",
+                "perigee_km": obj_a.perigee_km if obj_a else None,
+                "apogee_km": obj_a.apogee_km if obj_a else None,
+                "inclination_deg": obj_a.inclination if obj_a else None,
                 "epoch_utc": obj_a.tle_epoch.isoformat() if obj_a and obj_a.tle_epoch else None
             },
             "secondary_threat": {
                 "id": obj_b.id if obj_b else None,
                 "norad_id": obj_b.norad_id if obj_b else None,
-                "name": obj_b.name if obj_b else "Asset B",
-                "type": obj_b.object_type.value if obj_b else "DEBRIS",
-                "perigee_km": obj_b.perigee_km if obj_b else 490.0,
-                "apogee_km": obj_b.apogee_km if obj_b else 560.0,
-                "inclination_deg": obj_b.inclination if obj_b else 74.0,
+                "name": obj_b.name if obj_b else f"Object #{conj.object_b_id}",
+                "type": obj_b.object_type.value if obj_b else "UNKNOWN",
+                "perigee_km": obj_b.perigee_km if obj_b else None,
+                "apogee_km": obj_b.apogee_km if obj_b else None,
+                "inclination_deg": obj_b.inclination if obj_b else None,
                 "epoch_utc": obj_b.tle_epoch.isoformat() if obj_b and obj_b.tle_epoch else None
             },
 

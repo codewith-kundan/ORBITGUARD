@@ -1,13 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  X, 
-  Radio, 
-  MapPin, 
-  Compass, 
-  Activity
-} from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Radio, MapPin, Compass, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ModalDialog } from './ModalDialog';
 import { OrbitalObject, GroundStation, OverpassResponse, OverpassEvent, SkyPoint } from '../types';
 import { api } from '../services/api';
+import { formatUtcDateTime } from '../utils/utcTime';
 
 interface OverpassModalProps {
   object: OrbitalObject;
@@ -16,10 +12,11 @@ interface OverpassModalProps {
 
 export const OverpassModal: React.FC<OverpassModalProps> = ({
   object,
-  onClose
+  onClose,
 }) => {
   const radarCanvasRef = useRef<HTMLCanvasElement>(null);
   const [stations, setStations] = useState<GroundStation[]>([]);
+  const [stationsLoaded, setStationsLoaded] = useState<boolean>(false);
   const [selectedStation, setSelectedStation] = useState<GroundStation | null>(null);
   const [customLat, setCustomLat] = useState<string>('13.034');
   const [customLon, setCustomLon] = useState<string>('77.512');
@@ -32,26 +29,16 @@ export const OverpassModal: React.FC<OverpassModalProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch stations on load
-  useEffect(() => {
-    api.getGroundStations()
-      .then((data) => {
-        setStations(data);
-        if (data.length > 0) setSelectedStation(data[0]);
-      })
-      .catch(() => {});
-  }, []);
-
-  // Fetch pass prediction when station or object changes
-  const fetchPasses = async () => {
+  const fetchPasses = useCallback(async (stationOverride?: GroundStation | null) => {
     if (!object) return;
+    const stationToUse = stationOverride !== undefined ? stationOverride : selectedStation;
     try {
       setLoading(true);
       setError(null);
-      const lat = selectedStation ? selectedStation.latitude_deg : parseFloat(customLat) || 0;
-      const lon = selectedStation ? selectedStation.longitude_deg : parseFloat(customLon) || 0;
-      const alt = selectedStation ? selectedStation.altitude_m : parseFloat(customAlt) || 0;
-      const name = selectedStation ? selectedStation.name : 'Custom Station';
+      const lat = stationToUse ? stationToUse.latitude_deg : parseFloat(customLat) || 0;
+      const lon = stationToUse ? stationToUse.longitude_deg : parseFloat(customLon) || 0;
+      const alt = stationToUse ? stationToUse.altitude_m : parseFloat(customAlt) || 0;
+      const name = stationToUse ? stationToUse.name : 'Custom Coordinates';
 
       const data = await api.predictOverpasses({
         norad_id: object.norad_id,
@@ -63,7 +50,7 @@ export const OverpassModal: React.FC<OverpassModalProps> = ({
         prediction_hours: predictionHours,
         tle_line1: object.tle_line1,
         tle_line2: object.tle_line2,
-        object_name: object.name
+        object_name: object.name,
       });
 
       setOverpassData(data);
@@ -73,19 +60,47 @@ export const OverpassModal: React.FC<OverpassModalProps> = ({
         setSelectedPass(null);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to predict ground station overpasses');
+      setOverpassData(null);
+      setSelectedPass(null);
+      setError(err?.message || 'Failed to predict ground station overpasses.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [object, selectedStation, customLat, customLon, customAlt, minElevation, predictionHours]);
+
+  // Fetch stations cleanly without ever stalling in infinite loading
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    api
+      .getGroundStations()
+      .then((data) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setStations(list);
+        const first = list[0] || null;
+        setSelectedStation(first);
+        setStationsLoaded(true);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setStations([]);
+        setSelectedStation(null);
+        setStationsLoaded(true);
+        setError(err?.message || 'Ground station catalog unavailable; using custom coordinates.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
-    if (selectedStation) {
-      fetchPasses();
+    if (stationsLoaded) {
+      fetchPasses(selectedStation);
     }
-  }, [object.norad_id, selectedStation, minElevation, predictionHours]);
+  }, [stationsLoaded, selectedStation, minElevation, predictionHours, object.norad_id]);
 
-  // Render Topocentric Sky Radar Polar Plot (Zenith at center, Horizon at outer circle)
+  // Render Topocentric Sky Polar Plot
   useEffect(() => {
     const canvas = radarCanvasRef.current;
     if (!canvas) return;
@@ -94,38 +109,32 @@ export const OverpassModal: React.FC<OverpassModalProps> = ({
 
     const size = canvas.width;
     const center = size / 2;
-    const maxRadius = (size / 2) - 24;
+    const maxRadius = size / 2 - 28;
 
     ctx.clearRect(0, 0, size, size);
-
-    // 1. Radar Background (Dark Space)
-    ctx.fillStyle = '#060a12';
+    ctx.fillStyle = '#080b10';
     ctx.fillRect(0, 0, size, size);
 
-    // 2. Concentric Elevation Rings (0 deg, 30 deg, 60 deg, 90 deg)
     const elevations = [0, 30, 60];
     elevations.forEach((el) => {
       const r = maxRadius * (1.0 - el / 90.0);
-      ctx.strokeStyle = el === 0 ? 'rgba(0, 240, 255, 0.4)' : 'rgba(30, 58, 95, 0.5)';
-      ctx.lineWidth = el === 0 ? 2 : 1;
+      ctx.strokeStyle = el === 0 ? '#334155' : '#1e2836';
+      ctx.lineWidth = el === 0 ? 1.5 : 1;
       ctx.beginPath();
       ctx.arc(center, center, r, 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.fillStyle = 'rgba(74, 222, 128, 0.6)';
-      ctx.font = '9px monospace';
-      ctx.fillText(`${el}°`, center + 3, center - r + 10);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText(`${el}°`, center + 4, center - r + 11);
     });
 
-    // Zenith Center Dot
-    ctx.fillStyle = '#00f0ff';
+    ctx.fillStyle = '#38bdf8';
     ctx.beginPath();
     ctx.arc(center, center, 3, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillText('ZENITH (90°)', center - 28, center - 6);
 
-    // 3. Cardinal Direction Crosshairs (N, E, S, W)
-    ctx.strokeStyle = 'rgba(0, 240, 255, 0.25)';
+    ctx.strokeStyle = '#1e2836';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(center, center - maxRadius);
@@ -134,27 +143,27 @@ export const OverpassModal: React.FC<OverpassModalProps> = ({
     ctx.lineTo(center + maxRadius, center);
     ctx.stroke();
 
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('N (0°)', center - 14, center - maxRadius - 6);
-    ctx.fillText('S (180°)', center - 18, center + maxRadius + 16);
-    ctx.fillText('E (90°)', center + maxRadius + 6, center + 4);
-    ctx.fillText('W (270°)', center - maxRadius - 48, center + 4);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 10px ui-monospace, monospace';
+    ctx.fillText('N', center - 4, center - maxRadius - 8);
+    ctx.fillText('S', center - 4, center + maxRadius + 15);
+    ctx.fillText('E', center + maxRadius + 7, center + 3);
+    ctx.fillText('W', center - maxRadius - 15, center + 3);
 
-    // 4. Plot Selected Pass Sky Trajectory
-    if (selectedPass && selectedPass.sky_trajectory && selectedPass.sky_trajectory.length > 0) {
-      ctx.strokeStyle = selectedPass.visibility_type === 'OPTICAL_VISIBLE' ? '#10b981' : '#00f0ff';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-
+    if (selectedPass?.sky_trajectory && selectedPass.sky_trajectory.length > 0) {
       const convertSkyToXY = (az: number, el: number) => {
-        const azRad = (az - 90) * (Math.PI / 180.0); // 0 deg North is up
+        const azRad = (az - 90) * (Math.PI / 180.0);
         const r = maxRadius * (1.0 - Math.max(0, el) / 90.0);
-        const x = center + r * Math.cos(azRad);
-        const y = center + r * Math.sin(azRad);
-        return { x, y };
+        return {
+          x: center + r * Math.cos(azRad),
+          y: center + r * Math.sin(azRad),
+        };
       };
 
+      ctx.strokeStyle =
+        selectedPass.visibility_type === 'OPTICAL_VISIBLE' ? '#10b981' : '#38bdf8';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
       selectedPass.sky_trajectory.forEach((pt: SkyPoint, idx: number) => {
         const { x, y } = convertSkyToXY(pt.azimuth_deg, pt.elevation_deg);
         if (idx === 0) ctx.moveTo(x, y);
@@ -162,7 +171,6 @@ export const OverpassModal: React.FC<OverpassModalProps> = ({
       });
       ctx.stroke();
 
-      // Draw AOS marker (Start)
       const aosPt = selectedPass.sky_trajectory[0];
       const { x: ax, y: ay } = convertSkyToXY(aosPt.azimuth_deg, aosPt.elevation_deg);
       ctx.fillStyle = '#38bdf8';
@@ -171,16 +179,17 @@ export const OverpassModal: React.FC<OverpassModalProps> = ({
       ctx.fill();
       ctx.fillText('AOS', ax + 6, ay - 4);
 
-      // Draw Peak Max Elevation marker
-      const peakPt = selectedPass.sky_trajectory.reduce((max: SkyPoint, p: SkyPoint) => p.elevation_deg > max.elevation_deg ? p : max, aosPt);
+      const peakPt = selectedPass.sky_trajectory.reduce(
+        (max: SkyPoint, p: SkyPoint) => (p.elevation_deg > max.elevation_deg ? p : max),
+        aosPt
+      );
       const { x: px, y: py } = convertSkyToXY(peakPt.azimuth_deg, peakPt.elevation_deg);
-      ctx.fillStyle = '#fbbf24';
+      ctx.fillStyle = '#f59e0b';
       ctx.beginPath();
-      ctx.arc(px, py, 6, 0, Math.PI * 2);
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillText(`PEAK (${peakPt.elevation_deg.toFixed(1)}°)`, px + 8, py + 4);
+      ctx.fillText(`PEAK ${peakPt.elevation_deg.toFixed(0)}°`, px + 7, py + 3);
 
-      // Draw LOS marker (End)
       const losPt = selectedPass.sky_trajectory[selectedPass.sky_trajectory.length - 1];
       const { x: lx, y: ly } = convertSkyToXY(losPt.azimuth_deg, losPt.elevation_deg);
       ctx.fillStyle = '#ef4444';
@@ -192,260 +201,299 @@ export const OverpassModal: React.FC<OverpassModalProps> = ({
   }, [selectedPass]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 font-mono text-slate-200">
-      <div className="bg-space-900 border border-cyan-500/50 rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-space-800 px-4 sm:px-6 py-3.5 bg-space-950/90">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/40 flex items-center justify-center text-cyan-neon">
-              <Radio className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-bold text-white tracking-wide">
-                  GROUND STATION OVERPASS PREDICTOR
-                </h3>
-                <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
-                  TOPOCENTRIC RADAR & OPTICAL SENSOR
-                </span>
-              </div>
-              <p className="text-[10px] sm:text-[11px] text-slate-400">
-                Target: {object.name} (#{object.norad_id}) • AOS, Peak, LOS, Az/El Polar Tracks & Optical Windows
-              </p>
-            </div>
+    <ModalDialog
+      isOpen={true}
+      onClose={onClose}
+      titleId="overpass-modal-title"
+      maxWidthClass="max-w-5xl"
+      className="bg-space-900 border border-space-700 rounded-xl max-h-[92dvh] overflow-hidden flex flex-col shadow-2xl font-mono text-slate-200"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-space-800 px-4 sm:px-5 py-3.5 bg-space-950 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-md bg-space-900 border border-space-700 flex items-center justify-center text-accent-400 shrink-0" aria-hidden="true">
+            <Radio className="w-4 h-4" />
           </div>
+          <div className="min-w-0">
+            <h2 id="overpass-modal-title" className="text-sm sm:text-base font-semibold text-slate-100 truncate">
+              Ground Station Overpass Predictor
+            </h2>
+            <p className="text-[11px] text-slate-400 truncate">
+              Target: {object.name} (#{object.norad_id}) • Topocentric ENU Azimuth/Elevation Geometry
+            </p>
+          </div>
+        </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 bg-space-800 hover:bg-space-700 text-slate-400 hover:text-white rounded-lg border border-space-700 transition"
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close Overpass Predictor dialog"
+          className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-400 hover:text-slate-100 rounded-md border border-space-700 transition-colors shrink-0"
+        >
+          <X className="w-4 h-4" aria-hidden="true" />
+        </button>
+      </div>
+
+      {/* Controls */}
+      <div className="bg-space-950 border-b border-space-800 px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <label htmlFor="overpass-station-select" className="text-slate-400 font-semibold flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5 text-accent-400" aria-hidden="true" />
+            <span>Station:</span>
+          </label>
+
+          <select
+            id="overpass-station-select"
+            value={selectedStation?.id || 'custom'}
+            onChange={(e) => {
+              const found = stations.find((s: GroundStation) => s.id === e.target.value) || null;
+              setSelectedStation(found);
+            }}
+            className="bg-space-900 border border-space-700 rounded-md px-2.5 py-1.5 text-xs text-slate-100"
           >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+            {stations.map((st: GroundStation) => (
+              <option key={st.id} value={st.id}>
+                {st.name}
+              </option>
+            ))}
+            <option value="custom">Custom Coordinates...</option>
+          </select>
 
-        {/* Station Selection Controls */}
-        <div className="bg-space-950/60 border-b border-space-800 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-slate-400 font-bold flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-cyan-400" />
-              GROUND STATION:
-            </span>
-
-            <select
-              value={selectedStation?.id || 'custom'}
-              onChange={(e) => {
-                const found = stations.find((s: GroundStation) => s.id === e.target.value);
-                setSelectedStation(found || null);
-              }}
-              className="bg-space-900 border border-space-700 rounded-lg px-3 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-cyan-400 transition"
-            >
-              {stations.map((st: GroundStation) => (
-                <option key={st.id} value={st.id}>{st.name}</option>
-              ))}
-              <option value="custom">Custom Coordinates...</option>
-            </select>
-
-            {!selectedStation && (
-              <div className="flex items-center gap-1.5 text-[11px]">
-                <input
-                  type="text"
-                  placeholder="Lat"
-                  value={customLat}
-                  onChange={(e) => setCustomLat(e.target.value)}
-                  className="w-16 bg-space-900 border border-space-700 rounded px-1.5 py-1 text-white text-center font-bold"
-                />
-                <input
-                  type="text"
-                  placeholder="Lon"
-                  value={customLon}
-                  onChange={(e) => setCustomLon(e.target.value)}
-                  className="w-16 bg-space-900 border border-space-700 rounded px-1.5 py-1 text-white text-center font-bold"
-                />
-                <input
-                  type="text"
-                  placeholder="Alt (m)"
-                  value={customAlt}
-                  onChange={(e) => setCustomAlt(e.target.value)}
-                  className="w-16 bg-space-900 border border-space-700 rounded px-1.5 py-1 text-white text-center font-bold"
-                />
-                <button
-                  onClick={fetchPasses}
-                  className="px-2 py-1 bg-cyan-500 hover:bg-cyan-400 text-space-950 rounded font-bold text-[10px]"
-                >
-                  CALC
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500">HORIZON CUTOFF:</span>
-              <select
-                value={minElevation}
-                onChange={(e) => setMinElevation(parseFloat(e.target.value))}
-                className="bg-space-900 border border-space-700 rounded-lg px-2 py-1 text-xs text-cyan-neon font-bold"
+          {!selectedStation && (
+            <div className="flex items-center gap-1.5 text-[11px]">
+              <input
+                type="text"
+                aria-label="Custom latitude degrees"
+                placeholder="Lat"
+                value={customLat}
+                onChange={(e) => setCustomLat(e.target.value)}
+                className="w-16 bg-space-900 border border-space-700 rounded px-2 py-1 text-slate-100 text-center tabular-nums"
+              />
+              <input
+                type="text"
+                aria-label="Custom longitude degrees"
+                placeholder="Lon"
+                value={customLon}
+                onChange={(e) => setCustomLon(e.target.value)}
+                className="w-16 bg-space-900 border border-space-700 rounded px-2 py-1 text-slate-100 text-center tabular-nums"
+              />
+              <input
+                type="text"
+                aria-label="Custom altitude meters"
+                placeholder="Alt (m)"
+                value={customAlt}
+                onChange={(e) => setCustomAlt(e.target.value)}
+                className="w-16 bg-space-900 border border-space-700 rounded px-2 py-1 text-slate-100 text-center tabular-nums"
+              />
+              <button
+                type="button"
+                onClick={() => fetchPasses(null)}
+                className="px-2.5 py-1 bg-sky-500 hover:bg-sky-400 text-space-950 rounded font-semibold"
               >
-                <option value={5}>5° (Low)</option>
-                <option value={10}>10° (Standard)</option>
-                <option value={20}>20° (High Obstruction)</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500">WINDOW:</span>
-              <select
-                value={predictionHours}
-                onChange={(e) => setPredictionHours(parseFloat(e.target.value))}
-                className="bg-space-900 border border-space-700 rounded-lg px-2 py-1 text-xs text-slate-300 font-bold"
-              >
-                <option value={24}>24 Hours</option>
-                <option value={48}>48 Hours</option>
-                <option value={72}>72 Hours</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Body (Radar + Passes Table) */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 max-h-[calc(92vh-170px)] space-y-4">
-          {loading ? (
-            <div className="p-12 text-center text-xs text-slate-400 space-y-2">
-              <Activity className="w-6 h-6 animate-spin text-cyan-neon mx-auto" />
-              <div>Computing topocentric ENU horizon angles and optical solar illumination...</div>
-            </div>
-          ) : error ? (
-            <div className="p-4 bg-danger-500/10 border border-danger-500/30 rounded-xl text-danger-neon text-xs">
-              {error}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-              
-              {/* LEFT: Sky-Track Radar Polar Plot (5 cols) */}
-              <div className="lg:col-span-5 bg-space-950 p-4 rounded-xl border border-space-800 flex flex-col items-center justify-between space-y-3">
-                <div className="w-full flex items-center justify-between border-b border-space-800 pb-2 text-xs">
-                  <span className="font-bold text-white flex items-center gap-1.5">
-                    <Compass className="w-3.5 h-3.5 text-cyan-400" />
-                    SKY-TRACK POLAR RADAR PLOT
-                  </span>
-                  <span className="text-[10px] text-slate-400">TOPOCENTRIC HORIZON</span>
-                </div>
-
-                <div className="relative flex items-center justify-center p-2">
-                  <canvas
-                    ref={radarCanvasRef}
-                    width={340}
-                    height={340}
-                    className="w-72 h-72 rounded-full border border-space-800 shadow-inner"
-                  />
-                </div>
-
-                {selectedPass ? (
-                  <div className="w-full bg-space-900/80 p-2.5 rounded-lg border border-space-800 text-[10px] space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">SELECTED PASS:</span>
-                      <span className="text-white font-bold">{new Date(selectedPass.aos_time).toISOString().replace('T', ' ').slice(0, 16)} UTC</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">PEAK ELEVATION:</span>
-                      <span className="text-amber-400 font-bold">{selectedPass.max_elevation_deg.toFixed(1)}° (Az {selectedPass.peak_azimuth_deg.toFixed(0)}°)</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">MIN RANGE / DURATION:</span>
-                      <span className="text-cyan-neon font-bold">{selectedPass.min_range_km.toFixed(0)} km • {Math.round(selectedPass.duration_seconds / 60)} min</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-xs text-slate-500 text-center py-2">Select a pass from the schedule table</div>
-                )}
-              </div>
-
-              {/* RIGHT: Overpass Events Table (7 cols) */}
-              <div className="lg:col-span-7 bg-space-950 p-4 rounded-xl border border-space-800 flex flex-col justify-between space-y-3">
-                <div className="flex items-center justify-between border-b border-space-800 pb-2 text-xs">
-                  <span className="font-bold text-white uppercase tracking-wider">
-                    Upcoming Pass Schedule ({overpassData?.total_passes_found || 0} passes)
-                  </span>
-                  <span className="text-[10px] text-emerald-400 font-bold">NEXT {predictionHours}H</span>
-                </div>
-
-                {overpassData?.passes.length === 0 ? (
-                  <div className="p-12 text-center text-xs text-slate-500">
-                    No visible overpasses found for this satellite over {selectedStation?.name} above {minElevation}° elevation in the next {predictionHours} hours.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-space-900/80 text-slate-400 border-b border-space-800 text-[10px]">
-                        <tr>
-                          <th className="p-2">AOS TIME (UTC)</th>
-                          <th className="p-2">MAX ELEV</th>
-                          <th className="p-2">DURATION</th>
-                          <th className="p-2">VISIBILITY / OPTICAL</th>
-                          <th className="p-2"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-space-800/60 font-mono text-[11px]">
-                        {overpassData?.passes.map((p: OverpassEvent, idx: number) => {
-                          const isSelected = selectedPass?.aos_time === p.aos_time;
-                          const isOptical = p.visibility_type === 'OPTICAL_VISIBLE';
-                          return (
-                            <tr
-                              key={idx}
-                              onClick={() => setSelectedPass(p)}
-                              className={`cursor-pointer transition ${
-                                isSelected ? 'bg-cyan-950/40 text-white' : 'hover:bg-space-900/40 text-slate-300'
-                              }`}
-                            >
-                              <td className="p-2 whitespace-nowrap">
-                                {new Date(p.aos_time).toISOString().replace('T', ' ').slice(0, 16)}
-                              </td>
-                              <td className="p-2 font-bold text-amber-400">
-                                {p.max_elevation_deg.toFixed(1)}°
-                              </td>
-                              <td className="p-2 text-slate-300">
-                                {Math.floor(p.duration_seconds / 60)}m {Math.round(p.duration_seconds % 60)}s
-                              </td>
-                              <td className="p-2">
-                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
-                                  isOptical 
-                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' 
-                                    : p.visibility_type === 'SUNLIT_DAYLIGHT'
-                                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                                    : 'bg-space-800 text-slate-400'
-                                }`}>
-                                  {p.visibility_label}
-                                </span>
-                              </td>
-                              <td className="p-2 text-right">
-                                <span className="text-[10px] text-cyan-neon font-bold">
-                                  {isSelected ? 'ACTIVE' : 'VIEW'}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+                Calculate
+              </button>
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="border-t border-space-800 px-4 sm:px-6 py-2.5 bg-space-950/90 flex items-center justify-between text-[10px] text-slate-400">
-          <div>TOPOCENTRIC HORIZON TRANSFORMATION • SGP4 PROPAGATION ENGINE</div>
-          <button
-            onClick={onClose}
-            className="px-3 py-1 bg-space-800 hover:bg-space-700 text-white rounded text-xs transition font-bold"
-          >
-            CLOSE
-          </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <label htmlFor="overpass-min-el" className="text-slate-400">
+              Min El:
+            </label>
+            <select
+              id="overpass-min-el"
+              value={minElevation}
+              onChange={(e) => setMinElevation(parseFloat(e.target.value))}
+              className="bg-space-900 border border-space-700 rounded-md px-2 py-1 text-xs text-slate-100"
+            >
+              <option value={5}>5°</option>
+              <option value={10}>10°</option>
+              <option value={20}>20°</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <label htmlFor="overpass-window" className="text-slate-400">
+              Window:
+            </label>
+            <select
+              id="overpass-window"
+              value={predictionHours}
+              onChange={(e) => setPredictionHours(parseFloat(e.target.value))}
+              className="bg-space-900 border border-space-700 rounded-md px-2 py-1 text-xs text-slate-100"
+            >
+              <option value={24}>24 Hours</option>
+              <option value={48}>48 Hours</option>
+              <option value={72}>72 Hours</option>
+            </select>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Body */}
+      <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
+        {loading ? (
+          <div className="p-10 text-center text-xs text-slate-400 space-y-2">
+            <RefreshCw className="w-5 h-5 animate-spin text-accent-400 mx-auto" aria-hidden="true" />
+            <div>Computing topocentric ENU pass geometry...</div>
+          </div>
+        ) : error ? (
+          <div role="alert" className="p-4 bg-red-500/10 border border-red-500/35 rounded-md text-red-200 text-xs flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" aria-hidden="true" />
+              <span>{error}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => fetchPasses(selectedStation)}
+              className="px-2.5 py-1 rounded bg-space-950 border border-red-500/40 hover:bg-space-800 text-slate-200"
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            {/* Polar Sky Plot */}
+            <div className="lg:col-span-5 bg-space-950 p-4 rounded-md border border-space-800 flex flex-col items-center justify-between space-y-3">
+              <div className="w-full flex items-center justify-between border-b border-space-800 pb-2 text-xs">
+                <span className="font-semibold text-slate-100 flex items-center gap-1.5 uppercase">
+                  <Compass className="w-3.5 h-3.5 text-accent-400" aria-hidden="true" />
+                  <span>Topocentric Sky Plot</span>
+                </span>
+                <span className="text-[10px] text-slate-400">Zenith Center</span>
+              </div>
+
+              <canvas
+                ref={radarCanvasRef}
+                width={320}
+                height={320}
+                aria-label="Polar azimuth and elevation sky plot"
+                className="w-64 h-64 sm:w-72 sm:h-72 rounded-full border border-space-800"
+              />
+
+              {selectedPass ? (
+                <dl className="w-full bg-space-900 p-2.5 rounded-md border border-space-800 text-[11px] space-y-1 tabular-nums">
+                  <div className="flex justify-between">
+                    <dt className="text-slate-400">AOS Time</dt>
+                    <dd className="text-slate-100 font-semibold">
+                      {formatUtcDateTime(selectedPass.aos_time, true)} UTC
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-slate-400">Peak Elevation</dt>
+                    <dd className="text-amber-300 font-semibold">
+                      {selectedPass.max_elevation_deg.toFixed(1)}° (Az {selectedPass.peak_azimuth_deg.toFixed(0)}°)
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-slate-400">Min Range / Dur</dt>
+                    <dd className="text-accent-400 font-semibold">
+                      {selectedPass.min_range_km.toFixed(0)} km / {Math.round(selectedPass.duration_seconds / 60)}m
+                    </dd>
+                  </div>
+                </dl>
+              ) : (
+                <div className="text-xs text-slate-400 text-center py-2">
+                  Select a pass row to inspect polar trajectory
+                </div>
+              )}
+            </div>
+
+            {/* Pass Schedule Table */}
+            <div className="lg:col-span-7 bg-space-950 p-4 rounded-md border border-space-800 space-y-3">
+              <div className="flex items-center justify-between border-b border-space-800 pb-2 text-xs">
+                <span className="font-semibold text-slate-100 uppercase tracking-wider">
+                  Pass Schedule ({overpassData?.total_passes_found ?? 0} passes)
+                </span>
+                <span className="text-[11px] text-slate-400 tabular-nums">Next {predictionHours}h</span>
+              </div>
+
+              {!overpassData?.passes || overpassData.passes.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400">
+                  No overpasses predicted above {minElevation}° elevation in the next {predictionHours} hours.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <caption className="sr-only">Predicted ground station overpass schedule</caption>
+                    <thead className="bg-space-900 text-slate-400 border-b border-space-800 text-[10px] uppercase">
+                      <tr>
+                        <th scope="col" className="p-2 font-semibold">AOS (UTC)</th>
+                        <th scope="col" className="p-2 font-semibold">Max El</th>
+                        <th scope="col" className="p-2 font-semibold">Duration</th>
+                        <th scope="col" className="p-2 font-semibold">Visibility</th>
+                        <th scope="col" className="p-2 text-right font-semibold">Inspect</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-space-800 text-[11px] tabular-nums">
+                      {overpassData.passes.map((p: OverpassEvent, idx: number) => {
+                        const isSelected = selectedPass?.aos_time === p.aos_time;
+                        const isOptical = p.visibility_type === 'OPTICAL_VISIBLE';
+                        return (
+                          <tr
+                            key={`${p.aos_time}-${idx}`}
+                            className={isSelected ? 'bg-sky-500/10 text-slate-100' : 'hover:bg-space-900/60 text-slate-300'}
+                          >
+                            <td className="p-2 whitespace-nowrap">
+                              {formatUtcDateTime(p.aos_time, true)}
+                            </td>
+                            <td className="p-2 font-semibold text-amber-300">
+                              {p.max_elevation_deg.toFixed(1)}°
+                            </td>
+                            <td className="p-2">
+                              {Math.floor(p.duration_seconds / 60)}m {Math.round(p.duration_seconds % 60)}s
+                            </td>
+                            <td className="p-2">
+                              <span
+                                className={`px-2 py-0.5 rounded border text-[10px] font-semibold ${
+                                  isOptical
+                                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/35'
+                                    : p.visibility_type === 'SUNLIT_DAYLIGHT'
+                                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/35'
+                                    : 'bg-space-900 text-slate-400 border-space-700'
+                                }`}
+                              >
+                                {p.visibility_label}
+                              </span>
+                            </td>
+                            <td className="p-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPass(p)}
+                                aria-pressed={isSelected}
+                                className={`px-2 py-0.5 rounded border text-[10px] font-semibold ${
+                                  isSelected
+                                    ? 'bg-sky-500/20 text-sky-200 border-sky-500/40'
+                                    : 'bg-space-900 hover:bg-space-800 text-slate-300 border-space-700'
+                                }`}
+                              >
+                                {isSelected ? 'Selected' : 'Plot'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-space-800 px-4 sm:px-5 py-2.5 bg-space-950 flex items-center justify-between text-[11px] text-slate-400">
+        <span>Topocentric Horizon Transform • SGP4 State Vectors</span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-3 py-1 bg-space-800 hover:bg-space-700 text-slate-100 rounded-md text-xs font-semibold border border-space-700"
+        >
+          Close
+        </button>
+      </div>
+    </ModalDialog>
   );
 };

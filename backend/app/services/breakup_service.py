@@ -33,10 +33,15 @@ class BreakupService:
         return math.sqrt(MU_EARTH * (2.0 / r_km - 1.0 / a_km))
 
     @staticmethod
-    def _sample_area_to_mass(log_lc: float, event_type: str = "COLLISION") -> float:
+    def _sample_area_to_mass(
+        log_lc: float,
+        event_type: str = "COLLISION",
+        rng: Optional[random.Random] = None
+    ) -> float:
         """
         Samples Area-to-Mass (A/m in m^2/kg) using NASA EVOLVE bimodal log-normal distribution.
         """
+        rand = rng or random.Random()
         if log_lc <= -0.5:
             mu = -0.3
             sigma = 0.55
@@ -45,20 +50,25 @@ class BreakupService:
             sigma = 0.45
 
         # Bimodal mixture
-        if random.random() < 0.65:
-            val = random.gauss(mu, sigma)
+        if rand.random() < 0.65:
+            val = rand.gauss(mu, sigma)
         else:
-            val = random.gauss(mu - 0.5, sigma * 1.1)
+            val = rand.gauss(mu - 0.5, sigma * 1.1)
 
         a_over_m = math.pow(10.0, max(-2.5, min(1.8, val)))
         return round(a_over_m, 4)
 
     @staticmethod
-    def _sample_delta_v(a_over_m: float, event_type: str = "COLLISION") -> float:
+    def _sample_delta_v(
+        a_over_m: float,
+        event_type: str = "COLLISION",
+        rng: Optional[random.Random] = None
+    ) -> float:
         """
         Samples imparted ejection velocity Delta-V (m/s) based on A/m.
         log10(Delta-V) ~ N(mu_v, sigma_v)
         """
+        rand = rng or random.Random()
         log_am = math.log10(max(1e-4, a_over_m))
         if "EXPLOSION" in event_type.upper():
             mu_v = 0.2 * log_am + 2.4
@@ -68,7 +78,7 @@ class BreakupService:
             mu_v = 0.9 * log_am + 2.9
             sigma_v = 0.4
 
-        val = random.gauss(mu_v, sigma_v)
+        val = rand.gauss(mu_v, sigma_v)
         # Delta-V in m/s (clamped to realistic physics bounds: 5 m/s to 3500 m/s)
         dv = math.pow(10.0, max(0.7, min(3.55, val)))
         return round(dv, 2)
@@ -131,7 +141,7 @@ class BreakupService:
             log_lc = math.log10(lc_m)
 
             # Sample Area-to-Mass (A/m)
-            a_over_m = BreakupService._sample_area_to_mass(log_lc, req.event_type)
+            a_over_m = BreakupService._sample_area_to_mass(log_lc, req.event_type, rng=rng)
 
             # Calculate fragment mass based on characteristic sphere/plate geometry
             # Area A ~ 0.55 * Lc^2
@@ -139,7 +149,7 @@ class BreakupService:
             frag_mass_kg = max(0.001, area_m2 / a_over_m)
 
             # Sample ejection Delta-V
-            dv_m_s = BreakupService._sample_delta_v(a_over_m, req.event_type)
+            dv_m_s = BreakupService._sample_delta_v(a_over_m, req.event_type, rng=rng)
             dv_km_s = dv_m_s / 1000.0
 
             # Random isotropic ejection unit vector
@@ -292,22 +302,34 @@ class BreakupService:
         if not conj:
             return None
 
-        primary = db.query(OrbitalObject).filter(OrbitalObject.norad_id == conj.primary_norad_id).first()
-        secondary = db.query(OrbitalObject).filter(OrbitalObject.norad_id == conj.secondary_norad_id).first()
+        primary = conj.object_a or db.query(OrbitalObject).filter(OrbitalObject.id == conj.object_a_id).first()
+        secondary = conj.object_b or db.query(OrbitalObject).filter(OrbitalObject.id == conj.object_b_id).first()
 
-        alt = (primary.perigee_km + primary.apogee_km) / 2.0 if primary and primary.perigee_km else 780.0
-        inc = primary.inclination if primary and primary.inclination else 74.0
+        if primary and primary.perigee_km is not None and primary.apogee_km is not None:
+            alt = (primary.perigee_km + primary.apogee_km) / 2.0
+        elif conj.altitude_km is not None:
+            alt = conj.altitude_km
+        else:
+            alt = 780.0
+        inc = primary.inclination if primary and primary.inclination is not None else 74.0
 
-        # Estimate masses (standard smallsat vs payload)
+        # Estimate masses based on object catalog types
+        target_name = primary.name if primary else f"Object #{conj.object_a_id}"
+        impactor_name = secondary.name if secondary else f"Object #{conj.object_b_id}"
+        sec_type = (
+            secondary.object_type.value
+            if secondary and hasattr(secondary.object_type, "value")
+            else str(secondary.object_type if secondary else "")
+        )
         target_mass = 1200.0
-        impactor_mass = 250.0 if secondary and secondary.object_type == "ACTIVE_SATELLITE" else 25.0
+        impactor_mass = 250.0 if sec_type == "ACTIVE_SATELLITE" else 25.0
         v_rel = conj.relative_velocity_km_s or 11.2
 
         req = BreakupSimulateRequest(
             event_type="CATASTROPHIC_COLLISION",
-            target_name=conj.primary_object_name,
+            target_name=target_name,
             target_mass_kg=target_mass,
-            impactor_name=conj.secondary_object_name,
+            impactor_name=impactor_name,
             impactor_mass_kg=impactor_mass,
             relative_velocity_km_s=v_rel,
             altitude_km=alt,

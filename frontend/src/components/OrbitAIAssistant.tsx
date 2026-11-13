@@ -1,27 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  X, 
-  Sparkles, 
-  Send, 
-  Bot, 
-  User, 
-  Globe, 
-  ShieldAlert, 
-  Crosshair, 
-  Play, 
-  Activity, 
-  Sun, 
-  Rocket, 
-  Maximize2, 
-  Minimize2, 
-  Trash2, 
-  Info, 
-  CheckCircle2, 
-  Terminal 
+import {
+  X,
+  Send,
+  Bot,
+  User,
+  Globe,
+  ShieldAlert,
+  Crosshair,
+  Play,
+  Activity,
+  Sun,
+  Rocket,
+  Maximize2,
+  Minimize2,
+  Trash2,
+  Info,
+  CheckCircle2,
+  Terminal,
+  ChevronDown,
 } from 'lucide-react';
 import { Conjunction, OrbitalObject, SystemStatistics, DataStatus } from '../types';
 import { SpaceIntelligenceEngine, CopilotResponse, CopilotAction } from '../services/spaceIntelligenceEngine';
 import { api } from '../services/api';
+import { ModalDialog } from './ModalDialog';
+import { FormattedTelemetryText } from '../utils/formatRichText';
+import { formatUtcTime, formatUtcDateTime } from '../utils/utcTime';
 
 interface OrbitAIAssistantProps {
   isOpen: boolean;
@@ -40,7 +43,9 @@ interface OrbitAIAssistantProps {
   onOpenSpaceWeather?: () => void;
   onOpenLaunchRadar?: () => void;
   onOpenTrustCenter?: () => void;
-  onNavigateToTab?: (tab: 'space' | 'map2d' | 'catalog' | 'conjunctions' | 'analytics' | 'validation') => void;
+  onNavigateToTab?: (
+    tab: 'space' | 'map2d' | 'catalog' | 'conjunctions' | 'analytics' | 'validation'
+  ) => void;
 }
 
 interface ChatMessage {
@@ -75,55 +80,63 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
   onOpenSpaceWeather,
   onOpenLaunchRadar,
   onOpenTrustCenter,
-  onNavigateToTab
+  onNavigateToTab,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState<string>('');
   const [isTyping, setIsTyping] = useState<boolean>(false);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
-  const [analysisMode] = useState<'quick' | 'deep'>('quick');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize welcoming message on first mount
+  const objectCount =
+    stats?.tracked_objects ?? dataStatus?.total_objects ?? (objects.length > 0 ? objects.length : null);
+
+  // Initialize greeting once when opened with empty thread
   useEffect(() => {
-    if (messages.length === 0) {
-      const highestRisk = [...conjunctions].sort((a, b) => b.risk_score - a.risk_score)[0];
-      const initialActions: CopilotAction[] = [];
+    if (!isOpen || messages.length > 0) return;
 
-      if (highestRisk) {
-        initialActions.push({
-          label: `Focus ${highestRisk.object_a?.name || 'Primary'} in 3D`,
-          icon: 'globe',
-          actionType: 'FOCUS_CONJUNCTION',
-          payload: highestRisk
-        });
-        initialActions.push({
-          label: 'Inspect Highest-Risk Encounter',
-          icon: 'crosshair',
-          actionType: 'OPEN_CONJUNCTION',
-          payload: highestRisk
-        });
-      }
+    const highestRisk = [...conjunctions].sort((a, b) => b.risk_score - a.risk_score)[0];
+    const initialActions: CopilotAction[] = [];
 
-      setMessages([
-        {
-          id: 'welcome-1',
-          sender: 'ai',
-          text: `👋 Greetings, Space Operations Officer. I am **Orbit AI**, your physics-grounded Space Intelligence & Astrodynamics Copilot.\n\nI am connected to verified **SGP4 orbital propagation**, orthogonal TCA root-solvers, Foster-2D $P_c$ integrals, and Gauss/Tsiolkovsky CAM planners.\n\n**Mission Environment Snapshot:**\n• Tracking **${(stats?.tracked_objects || dataStatus?.total_objects || 32340).toLocaleString()} space objects**\n• Evaluating **${conjunctions.length} active conjunctions**\n• Ephemeris feed: **${dataStatus?.source || 'Space-Track / CelesTrak GP'}**\n\nAsk tactical questions like *"Why is the top conjunction high risk?"* or *"What happens if I perform a 0.1 m/s prograde maneuver?"* to execute real backend tools.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          source: 'ORBITGUARD Deterministic Physics Engine',
-          sourceType: 'ORBITGUARD_LIVE',
-          retrievedAt: new Date().toUTCString().slice(5, 25) + ' UTC',
-          confidence: 'VERIFIED BACKEND SGP4',
-          actions: initialActions,
-          source_badges: ['Physics Engine', 'Live CelesTrak Data', 'AI Interpretation']
-        }
-      ]);
+    if (highestRisk) {
+      initialActions.push({
+        label: `Focus ${highestRisk.object_a?.name || 'Primary'} in 3D`,
+        icon: 'globe',
+        actionType: 'FOCUS_CONJUNCTION',
+        payload: highestRisk,
+      });
+      initialActions.push({
+        label: 'Inspect Top Encounter',
+        icon: 'crosshair',
+        actionType: 'OPEN_CONJUNCTION',
+        payload: highestRisk,
+      });
     }
-  }, [conjunctions, stats, dataStatus]);
+
+    const trackedText =
+      objectCount !== null ? `${objectCount.toLocaleString()} cataloged space objects` : 'live orbital catalog';
+
+    setMessages([
+      {
+        id: 'welcome-1',
+        sender: 'ai',
+        text: `**OrbitGuard Operations Copilot** online.\n\nConnected to deterministic SGP4 propagation, orthogonal TCA root-finding, Foster-2D collision probability estimation, and Gauss/Tsiolkovsky avoidance maneuver planners.\n\n**Active Telemetry Scope:**\n• Monitoring ${trackedText}\n• Screening ${conjunctions.length} active conjunction events\n• Ephemeris Source: ${dataStatus?.source || 'Backend SGP4 Catalog'}\n\nAsk a tactical question below to invoke backend physics diagnostics.`,
+        timestamp: formatUtcTime(Date.now(), false),
+        source: 'OrbitGuard Deterministic Physics Engine',
+        sourceType: 'ORBITGUARD_LIVE',
+        retrievedAt: formatUtcDateTime(Date.now()),
+        confidence: 'VERIFIED BACKEND SGP4',
+        actions: initialActions,
+        source_badges: ['SGP4 Engine', 'Deterministic Tools'],
+      },
+    ]);
+  }, [isOpen, messages.length, conjunctions, objectCount, dataStatus]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const reduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    messagesEndRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth' });
   }, [messages, isTyping]);
 
   const executeAction = (action: CopilotAction) => {
@@ -151,67 +164,60 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
         }
         break;
       case 'OPEN_WEATHER':
-        if (onOpenSpaceWeather) {
-          onOpenSpaceWeather();
-        }
+        if (onOpenSpaceWeather) onOpenSpaceWeather();
         break;
       case 'OPEN_LAUNCH':
-        if (onOpenLaunchRadar) {
-          onOpenLaunchRadar();
-        }
+        if (onOpenLaunchRadar) onOpenLaunchRadar();
         break;
       case 'OPEN_TRUST':
-        if (onOpenTrustCenter) {
-          onOpenTrustCenter();
-        }
+        if (onOpenTrustCenter) onOpenTrustCenter();
         break;
     }
     onClose();
   };
 
   const handleSendMessage = async (textToSend?: string) => {
-    const query = textToSend || inputValue;
-    if (!query.trim()) return;
+    const query = (textToSend ?? inputValue).trim();
+    if (!query || isTyping) return;
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
-      text: query.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      text: query,
+      timestamp: formatUtcTime(Date.now(), false),
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setInputValue('');
     setIsTyping(true);
 
     try {
-      // 1. Try Backend Physics-Grounded AI Copilot API
       const contextPayload = {
-        selected_conjunction_id: selectedConjunction?.id || (conjunctions.length > 0 ? conjunctions[0].id : null),
-        selected_object_id: selectedObject?.id || null,
+        selected_conjunction_id:
+          selectedConjunction?.id ?? (conjunctions.length > 0 ? conjunctions[0].id : null),
+        selected_object_id: selectedObject?.id ?? null,
         active_tab: activeTab,
-        mode: analysisMode
+        mode: 'quick',
       };
 
-      const backendRes = await api.queryAICopilot(query.trim(), contextPayload).catch(() => null);
+      const backendRes = await api.queryAICopilot(query, contextPayload).catch(() => null);
 
       if (backendRes && backendRes.text) {
         const aiMsg: ChatMessage = {
           id: `ai-${Date.now()}`,
           sender: 'ai',
           text: backendRes.text,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          source: 'ORBITGUARD Backend Physics Engine',
+          timestamp: formatUtcTime(Date.now(), false),
+          source: 'OrbitGuard Backend Physics Engine',
           sourceType: 'ORBITGUARD_LIVE',
-          confidence: 'DETERMINISTIC PHYSICS GROUNDED',
+          confidence: 'DETERMINISTIC BACKEND SGP4',
           tool_logs: backendRes.tool_logs || [],
           evidence: backendRes.evidence || null,
-          source_badges: backendRes.source_badges || ['Physics Engine', 'Live CelesTrak Data', 'AI Interpretation']
+          source_badges: backendRes.source_badges || ['Backend Physics Tools', 'Ephemeris Data'],
         };
-        setMessages(prev => [...prev, aiMsg]);
+        setMessages((prev) => [...prev, aiMsg]);
       } else {
-        // Fallback to client-side engine if backend offline
-        const response: CopilotResponse = SpaceIntelligenceEngine.processQuery(query.trim(), {
+        const response: CopilotResponse = SpaceIntelligenceEngine.processQuery(query, {
           activeTab,
           selectedObject,
           selectedConjunction,
@@ -219,34 +225,37 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
           conjunctions,
           stats,
           dataStatus,
-          mode: analysisMode,
-          conversationHistory: messages.map(m => ({ sender: m.sender, text: m.text }))
+          mode: 'quick',
+          conversationHistory: messages.map((m) => ({ sender: m.sender, text: m.text })),
         });
 
         const aiMsg: ChatMessage = {
           id: `ai-${Date.now()}`,
           sender: 'ai',
           text: response.text,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: formatUtcTime(Date.now(), false),
           source: response.source,
           sourceType: response.sourceType,
           retrievedAt: response.retrievedAt,
           confidence: response.confidence,
           actions: response.actions,
-          source_badges: ['Physics Engine', 'AI Interpretation']
+          source_badges: ['Local Deterministic Fallback (Backend Copilot Offline)'],
         };
-        setMessages(prev => [...prev, aiMsg]);
+        setMessages((prev) => [...prev, aiMsg]);
       }
-    } catch (e) {
-      console.error('Error in Copilot query:', e);
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `err-${Date.now()}`,
+          sender: 'ai',
+          text: `Copilot query failed: ${err?.message || 'Unable to process orbital diagnostic request.'}`,
+          timestamp: formatUtcTime(Date.now(), false),
+          source_badges: ['Error'],
+        },
+      ]);
     } finally {
       setIsTyping(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleSendMessage();
     }
   };
 
@@ -254,223 +263,254 @@ export const OrbitAIAssistant: React.FC<OrbitAIAssistantProps> = ({
     'Why is the top conjunction high risk?',
     'What happens if I perform a 0.1 m/s prograde maneuver?',
     'What is the CCSDS 508.0-B-1 CDM standard?',
-    'Explain Gauss equations and Tsiolkovsky propellant mass'
+    'Explain Gauss equations and Tsiolkovsky propellant mass',
   ];
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end sm:justify-end sm:pr-6 sm:pb-6 bg-black/60 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none font-mono animate-in fade-in duration-200 pointer-events-auto">
-      {/* AI Assistant Floating Window */}
-      <div 
-        className={`w-full sm:w-[500px] ${
-          isExpanded ? 'sm:w-[720px] h-[90vh]' : 'h-[600px]'
-        } bg-space-950/95 border border-cyan-500/40 rounded-t-3xl sm:rounded-2xl shadow-[0_0_50px_rgba(0,240,255,0.25)] flex flex-col overflow-hidden transition-all duration-300 backdrop-blur-2xl`}
-      >
-        {/* Header */}
-        <div className="p-3.5 bg-gradient-to-r from-space-900 via-space-950 to-space-900 border-b border-space-800 flex items-center justify-between gap-2 flex-shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-400">
-              <Sparkles className="w-4 h-4 animate-pulse" />
-              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h3 className="text-xs sm:text-sm font-bold text-white tracking-wider flex items-center gap-1.5">
-                  <span>ORBIT AI COPILOT</span>
-                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold">
-                    PHYSICS GROUNDED
-                  </span>
-                </h3>
-              </div>
-              <p className="text-[9px] text-slate-400 leading-none mt-0.5">
-                Real Backend SGP4 • Orthogonal TCA • Foster-2D Pc • CAM Impulses
-              </p>
-            </div>
+    <ModalDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="orbit-ai-title"
+      maxWidthClass={isExpanded ? 'max-w-3xl' : 'max-w-2xl'}
+      className="h-[82dvh]"
+    >
+      {/* Header */}
+      <div className="px-4 py-3 bg-space-950 border-b border-space-800 flex items-center justify-between gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="p-2 rounded-lg bg-sky-500/10 border border-sky-500/35 text-sky-400 shrink-0">
+            <Bot className="w-4 h-4" aria-hidden="true" />
           </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="hidden sm:flex p-1.5 hover:bg-space-800 rounded-lg text-slate-400 hover:text-white transition"
-              title={isExpanded ? 'Collapse' : 'Expand'}
-            >
-              {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            </button>
-            <button
-              onClick={() => setMessages([])}
-              className="p-1.5 hover:bg-space-800 rounded-lg text-slate-400 hover:text-white transition"
-              title="Clear Conversation"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 hover:bg-space-800 rounded-lg text-slate-400 hover:text-white transition"
-              title="Close Assistant"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 id="orbit-ai-title" className="text-sm font-semibold text-slate-100">
+                Orbit AI Operations Copilot
+              </h2>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-space-900 border border-space-700 text-sky-300">
+                Physics-Grounded
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 truncate">
+              Deterministic SGP4 • Foster-2D Pc • CAM Analysis
+            </p>
           </div>
         </div>
 
-        {/* Context Status Strip */}
-        <div className="px-3.5 py-1.5 bg-space-950/80 border-b border-space-800/80 text-[10px] text-slate-400 flex items-center justify-between gap-2 flex-shrink-0">
-          <div className="flex items-center gap-1.5 truncate">
-            <Info className="w-3 h-3 text-cyan-400 flex-shrink-0" />
-            <span className="truncate">
-              {selectedConjunction ? `Encounter #${selectedConjunction.id} (${selectedConjunction.object_a?.name || 'Asset A'} ↔ ${selectedConjunction.object_b?.name || 'Asset B'})` : (selectedObject ? `Asset: ${selectedObject.name}` : `Catalog: ${(stats?.tracked_objects || 32340).toLocaleString()} Objects`)}
-            </span>
-          </div>
-          <span className="text-emerald-400 font-bold flex-shrink-0 flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" /> NO-HALLUCINATION GUARD ACTIVE
-          </span>
-        </div>
-
-        {/* Chat History Messages Scroll Area */}
-        <div className="flex-1 p-3.5 overflow-y-auto space-y-3.5 text-xs text-slate-200">
-          {messages.map((m) => {
-            const isAI = m.sender === 'ai';
-            return (
-              <div
-                key={m.id}
-                className={`flex gap-2.5 ${isAI ? 'items-start' : 'items-start flex-row-reverse'}`}
-              >
-                <div
-                  className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                    isAI
-                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm'
-                      : 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm'
-                  }`}
-                >
-                  {isAI ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
-                </div>
-
-                <div
-                  className={`max-w-[90%] rounded-2xl p-3 text-xs leading-relaxed space-y-2.5 shadow-md ${
-                    isAI
-                      ? 'bg-space-900/95 border border-space-800 text-slate-200 rounded-tl-sm'
-                      : 'bg-cyan-500/15 border border-cyan-500/40 text-cyan-100 rounded-tr-sm'
-                  }`}
-                >
-                  {/* Verified Source Badges */}
-                  {isAI && m.source_badges && (
-                    <div className="flex flex-wrap gap-1.5 pb-1.5 border-b border-space-800/80">
-                      {m.source_badges.map((b, idx) => (
-                        <span key={idx} className="px-2 py-0.5 text-[9px] font-bold rounded-full bg-space-950 border border-cyan-500/30 text-cyan-300 flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                          <span>{b}</span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="whitespace-pre-line prose prose-invert prose-xs text-xs max-w-none">
-                    {m.text}
-                  </div>
-
-                  {/* Expandable Tool Execution Audit Drawer */}
-                  {isAI && m.tool_logs && m.tool_logs.length > 0 && (
-                    <details className="mt-2 bg-space-950/90 border border-space-800 rounded-lg p-2 text-[11px] font-mono group">
-                      <summary className="cursor-pointer font-bold text-cyan-400 hover:text-cyan-300 flex items-center justify-between list-none">
-                        <span className="flex items-center gap-1.5">
-                          <Terminal className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>🔍 Inspect {m.tool_logs.length} Backend Tool Executions</span>
-                        </span>
-                        <span className="text-[10px] text-space-500 group-open:rotate-180 transition-transform">▼</span>
-                      </summary>
-                      <div className="mt-2 pt-2 border-t border-space-800 space-y-2 text-space-300">
-                        {m.tool_logs.map((tl, idx) => (
-                          <div key={idx} className="bg-space-900/60 p-2 rounded border border-space-800/60">
-                            <div className="flex items-center justify-between text-[10px] font-bold text-emerald-400">
-                              <span>Tool: {tl.tool}()</span>
-                              <span className="text-space-500">{tl.duration_ms} ms</span>
-                            </div>
-                            <div className="text-[10px] text-space-400 mt-1">
-                              <strong>Inputs:</strong> {JSON.stringify(tl.arguments)}
-                            </div>
-                            <div className="text-[10px] text-cyan-300 mt-1 truncate">
-                              <strong>Output:</strong> {JSON.stringify(tl.result)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  )}
-
-                  {/* Interactive Action Buttons */}
-                  {m.actions && m.actions.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-2 border-t border-space-800/80">
-                      {m.actions.map((act, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => executeAction(act)}
-                          className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-[10px] font-bold transition flex items-center gap-1 shadow-sm"
-                        >
-                          {act.icon === 'globe' && <Globe className="w-3 h-3 text-cyan-400" />}
-                          {act.icon === 'crosshair' && <Crosshair className="w-3 h-3 text-cyan-400" />}
-                          {act.icon === 'play' && <Play className="w-3 h-3 text-amber-400" />}
-                          {act.icon === 'activity' && <Activity className="w-3 h-3 text-emerald-400" />}
-                          {act.icon === 'shield' && <ShieldAlert className="w-3 h-3 text-cyan-400" />}
-                          {act.icon === 'sun' && <Sun className="w-3 h-3 text-amber-400" />}
-                          {act.icon === 'rocket' && <Rocket className="w-3 h-3 text-purple-400" />}
-                          <span>{act.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {isTyping && (
-            <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono">
-              <Bot className="w-4 h-4 animate-bounce text-cyan-400" />
-              <span className="text-[11px] text-slate-400 italic">Orbit AI is executing deterministic backend physics tools...</span>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Quick Suggestion Starter Chips */}
-        {messages.length <= 2 && (
-          <div className="px-3 py-1.5 bg-space-950/80 border-t border-space-800/80 overflow-x-auto scrollbar-none flex items-center gap-1.5 flex-shrink-0">
-            <span className="text-[9px] text-slate-500 uppercase font-bold flex-shrink-0">PROMPTS:</span>
-            {starterPrompts.map((p, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSendMessage(p)}
-                className="px-2 py-0.5 rounded-lg bg-space-900 hover:bg-space-800 border border-space-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 text-[10px] whitespace-nowrap transition flex-shrink-0"
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Input Bar */}
-        <div className="p-3 bg-space-900 border-t border-space-800 flex items-center gap-2 flex-shrink-0">
-          <input
-            type="text"
-            placeholder="Ask about risk drivers, CAM delta-V, SGP4 math, CCSDS CDMs..."
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="flex-1 bg-space-950 border border-space-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 shadow-inner font-mono"
-          />
-
+        <div className="flex items-center gap-1 shrink-0">
           <button
-            onClick={() => handleSendMessage()}
-            disabled={!inputValue.trim() || isTyping}
-            className="p-2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-30 disabled:pointer-events-none text-space-950 rounded-xl transition shadow-md flex-shrink-0"
-            title="Send Query"
+            type="button"
+            onClick={() => setIsExpanded((prev) => !prev)}
+            aria-label={isExpanded ? 'Collapse copilot dialog' : 'Expand copilot dialog'}
+            className="hidden sm:inline-flex p-1.5 rounded-lg bg-space-900 hover:bg-space-800 border border-space-700 text-slate-400 hover:text-slate-100 transition-colors"
           >
-            <Send className="w-4 h-4" />
+            {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMessages([])}
+            aria-label="Clear conversation history"
+            className="p-1.5 rounded-lg bg-space-900 hover:bg-space-800 border border-space-700 text-slate-400 hover:text-slate-100 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close Orbit AI copilot"
+            className="p-1.5 rounded-lg bg-space-900 hover:bg-space-800 border border-space-700 text-slate-400 hover:text-slate-100 transition-colors"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>
-    </div>
+
+      {/* Context Strip */}
+      <div className="px-4 py-1.5 bg-space-950/70 border-b border-space-800 text-[11px] font-mono text-slate-400 flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Info className="w-3.5 h-3.5 text-sky-400 shrink-0" aria-hidden="true" />
+          <span className="truncate">
+            {selectedConjunction
+              ? `Encounter #${selectedConjunction.id} (${
+                  selectedConjunction.object_a?.name || 'Asset A'
+                } vs ${selectedConjunction.object_b?.name || 'Asset B'})`
+              : selectedObject
+              ? `Asset: ${selectedObject.name} (NORAD #${selectedObject.norad_id})`
+              : objectCount !== null
+              ? `Catalog: ${objectCount.toLocaleString()} Objects • ${conjunctions.length} Conjunctions`
+              : `${conjunctions.length} Screened Conjunctions`}
+          </span>
+        </div>
+        <span className="inline-flex items-center gap-1 text-emerald-300 shrink-0">
+          <CheckCircle2 className="w-3 h-3" aria-hidden="true" />
+          Grounded Tool Execution
+        </span>
+      </div>
+
+      {/* Messages Area */}
+      <div className="flex-1 p-4 overflow-y-auto space-y-4">
+        {messages.map((m) => {
+          const isAI = m.sender === 'ai';
+          return (
+            <div
+              key={m.id}
+              className={`flex gap-2.5 items-start ${isAI ? '' : 'flex-row-reverse'}`}
+            >
+              <div
+                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 border ${
+                  isAI
+                    ? 'bg-sky-500/10 text-sky-400 border-sky-500/35'
+                    : 'bg-space-800 text-slate-300 border-space-700'
+                }`}
+              >
+                {isAI ? (
+                  <Bot className="w-3.5 h-3.5" aria-hidden="true" />
+                ) : (
+                  <User className="w-3.5 h-3.5" aria-hidden="true" />
+                )}
+              </div>
+
+              <div
+                className={`max-w-[88%] rounded-xl p-3.5 text-xs space-y-2 border ${
+                  isAI
+                    ? 'bg-space-950 border-space-800 text-slate-200'
+                    : 'bg-sky-500/10 border-sky-500/35 text-slate-100'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap text-[10px] font-mono text-slate-400">
+                  <span>{isAI ? m.source || 'Orbit AI' : 'Operator'}</span>
+                  <span className="tabular-nums">{m.timestamp}</span>
+                </div>
+
+                {isAI && m.source_badges && m.source_badges.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pb-2 border-b border-space-800">
+                    {m.source_badges.map((badge, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 text-[10px] font-mono rounded bg-space-900 border border-space-700 text-sky-300"
+                      >
+                        {badge}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <FormattedTelemetryText content={m.text} />
+
+                {isAI && m.tool_logs && m.tool_logs.length > 0 && (
+                  <details className="mt-2 bg-space-900 border border-space-800 rounded-lg p-2.5 text-[11px] font-mono">
+                    <summary className="cursor-pointer font-medium text-sky-300 hover:text-sky-200 flex items-center justify-between list-none">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Terminal className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                        <span>Inspect {m.tool_logs.length} Backend Tool Execution(s)</span>
+                      </span>
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+                    </summary>
+                    <div className="mt-2 pt-2 border-t border-space-800 space-y-2 text-slate-300">
+                      {m.tool_logs.map((tl, idx) => (
+                        <div key={idx} className="bg-space-950 p-2 rounded border border-space-800">
+                          <div className="flex items-center justify-between text-[10px] font-semibold text-emerald-300">
+                            <span>{tl.tool}()</span>
+                            <span className="text-slate-400 tabular-nums">{tl.duration_ms} ms</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-1 break-all">
+                            Inputs: {JSON.stringify(tl.arguments)}
+                          </div>
+                          <div className="text-[10px] text-sky-300 mt-1 break-all">
+                            Output: {JSON.stringify(tl.result)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
+                {m.actions && m.actions.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-2 border-t border-space-800">
+                    {m.actions.map((act, idx) => (
+                      <button
+                        type="button"
+                        key={idx}
+                        onClick={() => executeAction(act)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-space-900 hover:bg-space-800 border border-space-700 text-sky-300 text-[11px] font-medium transition-colors"
+                      >
+                        {act.icon === 'globe' && <Globe className="w-3 h-3" aria-hidden="true" />}
+                        {act.icon === 'crosshair' && (
+                          <Crosshair className="w-3 h-3" aria-hidden="true" />
+                        )}
+                        {act.icon === 'play' && <Play className="w-3 h-3" aria-hidden="true" />}
+                        {act.icon === 'activity' && (
+                          <Activity className="w-3 h-3" aria-hidden="true" />
+                        )}
+                        {act.icon === 'shield' && (
+                          <ShieldAlert className="w-3 h-3" aria-hidden="true" />
+                        )}
+                        {act.icon === 'sun' && <Sun className="w-3 h-3" aria-hidden="true" />}
+                        {act.icon === 'rocket' && (
+                          <Rocket className="w-3 h-3" aria-hidden="true" />
+                        )}
+                        <span>{act.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {isTyping && (
+          <div className="text-xs font-mono text-sky-400">
+            Executing backend astrodynamics diagnostics...
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Quick Prompts */}
+      {messages.length <= 2 && (
+        <div className="px-4 py-2 bg-space-950/70 border-t border-space-800 overflow-x-auto flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] font-mono text-slate-500 uppercase shrink-0">Prompts:</span>
+          {starterPrompts.map((promptText, idx) => (
+            <button
+              type="button"
+              key={idx}
+              onClick={() => handleSendMessage(promptText)}
+              className="px-2.5 py-1 rounded bg-space-900 hover:bg-space-800 border border-space-800 text-slate-300 hover:text-sky-300 text-[11px] whitespace-nowrap transition-colors shrink-0"
+            >
+              {promptText}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Input Bar */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSendMessage();
+        }}
+        className="p-3 bg-space-950 border-t border-space-800 flex items-center gap-2 shrink-0"
+      >
+        <label htmlFor="orbit-ai-input" className="sr-only">
+          Ask Orbit AI Copilot a question
+        </label>
+        <input
+          id="orbit-ai-input"
+          type="text"
+          placeholder="Ask about risk drivers, CAM Delta-V, SGP4 propagation, or CCSDS CDMs..."
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          className="flex-1 bg-space-900 border border-space-700 rounded-lg px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 font-mono"
+        />
+        <button
+          type="submit"
+          disabled={!inputValue.trim() || isTyping}
+          aria-label="Send query to Orbit AI Copilot"
+          className="p-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-space-950 transition-colors disabled:opacity-40 shrink-0"
+        >
+          <Send className="w-4 h-4" />
+        </button>
+      </form>
+    </ModalDialog>
   );
 };

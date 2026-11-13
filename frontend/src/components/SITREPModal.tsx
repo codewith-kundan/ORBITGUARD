@@ -1,10 +1,9 @@
-import React from 'react';
-import { 
-  X, 
-  FileText, 
-  Printer 
-} from 'lucide-react';
-import { Conjunction } from '../types';
+import React, { useState, useEffect } from 'react';
+import { X, FileText, Printer, AlertTriangle } from 'lucide-react';
+import { ModalDialog } from './ModalDialog';
+import { Conjunction, CAMPlanResponse } from '../types';
+import { api } from '../services/api';
+import { formatUtcDateTime } from '../utils/utcTime';
 
 interface SITREPModalProps {
   isOpen: boolean;
@@ -14,119 +13,212 @@ interface SITREPModalProps {
 }
 
 export const SITREPModal: React.FC<SITREPModalProps> = ({ isOpen, onClose, conjunction }) => {
-  if (!isOpen) return null;
+  const [camPlan, setCamPlan] = useState<CAMPlanResponse | null>(null);
+  const [camError, setCamError] = useState<string | null>(null);
 
-  const nameA = conjunction?.object_a?.name || 'ISS (ZARYA)';
-  const nameB = conjunction?.object_b?.name || 'FENGYUN 1C DEB';
-  const noradA = conjunction?.object_a?.norad_id || 25544;
-  const noradB = conjunction?.object_b?.norad_id || 31254;
+  useEffect(() => {
+    let cancelled = false;
+    const loadCam = async () => {
+      if (!isOpen || !conjunction?.id) {
+        setCamPlan(null);
+        setCamError(null);
+        return;
+      }
+      try {
+        setCamError(null);
+        const plan = await api.getCAMPlan(conjunction.id);
+        if (!cancelled) setCamPlan(plan);
+      } catch (e: any) {
+        if (!cancelled) {
+          setCamPlan(null);
+          setCamError(e?.message || 'Unable to compute CAM directive from backend.');
+        }
+      }
+    };
+    loadCam();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, conjunction?.id]);
 
   const handlePrint = () => {
     window.print();
   };
 
+  const nameA = conjunction?.object_a?.name || (conjunction ? `Object ${conjunction.object_a_id}` : '—');
+  const nameB = conjunction?.object_b?.name || (conjunction ? `Object ${conjunction.object_b_id}` : '—');
+  const noradA = conjunction?.object_a?.norad_id ?? '—';
+  const noradB = conjunction?.object_b?.norad_id ?? '—';
+
+  const bestStrategy =
+    camPlan?.strategies && camPlan.strategies.length > 0
+      ? camPlan.strategies[0]
+      : null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in font-mono">
-      <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="p-4 sm:p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/30 text-cyan-400">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-slate-800 text-slate-300 rounded border border-slate-700">
-                FORMAL SPACE DEFENSE SITREP
-              </span>
-              <h3 className="text-sm sm:text-base font-bold text-white tracking-wide mt-0.5">
-                Orbital Conjunction Assessment & Flight Dossier
-              </h3>
-            </div>
+    <ModalDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="sitrep-modal-title"
+      maxWidthClass="max-w-3xl"
+      className="bg-space-900 border border-space-700 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] font-mono text-slate-200"
+    >
+      {/* Header */}
+      <div className="p-4 sm:p-5 bg-space-950 border-b border-space-800 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 bg-space-900 rounded-md border border-space-700 text-accent-400 shrink-0" aria-hidden="true">
+            <FileText className="w-5 h-5" />
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-1 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>PRINT / PDF</span>
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg border border-slate-700 transition"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className="min-w-0">
+            <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 bg-space-900 text-slate-300 rounded border border-space-700">
+              CONJUNCTION SITREP DOSSIER
+            </span>
+            <h2 id="sitrep-modal-title" className="text-sm sm:text-base font-semibold text-slate-100 mt-1 truncate">
+              Orbital Conjunction Assessment Report
+            </h2>
           </div>
         </div>
-
-        {/* Printable Dossier Content */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-slate-950 text-slate-200">
-          <div className="border-b border-slate-800 pb-4 flex items-center justify-between">
-            <div>
-              <div className="text-xs text-slate-400">DOCUMENT CLASSIFICATION:</div>
-              <div className="text-sm font-bold text-cyan-400">UNCLASSIFIED / SPACE SAFETY SITREP-2026-08</div>
-            </div>
-            <div className="text-right text-xs">
-              <div className="text-slate-400">GENERATION TIME:</div>
-              <div className="text-white font-bold">{new Date().toUTCString()}</div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider border-l-2 border-cyan-400 pl-2">
-              1. EXECUTIVE CONJUNCTION ASSESSMENT
-            </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-900 p-3 rounded-xl border border-slate-800">
-              <div>
-                <span className="text-slate-400 block text-[10px]">PRIMARY ASSET:</span>
-                <span className="text-white font-bold">{nameA} (#{noradA})</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px]">SECONDARY OBJECT:</span>
-                <span className="text-red-400 font-bold">{nameB} (#{noradB})</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px]">PREDICTED MISS DISTANCE:</span>
-                <span className="text-amber-400 font-bold">{conjunction?.miss_distance_km.toFixed(2) || '0.38'} km</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px]">COLLISION PROBABILITY:</span>
-                <span className="text-red-400 font-bold">{conjunction?.collision_probability?.toFixed(2) || '0.81'}%</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider border-l-2 border-cyan-400 pl-2">
-              2. ISO 26900 / CCSDS 508.0-B-1 RISK ATTRIBUTION
-            </h4>
-            <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 text-xs space-y-2">
-              <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                <span className="text-slate-400">Relative Kinetic Velocity at TCA:</span>
-                <span className="text-white font-bold">{conjunction?.relative_velocity_km_s.toFixed(2) || '13.40'} km/s</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                <span className="text-slate-400">Orbital Altitude / Regime:</span>
-                <span className="text-white font-bold">{conjunction?.altitude_km?.toFixed(1) || '420.0'} km (Low Earth Orbit)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Encounter Geometry:</span>
-                <span className="text-white font-bold">Orthogonal Ascending Nodal Crossing (~88.4°)</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider border-l-2 border-emerald-400 pl-2">
-              3. FLIGHT DYNAMICS MITIGATION DIRECTIVE
-            </h4>
-            <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl text-xs text-emerald-200 leading-relaxed">
-              <strong>Maneuver Directive:</strong> Execute an authorized Collision Avoidance Maneuver (CAM) with +1.2 m/s prograde velocity burn 12 hours before TCA. This establishes an estimated 16.2 km radial buffer while complying with CCSDS inter-operator coordination standards.
-            </div>
-          </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {conjunction && (
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-space-950 rounded-md text-xs font-semibold transition-colors"
+            >
+              <Printer className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Print / PDF</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close SITREP report"
+            className="p-1.5 bg-space-900 hover:bg-space-800 text-slate-400 hover:text-slate-100 rounded-md border border-space-700 transition-colors"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
+          </button>
         </div>
       </div>
-    </div>
+
+      {/* Body */}
+      <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-5 bg-space-950 text-slate-200">
+        {!conjunction ? (
+          <div className="p-6 bg-space-900 border border-space-800 rounded-md text-xs text-slate-400 text-center">
+            No conjunction event selected. Select an encounter from the Conjunctions queue to generate a SITREP dossier.
+          </div>
+        ) : (
+          <>
+            <div className="border-b border-space-800 pb-4 flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase">Encounter Identifier</div>
+                <div className="text-sm font-semibold text-accent-400 tabular-nums">
+                  EVENT #{conjunction.id} ({conjunction.risk_level})
+                </div>
+              </div>
+              <div className="text-right text-xs tabular-nums">
+                <div className="text-[10px] text-slate-400 uppercase">Generated (UTC)</div>
+                <div className="text-slate-100 font-semibold">
+                  {formatUtcDateTime(new Date().toISOString())} UTC
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-slate-100 uppercase tracking-wider border-l-2 border-accent-400 pl-2">
+                1. Conjunction Assessment Summary
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-space-900 p-3.5 rounded-md border border-space-800">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Primary Asset</span>
+                  <span className="text-slate-100 font-semibold">
+                    {nameA} (#{noradA})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Secondary Object</span>
+                  <span className="text-red-300 font-semibold">
+                    {nameB} (#{noradB})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Miss Distance</span>
+                  <span className="text-amber-300 font-semibold tabular-nums">
+                    {conjunction.miss_distance_km != null
+                      ? `${conjunction.miss_distance_km.toFixed(3)} km`
+                      : '—'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Collision Pc</span>
+                  <span className="text-red-300 font-semibold tabular-nums">
+                    {conjunction.collision_probability != null
+                      ? `${conjunction.collision_probability.toFixed(4)}%`
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-slate-100 uppercase tracking-wider border-l-2 border-accent-400 pl-2">
+                2. Encounter Geometry &amp; Epoch Parameters
+              </h3>
+              <div className="p-3.5 bg-space-900 rounded-md border border-space-800 text-xs space-y-2 tabular-nums">
+                <div className="flex justify-between border-b border-space-800 pb-1.5">
+                  <span className="text-slate-400">Time of Closest Approach (TCA)</span>
+                  <span className="text-slate-100 font-semibold">
+                    {conjunction.tca ? `${formatUtcDateTime(conjunction.tca)} UTC` : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-space-800 pb-1.5">
+                  <span className="text-slate-400">Relative Kinetic Velocity</span>
+                  <span className="text-slate-100 font-semibold">
+                    {conjunction.relative_velocity_km_s != null
+                      ? `${conjunction.relative_velocity_km_s.toFixed(2)} km/s`
+                      : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Encounter Altitude</span>
+                  <span className="text-slate-100 font-semibold">
+                    {conjunction.altitude_km != null ? `${conjunction.altitude_km.toFixed(1)} km` : '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-slate-100 uppercase tracking-wider border-l-2 border-emerald-400 pl-2">
+                3. Flight Dynamics Mitigation Directive
+              </h3>
+              {camError ? (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/35 rounded-md text-xs text-amber-200 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" aria-hidden="true" />
+                  <span>{camError}</span>
+                </div>
+              ) : bestStrategy ? (
+                <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/35 rounded-md text-xs text-emerald-100 leading-relaxed font-sans">
+                  <strong className="font-mono text-emerald-300">Recommended Option ({bestStrategy.title}):</strong>{' '}
+                  Apply <span className="font-mono">{bestStrategy.total_delta_v_m_s.toFixed(3)} m/s</span> delta-V
+                  (est. propellant <span className="font-mono">{bestStrategy.fuel_cost_kg.toFixed(3)} kg</span>) to
+                  expand miss distance to{' '}
+                  <span className="font-mono">{bestStrategy.projected_miss_distance_km.toFixed(2)} km</span> (
+                  <span className="font-mono">{bestStrategy.risk_reduction_percent.toFixed(1)}%</span> risk
+                  reduction). Secondary conjunction check:{' '}
+                  <span className="font-mono">
+                    {bestStrategy.secondary_conjunctions_safe ? 'CLEAR' : 'ELEVATED'}
+                  </span>
+                  .
+                </div>
+              ) : (
+                <div className="p-3 bg-space-900 border border-space-800 rounded-md text-xs text-slate-400">
+                  No maneuver directive loaded from backend CAM planner.
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </ModalDialog>
   );
 };

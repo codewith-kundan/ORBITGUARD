@@ -1,491 +1,470 @@
-import React, { useRef, useEffect } from 'react';
-import { 
-  X, 
-  AlertTriangle, 
-  Clock, 
-  MapPin, 
-  Gauge, 
-  FileText, 
-  Layers, 
-  Atom, 
-  Rocket, 
-  Crosshair, 
-  Sparkles 
-} from 'lucide-react';
+import React from 'react';
 import { Conjunction } from '../types';
+import {
+  X,
+  AlertTriangle,
+  Play,
+  Globe,
+  Map as MapIcon,
+  Navigation,
+  Zap,
+  FileText,
+  Clock,
+  Activity,
+} from 'lucide-react';
 import { RiskBadge } from './RiskBadge';
 import { EvidenceFooter } from './EvidenceFooter';
+import { ModalDialog } from './ModalDialog';
+import { formatUtcDateTime, formatCountdownToUtc } from '../utils/utcTime';
 
 interface ConjunctionDetailsModalProps {
-  conjunction: Conjunction | null;
+  conjunction: Conjunction;
   isOpen?: boolean;
   onClose: () => void;
-  onOpenReplay?: (conjunction: Conjunction) => void;
-  onOpenCAM?: (conjunction: Conjunction) => void;
-  onOpenCDM?: (conjunction: Conjunction) => void;
-  onOpenBreakup?: (conjunction: Conjunction) => void;
-  onNavigateTo3D?: (conjunction: Conjunction) => void;
-  onNavigateTo2D?: (conjunction: Conjunction) => void;
+  onNavigateTo3D?: (conj: Conjunction) => void;
+  onNavigateTo2D?: (conj: Conjunction) => void;
+  onOpenReplay?: (conj: Conjunction) => void;
+  onOpenCAM?: (conj: Conjunction) => void;
+  onOpenBreakup?: (conj: Conjunction) => void;
+  onOpenCDM?: (conj: Conjunction) => void;
 }
 
 export const ConjunctionDetailsModal: React.FC<ConjunctionDetailsModalProps> = ({
   conjunction,
   isOpen = true,
   onClose,
+  onNavigateTo3D,
+  onNavigateTo2D,
   onOpenReplay,
   onOpenCAM,
-  onOpenCDM,
   onOpenBreakup,
-  onNavigateTo3D,
-  onNavigateTo2D
+  onOpenCDM,
 }) => {
-  const bplaneCanvasRef = useRef<HTMLCanvasElement>(null);
+  const formatPcPct = (pcPct?: number | null): string => {
+    if (pcPct === null || pcPct === undefined || Number.isNaN(pcPct)) return 'Unavailable';
+    if (pcPct === 0) return '0.0000%';
+    if (pcPct < 0.0001) return `${pcPct.toExponential(2)}%`;
+    return `${pcPct.toFixed(4)}%`;
+  };
 
-  useEffect(() => {
-    if (!conjunction || !isOpen) return;
-    const canvas = bplaneCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  const primaryPcPct =
+    conjunction.collision_probability ?? conjunction.factors?.collision_probability ?? null;
 
-    const width = canvas.width;
-    const height = canvas.height;
-    const cx = width / 2;
-    const cy = height / 2;
+  const benchmarks = conjunction.factors?.advanced_benchmarks;
+  const factors = conjunction.factors;
 
-    ctx.clearRect(0, 0, width, height);
-
-    // Dark space background
-    ctx.fillStyle = '#060a12';
-    ctx.fillRect(0, 0, width, height);
-
-    // Grid lines
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, cy);
-    ctx.lineTo(width, cy);
-    ctx.moveTo(cx, 0);
-    ctx.lineTo(cx, height);
-    ctx.stroke();
-
-    // 1-sigma, 2-sigma, 3-sigma covariance ellipses
-    const sigmaR = 25;
-    const sigmaT = 55;
-
-    [3, 2, 1].forEach((sig) => {
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, sigmaT * sig, sigmaR * sig, Math.PI / 6, 0, Math.PI * 2);
-      ctx.strokeStyle = sig === 1 ? 'rgba(239, 68, 68, 0.8)' : sig === 2 ? 'rgba(245, 158, 11, 0.5)' : 'rgba(56, 189, 248, 0.3)';
-      ctx.fillStyle = sig === 1 ? 'rgba(239, 68, 68, 0.15)' : sig === 2 ? 'rgba(245, 158, 11, 0.08)' : 'rgba(56, 189, 248, 0.04)';
-      ctx.lineWidth = 1.5;
-      ctx.fill();
-      ctx.stroke();
-    });
-
-    // Primary Satellite hard-body circle
-    ctx.beginPath();
-    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
-    ctx.fillStyle = '#38bdf8';
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Secondary object relative encounter position
-    const missDistPx = Math.min(cx - 20, Math.max(15, conjunction.miss_distance_km * 4.5));
-    const secX = cx + missDistPx * Math.cos(Math.PI / 4);
-    const secY = cy - missDistPx * Math.sin(Math.PI / 4);
-
-    // Vector line
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(secX, secY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Secondary object
-    ctx.beginPath();
-    ctx.arc(secX, secY, 5, 0, Math.PI * 2);
-    ctx.fillStyle = '#ef4444';
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Labels
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '9px monospace';
-    ctx.fillText('B·T Axis (In-Track)', width - 110, cy - 6);
-    ctx.fillText('B·R Axis (Radial)', cx + 6, 15);
-  }, [conjunction, isOpen]);
-
-  if (!isOpen || !conjunction) return null;
-
-  const tcaDate = new Date(conjunction.tca);
-  const now = new Date();
-  const diffHours = ((tcaDate.getTime() - now.getTime()) / (1000 * 60 * 60)).toFixed(1);
-
-  const bm = conjunction.factors?.advanced_benchmarks;
-  const fosterPc = bm?.foster_2d_pc_pct ?? (conjunction.collision_probability ?? 0.82);
-  const akellaPc = bm?.akella_alfriend_pc_pct ?? (fosterPc * 1.08);
-  const alfanoMax = bm?.alfano_max_pc_pct ?? (fosterPc * 2.4);
-  const mcPc = bm?.monte_carlo_pc_pct ?? fosterPc;
-  const kineticMj = bm?.kinetic_energy_mj ?? Math.round(0.5 * 2.5 * Math.pow(conjunction.relative_velocity_km_s * 1000, 2) / 1e6);
-  const tntKg = bm?.tnt_equivalent_kg ?? (kineticMj / 4.184).toFixed(1);
+  const factorRows = [
+    {
+      label: 'Miss Distance Envelope',
+      metric:
+        factors?.miss_distance_factor?.value_km !== undefined
+          ? `${factors.miss_distance_factor.value_km.toFixed(2)} km`
+          : `${conjunction.miss_distance_km.toFixed(2)} km`,
+      score: factors?.miss_distance_factor?.score,
+      weight: factors?.miss_distance_factor?.weight,
+      detail: factors?.miss_distance_factor?.description,
+    },
+    {
+      label: 'Relative Encounter Speed',
+      metric:
+        factors?.relative_velocity_factor?.value_km_s !== undefined
+          ? `${factors.relative_velocity_factor.value_km_s.toFixed(2)} km/s`
+          : `${conjunction.relative_velocity_km_s.toFixed(2)} km/s`,
+      score: factors?.relative_velocity_factor?.score,
+      weight: factors?.relative_velocity_factor?.weight,
+      detail: factors?.relative_velocity_factor?.description,
+    },
+    {
+      label: 'Approach Geometry',
+      metric:
+        (factors?.approach_geometry_factor?.angle_deg ?? conjunction.approach_angle_deg) !== undefined
+          ? `${(factors?.approach_geometry_factor?.angle_deg ?? conjunction.approach_angle_deg)!.toFixed(1)}°`
+          : 'Unavailable',
+      score: factors?.approach_geometry_factor?.score,
+      weight: factors?.approach_geometry_factor?.weight,
+      detail: factors?.approach_geometry_factor?.description,
+    },
+    {
+      label: 'Combined Body Envelope',
+      metric:
+        (factors?.object_size_factor?.size_m ?? conjunction.combined_size_m) !== undefined
+          ? `${(factors?.object_size_factor?.size_m ?? conjunction.combined_size_m)!.toFixed(1)} m`
+          : 'Unavailable',
+      score: factors?.object_size_factor?.score,
+      weight: factors?.object_size_factor?.weight,
+      detail: factors?.object_size_factor?.description,
+    },
+    {
+      label: 'Time to Closest Approach',
+      metric:
+        factors?.time_to_tca_factor?.hours_to_tca !== undefined
+          ? `${factors.time_to_tca_factor.hours_to_tca.toFixed(1)} hrs`
+          : formatCountdownToUtc(conjunction.tca),
+      score: factors?.time_to_tca_factor?.score,
+      weight: factors?.time_to_tca_factor?.weight,
+      detail: factors?.time_to_tca_factor?.description,
+    },
+  ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in font-mono">
-      <div className="relative w-full max-w-3xl bg-space-900 border border-space-700 rounded-2xl shadow-2xl overflow-hidden p-4 sm:p-6 flex flex-col max-h-[92vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-space-800 pb-4 mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-danger-neon/10 rounded-xl border border-danger-neon/30 text-danger-neon">
-              <AlertTriangle className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-space-800 text-slate-300 rounded">
-                  ENCOUNTER ID: #{conjunction.id}
-                </span>
-                <RiskBadge level={conjunction.risk_level} score={conjunction.risk_score} />
-              </div>
-              <h3 className="text-sm sm:text-base font-bold text-white tracking-wide mt-1">
-                Conjunction Assessment & 2D B-Plane Covariance
-              </h3>
-            </div>
+    <ModalDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="conjunction-details-title"
+      maxWidthClass="max-w-4xl"
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 border-b border-space-800 bg-space-950 px-5 py-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/35 text-red-300 shrink-0">
+            <AlertTriangle className="w-5 h-5" aria-hidden="true" />
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 bg-space-800 hover:bg-space-700 text-slate-400 hover:text-white rounded-lg border border-space-700 transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Objects Encounter Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          <div className="p-3 bg-space-950 rounded-xl border border-cyan-500/30">
-            <span className="text-[10px] text-cyan-400 font-bold block uppercase tracking-wider">PRIMARY TARGET ASSET</span>
-            <div className="text-sm font-bold text-white mt-0.5">
-              {conjunction.object_a?.name || `NORAD #${conjunction.object_a_id || 25544}`}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2
+                id="conjunction-details-title"
+                className="text-base sm:text-lg font-semibold text-slate-100 truncate"
+              >
+                {conjunction.object_a?.name || `NORAD #${conjunction.object_a_id}`} vs{' '}
+                {conjunction.object_b?.name || `NORAD #${conjunction.object_b_id}`}
+              </h2>
+              <RiskBadge level={conjunction.risk_level} score={conjunction.risk_score} size="sm" />
             </div>
-            <div className="text-[11px] text-slate-400">
-              NORAD #{conjunction.object_a?.norad_id || conjunction.object_a_id || 25544} • Active Payload
-            </div>
-          </div>
-          <div className="p-3 bg-space-950 rounded-xl border border-red-500/30">
-            <span className="text-[10px] text-red-400 font-bold block uppercase tracking-wider">CHASER / DEBRIS THREAT</span>
-            <div className="text-sm font-bold text-white mt-0.5">
-              {conjunction.object_b?.name || `NORAD #${conjunction.object_b_id || 31254}`}
-            </div>
-            <div className="text-[11px] text-slate-400">
-              NORAD #{conjunction.object_b?.norad_id || conjunction.object_b_id || 31254} • Debris Shrapnel
+            <div className="flex items-center gap-3 mt-1 text-xs font-mono text-slate-400 flex-wrap tabular-nums">
+              <span>Event #{conjunction.id}</span>
+              <span className="inline-flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+                TCA {formatUtcDateTime(conjunction.tca)} ({formatCountdownToUtc(conjunction.tca)})
+              </span>
+              <span>Status {conjunction.status}</span>
             </div>
           </div>
         </div>
 
-        {/* 2D B-Plane Encounter & Covariance Canvas */}
-        <div className="bg-space-950 p-4 rounded-xl border border-space-800 mb-4 flex flex-col sm:flex-row items-center gap-4">
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2">
-              <Crosshair className="w-4 h-4 text-cyan-400" />
-              <span className="text-xs font-bold text-white uppercase">2D Encounter Plane (B-Plane)</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close conjunction dossier"
+          className="p-1.5 rounded-lg bg-space-900 hover:bg-space-800 border border-space-700 text-slate-400 hover:text-slate-100 transition-colors shrink-0"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Scrollable Body */}
+      <div className="overflow-y-auto p-5 space-y-5 flex-1">
+        {/* Encounter Pair */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="bg-space-950 border border-space-800 rounded-lg p-3.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-400 mb-1">
+              Primary Object (Protected Asset)
             </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Orthogonal cross-section projection at TCA showing primary hard-body center (blue) vs threat position (red) mapped across 1-sigma, 2-sigma, and 3-sigma positional covariance error bounds.
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-[10px] pt-1">
-              <div className="p-2 bg-space-900 rounded-lg border border-space-800">
-                <span className="text-slate-500 block">IMPACT KINETIC ENERGY:</span>
-                <span className="text-amber-400 font-bold">{kineticMj} MJ</span>
-              </div>
-              <div className="p-2 bg-space-900 rounded-lg border border-space-800">
-                <span className="text-slate-500 block">TNT EQUIVALENT:</span>
-                <span className="text-red-400 font-bold">~{tntKg} kg TNT</span>
-              </div>
+            <div className="text-sm font-semibold text-slate-100">
+              {conjunction.object_a?.name || 'Unknown Primary'}
+            </div>
+            <div className="text-xs font-mono text-slate-400 mt-1 flex flex-wrap gap-3 tabular-nums">
+              <span>NORAD #{conjunction.object_a?.norad_id ?? conjunction.object_a_id}</span>
+              <span>Type {conjunction.object_a?.object_type || 'UNKNOWN'}</span>
+              {conjunction.object_a?.perigee_km !== undefined &&
+                conjunction.object_a?.apogee_km !== undefined && (
+                  <span>
+                    Orbit {conjunction.object_a.perigee_km.toFixed(0)} ×{' '}
+                    {conjunction.object_a.apogee_km.toFixed(0)} km
+                  </span>
+                )}
             </div>
           </div>
-          <div className="w-[200px] h-[150px] bg-black rounded-xl border border-cyan-500/30 overflow-hidden shadow-inner flex items-center justify-center">
-            <canvas ref={bplaneCanvasRef} width={200} height={150} className="w-full h-full" />
+
+          <div className="bg-space-950 border border-space-800 rounded-lg p-3.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-400 mb-1">
+              Secondary Object (Intruder / Chaser)
+            </div>
+            <div className="text-sm font-semibold text-slate-100">
+              {conjunction.object_b?.name || 'Unknown Secondary'}
+            </div>
+            <div className="text-xs font-mono text-slate-400 mt-1 flex flex-wrap gap-3 tabular-nums">
+              <span>NORAD #{conjunction.object_b?.norad_id ?? conjunction.object_b_id}</span>
+              <span>Type {conjunction.object_b?.object_type || 'UNKNOWN'}</span>
+              {conjunction.object_b?.perigee_km !== undefined &&
+                conjunction.object_b?.apogee_km !== undefined && (
+                  <span>
+                    Orbit {conjunction.object_b.perigee_km.toFixed(0)} ×{' '}
+                    {conjunction.object_b.apogee_km.toFixed(0)} km
+                  </span>
+                )}
+            </div>
           </div>
         </div>
 
-        {/* Multi-Algorithm Probability Benchmark Matrix */}
-        <div className="bg-space-950 p-3 sm:p-4 rounded-xl border border-space-800 mb-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-cyan-300 uppercase flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              Multi-Algorithm Collision Probability ($P_c$) Benchmark
-            </span>
-            <span className="text-[10px] text-slate-400">ISO 26900 Rigorous Standard</span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs pt-1">
-            <div className="p-2.5 bg-space-900 rounded-xl border border-cyan-500/30">
-              <span className="text-[9px] text-slate-400 block uppercase">Foster-2D</span>
-              <strong className="text-cyan-400 text-sm">{fosterPc.toFixed(3)}%</strong>
-            </div>
-            <div className="p-2.5 bg-space-900 rounded-xl border border-purple-500/30">
-              <span className="text-[9px] text-slate-400 block uppercase">Akella-Alfriend</span>
-              <strong className="text-purple-400 text-sm">{akellaPc.toFixed(3)}%</strong>
-            </div>
-            <div className="p-2.5 bg-space-900 rounded-xl border border-amber-500/30">
-              <span className="text-[9px] text-slate-400 block uppercase">Monte Carlo 10k</span>
-              <strong className="text-amber-400 text-sm">{mcPc.toFixed(3)}%</strong>
-            </div>
-            <div className="p-2.5 bg-space-900 rounded-xl border border-red-500/30">
-              <span className="text-[9px] text-slate-400 block uppercase">Alfano Max-Pc</span>
-              <strong className="text-red-400 text-sm">{alfanoMax.toFixed(3)}%</strong>
+        {/* Core Encounter Telemetry */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="bg-space-950 border border-space-800 rounded-lg p-3">
+            <div className="text-[11px] text-slate-400">Miss Distance</div>
+            <div className="text-base font-mono font-semibold text-slate-100 mt-0.5 tabular-nums">
+              {conjunction.miss_distance_km.toFixed(3)} km
             </div>
           </div>
-        </div>
-
-        {/* Key Encounter Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
-          <div className="p-2.5 bg-space-950 rounded-xl border border-space-800 text-center">
-            <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center justify-center gap-1">
-              <MapPin className="w-3 h-3 text-cyan-400" /> MISS DISTANCE
-            </div>
-            <div className="text-xs sm:text-sm font-bold text-white mt-1">
-              {conjunction.miss_distance_km.toFixed(2)} km
-            </div>
-            <div className="text-[9px] text-slate-500">Radial Separation</div>
-          </div>
-          <div className="p-2.5 bg-space-950 rounded-xl border border-space-800 text-center">
-            <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center justify-center gap-1">
-              <Gauge className="w-3 h-3 text-warning-neon" /> RELATIVE VELOCITY
-            </div>
-            <div className="text-xs sm:text-sm font-bold text-warning-neon mt-1">
+          <div className="bg-space-950 border border-space-800 rounded-lg p-3">
+            <div className="text-[11px] text-slate-400">Relative Velocity</div>
+            <div className="text-base font-mono font-semibold text-slate-100 mt-0.5 tabular-nums">
               {conjunction.relative_velocity_km_s.toFixed(2)} km/s
             </div>
-            <div className="text-[9px] text-slate-500">Kinetic Speed</div>
           </div>
-          <div className="p-2.5 bg-space-950 rounded-xl border border-space-800 text-center">
-            <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center justify-center gap-1">
-              <Clock className="w-3 h-3 text-slate-400" /> TIME TO TCA
+          <div className="bg-space-950 border border-space-800 rounded-lg p-3">
+            <div className="text-[11px] text-slate-400">Collision Probability (Pc)</div>
+            <div className="text-base font-mono font-semibold text-red-300 mt-0.5 tabular-nums">
+              {formatPcPct(primaryPcPct)}
             </div>
-            <div className="text-xs sm:text-sm font-bold text-cyan-400 mt-1">
-              {diffHours}h lead
-            </div>
-            <div className="text-[9px] text-slate-500">{tcaDate.toUTCString().slice(17, 25)} UTC</div>
           </div>
-          <div className="p-2.5 bg-space-950 rounded-xl border border-space-800 text-center">
-            <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center justify-center gap-1">
-              <Layers className="w-3 h-3 text-cyan-400" /> ALTITUDE
+          <div className="bg-space-950 border border-space-800 rounded-lg p-3">
+            <div className="text-[11px] text-slate-400">Encounter Altitude</div>
+            <div className="text-base font-mono font-semibold text-slate-100 mt-0.5 tabular-nums">
+              {conjunction.altitude_km !== null && conjunction.altitude_km !== undefined
+                ? `${conjunction.altitude_km.toFixed(1)} km`
+                : 'Unavailable'}
             </div>
-            <div className="text-xs sm:text-sm font-bold text-cyan-400 mt-1">
-              {conjunction.altitude_km ? `${conjunction.altitude_km.toFixed(1)} km` : '420.0 km'}
-            </div>
-            <div className="text-[9px] text-slate-500">WGS84 LEO</div>
           </div>
         </div>
 
-
-        {/* WHY IS THIS RISKY? - Comprehensive Astrodynamics Factor Explainability */}
-        <div className="bg-space-950 p-4 rounded-xl border border-space-800 mb-4 space-y-3 font-mono text-xs shadow-inner">
-          <div className="flex items-center justify-between border-b border-space-800 pb-2">
-            <span className="text-xs font-bold text-white uppercase flex items-center gap-1.5">
-              <Crosshair className="w-4 h-4 text-cyan-400" />
-              WHY IS THIS RISKY? (MULTI-FACTOR DECOMPOSITION)
-            </span>
-            <span className="text-[10px] text-cyan-300 font-semibold bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">
-              SCORE: {conjunction.risk_score} / 100 ({conjunction.risk_level})
+        {/* Probability Benchmark Suite (strictly from backend when computed) */}
+        <section aria-labelledby="pc-benchmark-heading">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h3
+              id="pc-benchmark-heading"
+              className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5"
+            >
+              <Activity className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+              Collision Probability (Pc) & B-Plane Telemetry
+            </h3>
+            <span className="text-[11px] font-mono text-slate-400">
+              {conjunction.probability_method ||
+                factors?.probability_methodology ||
+                'Foster-2D Encounter Screening'}
             </span>
           </div>
 
-          {/* Factor Contribution Progress Bars */}
-          <div className="space-y-2 text-[11px]">
-            {/* Factor 1: Miss Distance */}
-            <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Miss Distance (50% Weight)</span>
-                <span className="font-bold text-cyan-300">
-                  {conjunction.miss_distance_km.toFixed(2)} km • {conjunction.factors?.miss_distance_factor?.description || (conjunction.miss_distance_km < 5 ? 'Critical Clearance' : 'Moderate Distance')}
-                </span>
+          {benchmarks ? (
+            <div className="bg-space-950 border border-space-800 rounded-lg p-4 space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <div className="text-slate-400">Foster 2D Analytic</div>
+                  <div className="font-mono font-semibold text-slate-100 mt-0.5 tabular-nums">
+                    {formatPcPct(benchmarks.foster_2d_pc_pct)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400">Akella-Alfriend</div>
+                  <div className="font-mono font-semibold text-slate-100 mt-0.5 tabular-nums">
+                    {formatPcPct(benchmarks.akella_alfriend_pc_pct)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400">Alfano Max Upper Bound</div>
+                  <div className="font-mono font-semibold text-amber-300 mt-0.5 tabular-nums">
+                    {formatPcPct(benchmarks.alfano_max_pc_pct)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400">
+                    Monte Carlo ({benchmarks.monte_carlo_iterations.toLocaleString()} runs)
+                  </div>
+                  <div className="font-mono font-semibold text-slate-100 mt-0.5 tabular-nums">
+                    {formatPcPct(benchmarks.monte_carlo_pc_pct)}
+                  </div>
+                </div>
               </div>
-              <div className="w-full h-2 bg-space-900 rounded-full overflow-hidden border border-space-800">
-                <div 
-                  className={`h-full rounded-full ${conjunction.miss_distance_km < 5 ? 'bg-red-500' : conjunction.miss_distance_km < 25 ? 'bg-amber-400' : 'bg-cyan-400'}`}
-                  style={{ width: `${Math.min(100, Math.max(10, (1 - Math.min(1, conjunction.miss_distance_km / 80)) * 100))}%` }}
-                />
-              </div>
-            </div>
 
-            {/* Factor 2: Relative Velocity */}
-            <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Relative Velocity (20% Weight)</span>
-                <span className="font-bold text-amber-300">
-                  {conjunction.relative_velocity_km_s.toFixed(2)} km/s • {conjunction.factors?.relative_velocity_factor?.description || 'Orbital Hypervelocity'}
-                </span>
-              </div>
-              <div className="w-full h-2 bg-space-900 rounded-full overflow-hidden border border-space-800">
-                <div 
-                  className="h-full bg-amber-400 rounded-full"
-                  style={{ width: `${Math.min(100, Math.max(15, (conjunction.relative_velocity_km_s / 15) * 100))}%` }}
-                />
+              <div className="pt-3 border-t border-space-800 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <div className="text-slate-400">B-Plane B·T / B·R</div>
+                  <div className="font-mono text-slate-200 tabular-nums mt-0.5">
+                    {benchmarks.b_plane.b_dot_t_m.toFixed(0)} m / {benchmarks.b_plane.b_dot_r_m.toFixed(0)} m
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400">1-Sigma Covariance (R/T/N)</div>
+                  <div className="font-mono text-slate-200 tabular-nums mt-0.5">
+                    {benchmarks.b_plane.sigma_radial_m.toFixed(0)} /{' '}
+                    {benchmarks.b_plane.sigma_intrack_m.toFixed(0)} /{' '}
+                    {benchmarks.b_plane.sigma_crosstrack_m.toFixed(0)} m
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400">Impact Energy</div>
+                  <div className="font-mono text-slate-200 tabular-nums mt-0.5">
+                    {benchmarks.kinetic_energy_mj.toFixed(2)} MJ
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-400">TNT Yield Equivalent</div>
+                  <div className="font-mono text-slate-200 tabular-nums mt-0.5">
+                    {benchmarks.tnt_equivalent_kg.toFixed(2)} kg TNT
+                  </div>
+                </div>
               </div>
             </div>
+          ) : (
+            <div className="bg-space-950 border border-space-800 rounded-lg p-3.5 text-xs text-slate-400 flex items-center justify-between flex-wrap gap-2">
+              <span>
+                Primary Foster-2D Pc: <strong className="font-mono text-slate-200 tabular-nums">{formatPcPct(primaryPcPct)}</strong>
+              </span>
+              <span className="font-mono text-[11px] text-slate-500">
+                Extended multi-model covariance benchmarks not attached to this encounter record.
+              </span>
+            </div>
+          )}
+        </section>
 
-            {/* Factor 3: Approach Crossing Geometry */}
-            <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Approach Crossing Geometry (10% Weight)</span>
-                <span className="font-bold text-purple-300">
-                  {(conjunction.approach_angle_deg || 45.0).toFixed(1)}° Crossing • {conjunction.factors?.approach_geometry_factor?.description || 'Planar Intersection'}
-                </span>
-              </div>
-              <div className="w-full h-2 bg-space-900 rounded-full overflow-hidden border border-space-800">
-                <div 
-                  className="h-full bg-purple-400 rounded-full"
-                  style={{ width: `${Math.min(100, Math.max(20, ((conjunction.approach_angle_deg || 45) / 180) * 100))}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Factor 4: Hard-Body Physical Size */}
-            <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Combined Hard-Body Size (5% Weight)</span>
-                <span className="font-bold text-slate-300">
-                  {(conjunction.combined_size_m || 5.0).toFixed(1)} m Combined Diameter
-                </span>
-              </div>
-              <div className="w-full h-2 bg-space-900 rounded-full overflow-hidden border border-space-800">
-                <div 
-                  className="h-full bg-blue-400 rounded-full"
-                  style={{ width: `${Math.min(100, Math.max(15, ((conjunction.combined_size_m || 5) / 20) * 100))}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Factor 5: Lead Time Urgency */}
-            <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Time to TCA Urgency (15% Weight)</span>
-                <span className="font-bold text-emerald-400">
-                  {diffHours}h Horizon Remaining
-                </span>
-              </div>
-              <div className="w-full h-2 bg-space-900 rounded-full overflow-hidden border border-space-800">
-                <div 
-                  className="h-full bg-emerald-400 rounded-full"
-                  style={{ width: `${Math.min(100, Math.max(10, (1 - Math.min(1, parseFloat(diffHours) / 48)) * 100))}%` }}
-                />
-              </div>
-            </div>
+        {/* Risk Scoring Breakdown */}
+        <section aria-labelledby="risk-factors-heading">
+          <h3
+            id="risk-factors-heading"
+            className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2"
+          >
+            Composite Risk Factor Breakdown (Score {conjunction.risk_score.toFixed(1)} / 100)
+          </h3>
+          <div className="bg-space-950 border border-space-800 rounded-lg overflow-hidden">
+            <table className="w-full text-xs text-left">
+              <caption className="sr-only">
+                Weighted risk factors contributing to conjunction risk score
+              </caption>
+              <thead className="bg-space-900 border-b border-space-800 text-[11px] uppercase tracking-wider text-slate-400">
+                <tr>
+                  <th scope="col" className="px-3.5 py-2">Factor</th>
+                  <th scope="col" className="px-3.5 py-2">Measured Value</th>
+                  <th scope="col" className="px-3.5 py-2 text-right">Sub-Score</th>
+                  <th scope="col" className="px-3.5 py-2 text-right">Weight</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-space-800/80">
+                {factorRows.map((row) => (
+                  <tr key={row.label}>
+                    <th scope="row" className="px-3.5 py-2 font-medium text-slate-200">
+                      <div>{row.label}</div>
+                      {row.detail && (
+                        <div className="text-[11px] font-normal text-slate-400 mt-0.5">
+                          {row.detail}
+                        </div>
+                      )}
+                    </th>
+                    <td className="px-3.5 py-2 font-mono text-slate-200 tabular-nums">
+                      {row.metric}
+                    </td>
+                    <td className="px-3.5 py-2 font-mono text-right text-slate-200 tabular-nums">
+                      {row.score !== undefined ? `${row.score.toFixed(1)}` : '—'}
+                    </td>
+                    <td className="px-3.5 py-2 font-mono text-right text-slate-400 tabular-nums">
+                      {row.weight !== undefined ? `${(row.weight * 100).toFixed(0)}%` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        </section>
 
-          {/* Plain Language Synthesis */}
-          <div className="p-3 bg-space-900/90 rounded-xl border border-space-800 text-[11px] text-slate-300 leading-relaxed">
-            <span className="font-bold text-white">OPERATIONAL SYNTHESIS: </span>
-            {conjunction.miss_distance_km < 5.0 ? (
-              <span className="text-red-300">
-                This encounter is classified as <strong>HIGH / CRITICAL RISK</strong> primarily because the predicted miss distance ({conjunction.miss_distance_km.toFixed(2)} km) is within the emergency safety threshold under hypervelocity ({conjunction.relative_velocity_km_s.toFixed(2)} km/s) crossing conditions. Collision avoidance maneuver planning is recommended.
-              </span>
-            ) : conjunction.miss_distance_km < 25.0 ? (
-              <span className="text-amber-200">
-                This encounter is classified as <strong>ELEVATED RISK</strong> due to a close planar intersection ({conjunction.miss_distance_km.toFixed(2)} km). Active tracking and covariance refinement are recommended as the lead time decreases.
-              </span>
-            ) : (
-              <span className="text-slate-300">
-                This event represents a <strong>NOMINAL / LOW RISK</strong> screening pass ({conjunction.miss_distance_km.toFixed(2)} km separation). The objects maintain safe orbital clearance with no evasion maneuver required.
-              </span>
+        {/* Action Workflows */}
+        <section aria-label="Encounter action controls" className="pt-2 border-t border-space-800">
+          <div className="flex flex-wrap items-center gap-2">
+            {onOpenCAM && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenCAM(conjunction);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-space-950 font-semibold text-xs transition-colors"
+              >
+                <Navigation className="w-3.5 h-3.5" aria-hidden="true" />
+                Plan Avoidance Maneuver (CAM)
+              </button>
             )}
-          </div>
-        </div>
-
-        {/* Evidence & Calculation Provenance Audit */}
-        <EvidenceFooter
-          evidence={{
-            data_state: 'CALCULATED',
-            source: 'Space-Track / CelesTrak SGP4',
-            source_url: 'https://www.space-track.org',
-            retrieved_at: conjunction.calculated_at || new Date().toISOString(),
-            tle_epoch: conjunction.object_a?.tle_epoch,
-            calculation_method: 'SGP4 + Numerical TCA Minimization (Foster-2D / WGS-84)',
-            model_version: 'OrbitGuard Astrodynamics Engine v2.4',
-            confidence: conjunction.risk_level === 'CRITICAL' ? 'HIGH' : 'MEDIUM'
-          }}
-        />
-
-        {/* Action Controls */}
-        <div className="mt-2 pt-3 border-t border-space-800 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[10px] text-slate-500 font-mono">
-            SGP4 Multi-Factor Encounter Assessment
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
+            {onOpenCDM && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenCDM(conjunction);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-space-800 hover:bg-space-700 border border-space-700 text-slate-100 font-medium text-xs transition-colors"
+              >
+                <FileText className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+                CCSDS CDM & Dispatch
+              </button>
+            )}
+            {onOpenBreakup && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenBreakup(conjunction);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-space-800 hover:bg-space-700 border border-space-700 text-slate-100 font-medium text-xs transition-colors"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+                Breakup Simulation
+              </button>
+            )}
             {onOpenReplay && (
               <button
+                type="button"
                 onClick={() => {
                   onClose();
                   onOpenReplay(conjunction);
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-space-800 hover:bg-space-700 border border-space-700 text-slate-100 font-medium text-xs transition-colors"
               >
-                <span>🎬 REPLAY ENCOUNTER</span>
+                <Play className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+                TCA Encounter Replay
               </button>
             )}
-
             {onNavigateTo3D && (
               <button
+                type="button"
                 onClick={() => {
-                  onNavigateTo3D(conjunction);
                   onClose();
+                  onNavigateTo3D(conjunction);
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-xs font-bold transition"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-space-950 hover:bg-space-800 border border-space-700 text-slate-200 font-medium text-xs transition-colors"
               >
-                <span>🌐 FOCUS 3D</span>
+                <Globe className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+                Focus 3D Viewport
               </button>
             )}
-
             {onNavigateTo2D && (
               <button
+                type="button"
                 onClick={() => {
-                  onNavigateTo2D(conjunction);
                   onClose();
+                  onNavigateTo2D(conjunction);
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-xl text-xs font-bold transition"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-space-950 hover:bg-space-800 border border-space-700 text-slate-200 font-medium text-xs transition-colors"
               >
-                <span>🗺️ 2D GROUND TRACK</span>
-              </button>
-            )}
-
-            {onOpenCDM && (
-              <button
-                onClick={() => onOpenCDM(conjunction)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-space-800 hover:bg-space-700 text-cyan-400 border border-cyan-500/30 rounded-xl text-xs font-bold transition"
-              >
-                <FileText className="w-4 h-4" />
-                CCSDS CDM
-              </button>
-            )}
-
-            {onOpenBreakup && (
-              <button
-                onClick={() => onOpenBreakup(conjunction)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition"
-              >
-                <Atom className="w-4 h-4" />
-                BREAKUP
-              </button>
-            )}
-
-            {onOpenCAM && (
-              <button
-                onClick={() => onOpenCAM(conjunction)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-space-950 rounded-xl text-xs font-bold transition shadow-lg shadow-cyan-500/20"
-              >
-                <Rocket className="w-4 h-4" />
-                PLAN CAM
+                <MapIcon className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+                Focus 2D Ground Track
               </button>
             )}
           </div>
-        </div>
+        </section>
+
+        <EvidenceFooter
+          evidence={{
+            data_state: conjunction.object_a?.source ? 'LIVE' : 'CALCULATED',
+            source:
+              conjunction.object_a?.source ||
+              conjunction.object_b?.source ||
+              'Orbital Screening Engine (SGP4)',
+            retrieved_at: conjunction.calculated_at || conjunction.created_at,
+            tle_epoch: conjunction.object_a?.tle_epoch,
+            calculation_method:
+              conjunction.probability_method ||
+              factors?.methodology ||
+              'SGP4 Trajectory Propagation + Foster-2D Pc',
+            model_version: 'OrbitGuard-Screen',
+            confidence: primaryPcPct !== null ? 'HIGH' : 'MEDIUM',
+          }}
+        />
       </div>
-    </div>
+    </ModalDialog>
   );
 };
